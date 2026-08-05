@@ -277,6 +277,13 @@ counter to drift out of sync.
 **`notification_rule`** — `id, scope_type, scope_id, event_type, enabled, lead_time_minutes?, quiet_hours_json`
 **`notification_log`** — `id, event_type, channel_id, payload_hash, sent_at, result` (dedupe + debugging)
 
+**`push_subscription`** — one row per user per installed device.
+`id, user_id, endpoint, p256dh_key, auth_key, user_agent, created_at, last_success_at?, failure_count, expired_at?`
+
+A user has several: one per phone, per iPad, per re-install. Subscriptions die
+silently — the server prunes on `404`/`410` from the push service and the client
+re-subscribes on every launch.
+
 **`blob`** — `id, household_id, mime, bytes, width, height, byte_size, sha256, created_at`
 
 Upload accepts **any file size**. The server downscales (longest edge 1024px for
@@ -302,6 +309,9 @@ default chosen without an explicit decision.
 | `week_start_day` | Monday **[ASSUMPTION]** |
 | `kiosk.dashboard_mode` | `roster` |
 | `guardrails.enabled` | on |
+| `app_url` | — (required before notifications work) |
+| `vapid_public_key` / `vapid_private_key` | generated at setup; private key excluded from exports |
+| `vapid_contact` | — (`mailto:` or `https:`, required by Apple) |
 
 ### 5.2 Pay schedule
 
@@ -586,12 +596,60 @@ donations. A child account can **never** alter a balance directly.
 
 ## 8. Notifications
 
-**iOS web push is a trap.** Safari only supports it for PWAs manually added to the
-home screen, it requires a valid certificate, and it fails in ways that cannot be
-debugged from the server. Since notifications are load-bearing for follow-through,
-the first implementation uses a pluggable channel layer with **ntfy**
-(self-hostable, free iOS app) and **Pushover** (one-time $5, extremely reliable)
-adapters. Web push can be added later as an option, not a dependency.
+**Primary channel: W3C Web Push to an installed PWA.** The app is served over HTTPS
+with a valid certificate and installed to the home screen on iOS. This is a
+supported path on iOS 16.4+ and is the intended delivery mechanism. Delivery goes
+through a small adapter interface so a native app (APNs) or a self-hosted fallback
+can be added later without touching the event layer.
+
+### 8.1 iOS requirements
+
+iOS is stricter than desktop browsers in specific, non-obvious ways. All of these
+are hard requirements, not recommendations:
+
+| Requirement | Detail |
+|---|---|
+| **HTTPS with a publicly trusted certificate** | Self-signed will not work. The origin must also be stable — changing it invalidates every subscription. |
+| **Installed to the home screen** | Web Push does not function in a Safari tab on iOS. Only the installed PWA receives push. |
+| **Web App Manifest + service worker** | Manifest with `display: standalone`, service worker registered at a scope covering the app. |
+| **Permission requested from a user gesture** | `Notification.requestPermission()` must be called from a direct tap. An automatic prompt on page load silently fails on iOS. |
+| **VAPID keypair** | Standard application-server keys for subscribing and signing. |
+| **VAPID `sub` claim** | Must be a valid `mailto:` address or `https:` URL. Apple's push service validates this and rejects malformed values. This is the "valid email address" requirement. |
+| **JWT expiry ≤ 24h** | Push services reject longer-lived VAPID tokens. |
+| **Every push renders a visible notification** | iOS does not support silent/data-only push for web. A service worker that receives a push without calling `showNotification()` risks having push permission revoked. |
+
+**Install has no prompt on iOS.** There is no `beforeinstallprompt`. The app must
+detect iOS Safari and display explicit instructions — *Share → Add to Home Screen* —
+followed by an in-app "Enable notifications" button that runs inside a tap handler.
+Getting a parent through this once, correctly, is a real onboarding step and should
+be designed rather than assumed.
+
+**Subscriptions expire.** Removing and re-adding the home screen app destroys the
+subscription and resets permission. The client re-subscribes on launch and reconciles
+against the server; the server prunes on `404`/`410`.
+
+### 8.2 Configuration
+
+These are household-level and must be set before notifications can work:
+
+- `app_url` — the canonical HTTPS origin. Used for the manifest, service worker
+  scope, and deep links in notification payloads.
+- `vapid_public_key` / `vapid_private_key` — generated once at setup; the private
+  key is a secret and must be excluded from exports.
+- `vapid_contact` — the `mailto:` or `https:` value for the `sub` claim.
+
+Rotating the VAPID keypair invalidates every existing subscription and forces every
+device to re-subscribe. Worth a confirmation dialog.
+
+### 8.3 Notifications are never load-bearing
+
+Focus modes, Low Power Mode, and the notification summary can all delay or batch
+delivery. Nothing in the system may depend on a notification being seen: payroll
+drafts and posts on schedule whether or not anyone read the alert, bills draw on
+their due date regardless, and the kiosk plus in-app state remain the source of
+truth. Notifications are a nudge toward follow-through, never a step in it.
+
+### 8.4 Event catalog
 
 | Event | Audience | Default |
 |---|---|---|
@@ -645,7 +703,8 @@ Self-hosted. TLS and routing are the operator's responsibility.
 | Styling | Tailwind | |
 | Auth | Session cookies, Argon2id | Device tokens for kiosks, PIN for kiosk parent actions |
 | Jobs | in-process cron | Single instance; no queue infrastructure needed |
-| Notifications | pluggable adapters | ntfy / Pushover first |
+| Notifications | W3C Web Push (VAPID) behind an adapter interface | Installed PWA on iOS; adapter allows a native APNs client later |
+| PWA | Manifest + service worker | Required for iOS push; also gives parents a home-screen icon |
 | Packaging | Docker Compose, one container + one volume | |
 
 **Backups and durability**
@@ -666,7 +725,7 @@ Each phase should leave the system usable.
 | **0 — Foundation** | Docker, SQLite, migrations, auth, household + child CRUD, photo pipeline, backups |
 | **1 — Ledger** | Accounts, append-only ledger with triggers, manual money: cash deposit/withdrawal, purchases, adjustments, transfers. *Useful on its own from day one.* |
 | **2 — Payroll** | Expectations, completions, excusals, pay periods, draft/post, pay stubs, policy versioning + snapshots |
-| **3 — Notifications** | Channel adapters, rules, payroll alerts. Early, because follow-through depends on it. |
+| **3 — Notifications** | PWA manifest + service worker, iOS install onboarding, VAPID setup, Web Push subscription lifecycle, rules, payroll alerts. Early, because follow-through depends on it. |
 | **4 — Bills** | Bills, instances, autopay, shortfall, past-due recovery, dispositions, held account, the nudge |
 | **5 — Kiosk** | Three dashboard modes, child detail view, PIN gate, offline tolerance |
 | **6 — Goals** | Multiple goals per child, earmarking, goal photos, progress |
