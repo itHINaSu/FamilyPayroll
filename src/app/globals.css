@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+/*
+ * Family Payroll should read as payroll software for the parents: quiet,
+ * numeric, trustworthy. The pictographic child-facing views arrive with the
+ * kiosk in phase 5 and deliberately do not share this palette.
+ */
+
+@theme {
+  --color-ink-50: #f6f7f9;
+  --color-ink-100: #eceef2;
+  --color-ink-200: #d5d9e2;
+  --color-ink-300: #b0b8c7;
+  --color-ink-400: #7d889e;
+  --color-ink-500: #5b6478;
+  --color-ink-600: #454c5d;
+  --color-ink-700: #363c49;
+  --color-ink-800: #23272f;
+  --color-ink-900: #14171c;
+
+  --color-ledger-600: #1f6f4f;
+  --color-ledger-500: #2c8a63;
+  --color-ledger-100: #dcf0e6;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-ink-50);
+  color: var(--color-ink-800);
+  font-family: var(--font-sans);
+}
+
+/* Money is read in columns and compared against other money. Tabular figures
+   keep the digits aligned so a balance never jitters as it changes. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background-color: var(--color-ink-900);
+    color: var(--color-ink-100);
+  }
+}
