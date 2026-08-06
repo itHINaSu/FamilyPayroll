@@ -17,60 +17,109 @@ The full design lives in [SPEC.md](./SPEC.md).
 
 ## Running it
 
+You do not need to clone anything. Create an empty directory, put a
+`compose.yaml` in it, and start:
+
 ```sh
+mkdir family-payroll && cd family-payroll
+# paste the file below as compose.yaml
 docker compose up -d
 ```
 
-That is the entire install. Open `http://<host>:3000` and the first-run wizard
-creates your household and your parent account.
+The image is pulled on first run. Open `http://<host>:3000` and the first-run
+wizard creates your household and your parent account. There are no default
+credentials in the image — until you complete setup there is nothing to log
+into.
 
-Nothing needs to be configured first: the session secret and VAPID keypair
-generate themselves on first boot and persist in `./data`, so there are no
-default credentials in the image and nothing to log into until you have
-completed setup.
+A ready-to-use file lives at [`examples/compose.yaml`](./examples/compose.yaml),
+reproduced here so you can copy it without cloning:
 
-### Where the image comes from
+```yaml
+services:
+  app:
+    image: ghcr.io/ithinasu/familypayroll:edge
+    container_name: family-payroll
+    restart: unless-stopped
 
-By default `docker compose up -d` **pulls a prebuilt image** from GitHub
-Container Registry, published by `.github/workflows/publish.yml` on every push.
-Nothing has to be cloned on the server — the compose file and a `data/`
-directory are enough.
+    environment:
+      # The host user that should own ./data. Find yours with: id -u && id -g
+      PUID: 1000
+      PGID: 1000
 
-Images are built for `linux/amd64` and `linux/arm64`, so the same tag works on a
-NAS, a mini PC, or a Raspberry Pi.
+      # Load-bearing: pay periods, cutoffs, and bill due dates are calendar
+      # arithmetic in this zone. A wrong clock shifts when children get paid.
+      TZ: America/Chicago
 
-**While the repository is private**, the package is private too. Log in once on
-the machine that runs it:
+      # Your public HTTPS origin, once you have one. Required before iOS
+      # notifications work; changing it later invalidates every subscription.
+      APP_URL: ""
+
+      BACKUP_HOUR: 3
+      BACKUP_RETENTION_DAYS: 30
+
+    ports:
+      - "3000:3000"
+
+    volumes:
+      # The database, its WAL, and nightly snapshots. Back this up and you have
+      # backed up the entire system.
+      - ./data:/data
+
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+```
+
+Day to day:
+
+```sh
+docker compose pull && docker compose up -d   # upgrade
+docker compose logs -f                        # watch it
+docker compose down                           # stop; ./data is kept
+```
+
+### While the repository is private
+
+The published package inherits the repository's privacy, so log in once on the
+machine that runs it:
 
 ```sh
 echo <TOKEN> | docker login ghcr.io -u <YOUR_GITHUB_USERNAME> --password-stdin
 ```
 
 `<TOKEN>` is a GitHub personal access token with the `read:packages` scope.
-Note that **SSH keys do not work here** — container registries authenticate over
-HTTPS with tokens, so repository access over SSH is a separate thing. Docker
-stores the login, so this is a one-time step per machine.
+**SSH keys do not work for this** — container registries authenticate over HTTPS
+with tokens, separately from however you access the repository itself. Docker
+stores the login, so it is one step per machine.
 
-Going public later only removes that step. The image name, the tag, and the
-compose file all stay the same.
+Making the repository public later only removes that step. The image name, the
+tag, and your `compose.yaml` all stay exactly as they are.
 
-**Which tag:** `:edge` is published from feature branches, `:latest` from the
-default branch. Version tags (`:v1.2.0`) and commit tags (`:sha-abc1234`) are
-also published, if you would rather upgrade deliberately than track a moving
-tag. Set `IMAGE` in `.env` to choose.
+### Tags and architectures
 
-To upgrade:
+Images are built for `linux/amd64` and `linux/arm64`, so the same tag runs on a
+NAS, a mini PC, or a Raspberry Pi.
 
-```sh
-docker compose pull && docker compose up -d
-```
+| Tag | Published from |
+|---|---|
+| `:edge` | feature branches — **use this until the code reaches your default branch** |
+| `:latest` | the default branch |
+| `:v1.2.0` | a git tag, for pinning a release |
+| `:sha-abc1234` | a specific commit, for pinning exactly |
 
 ### Building from source instead
 
-Comment out `image:` in `docker-compose.yml` and uncomment one of the `build:`
-blocks. A local clone always works. The GitHub build context (`build:
-https://github.com/...`) only works for a public repository — Docker cannot
-supply credentials for a private one, so clone it while it is private.
+Clone the repository and use the `docker-compose.yml` in it — comment out
+`image:` and uncomment one of the `build:` blocks. The GitHub build context
+(`build: https://github.com/...`) only works once the repository is public;
+Docker cannot supply credentials for a private one.
 
 ### Environment
 

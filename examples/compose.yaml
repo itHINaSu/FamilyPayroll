@@ -1,0 +1,102 @@
+# Family Payroll — standalone deployment
+#
+# Copy this file into an empty directory as `compose.yaml`, then:
+#
+#   docker compose up -d
+#
+# That is the whole install. The image is pulled on first run; nothing is built
+# and no source is needed on this machine. Everything the application owns lives
+# in ./data next to this file.
+#
+#   docker compose pull && docker compose up -d     # upgrade
+#   docker compose logs -f                          # watch it
+#   docker compose down                             # stop (data is kept)
+#
+# ---------------------------------------------------------------------------
+# One-time login, while the repository is still private
+#
+#   echo <TOKEN> | docker login ghcr.io -u <YOUR_GITHUB_USERNAME> --password-stdin
+#
+# <TOKEN> is a GitHub personal access token with the `read:packages` scope.
+# SSH keys do not work for this — container registries authenticate over HTTPS
+# with tokens, separately from however you access the repository. Docker stores
+# the login, so this is once per machine. When the repository goes public the
+# step simply stops being necessary; nothing here changes.
+# ---------------------------------------------------------------------------
+
+services:
+  app:
+    # :edge tracks the development branch, :latest the default branch. Pin a
+    # version (:v1.2.0) or a commit (:sha-abc1234) instead if you would rather
+    # upgrade deliberately than track a moving tag.
+    image: ghcr.io/ithinasu/familypayroll:edge
+
+    container_name: family-payroll
+
+    # Comes back after a reboot or a crash, but stays down if you stop it
+    # yourself.
+    restart: unless-stopped
+
+    environment:
+      # The host user that should own ./data and everything in it. Without
+      # these the files end up owned by uid 1000 inside the container, which on
+      # a NAS or a shared box is somebody else entirely — and you would not be
+      # able to read your own backups.
+      #
+      # Find yours with:  id -u && id -g
+      PUID: 1000
+      PGID: 1000
+
+      # LOAD-BEARING, not cosmetic. Pay periods, payroll cutoff times, and bill
+      # due dates are all calendar arithmetic in this zone. A wrong clock
+      # silently shifts when your children get paid.
+      TZ: America/Chicago
+
+      # Your public HTTPS origin, once you have one — e.g. https://payroll.example.com
+      #
+      # Required before notifications work on iPhone: Apple only delivers push
+      # to a web app installed from a valid HTTPS origin. Changing this later
+      # invalidates every existing push subscription, so set it before you get
+      # phones onto it. The app runs fine without it in the meantime.
+      APP_URL: ""
+
+      # Nightly SQLite snapshot: hour of the day (0-23) and how long to keep them.
+      BACKUP_HOUR: 3
+      BACKUP_RETENTION_DAYS: 30
+
+    ports:
+      # host:container — change the left number if 3000 is taken.
+      - "3000:3000"
+
+    volumes:
+      # Everything: the database, its write-ahead log, and the nightly snapshots
+      # under ./data/backups. Photos are rows inside the database rather than
+      # loose files, so backing this one directory up really is backing up the
+      # whole system.
+      - ./data:/data
+
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+# ---------------------------------------------------------------------------
+# TLS and routing are yours to provide. Put this behind whatever reverse proxy
+# you already run, pointed at port 3000, and set APP_URL above to the public
+# address it answers on.
+#
+# If your proxy runs in Docker on its own network, add something like:
+#
+# networks:
+#   default:
+#     name: proxy
+#     external: true
+#
+# and drop the `ports:` block so only the proxy can reach it.
+# ---------------------------------------------------------------------------
