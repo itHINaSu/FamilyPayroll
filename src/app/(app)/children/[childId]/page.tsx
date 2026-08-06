@@ -1,15 +1,13 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq, inArray } from "drizzle-orm";
 
-import { Card, PageHeader } from "@/components/ui";
+import { Card } from "@/components/ui";
 import { db } from "@/db";
 import { ledgerEntry, user } from "@/db/schema";
 import { getHousehold, requireParent } from "@/lib/auth/guard";
-import { ageFromBirthdate, getChild } from "@/lib/children";
+import { getChild } from "@/lib/children";
 import { getBalances, listLedger, LEDGER_TYPE_LABELS } from "@/lib/ledger";
 import { formatCents } from "@/lib/money";
-import { EditChildForm } from "./edit-child-form";
 import { LedgerTable, type LedgerRow } from "./ledger-table";
 import { MoneyForms } from "./money-forms";
 
@@ -70,17 +68,6 @@ export default async function ChildDetailPage({
   }));
 
   return (
-    <>
-      <PageHeader
-        title={record.displayName}
-        subtitle={`${ageFromBirthdate(record.birthdate)} years old · born ${record.birthdate}`}
-        action={
-          <Link href="/children" className="text-sm text-ink-400 hover:underline">
-            ← All children
-          </Link>
-        }
-      />
-
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
         <div className="space-y-6">
           <Card>
@@ -139,20 +126,8 @@ export default async function ChildDetailPage({
           </Card>
         </div>
 
-        <div className="space-y-6">
-          <MoneyForms childId={childId} />
-          <EditChildForm
-            child={{
-              id: record.id,
-              displayName: record.displayName,
-              birthdate: record.birthdate,
-              status: record.status,
-              photoBlobId: record.photoBlobId,
-            }}
-          />
-        </div>
+        <MoneyForms childId={childId} />
       </div>
-    </>
   );
 }
 

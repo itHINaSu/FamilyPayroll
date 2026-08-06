@@ -10,7 +10,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 let tmpDir: string;
 
@@ -26,8 +26,6 @@ beforeAll(() => {
 afterAll(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
-
-vi.mock("server-only", () => ({}));
 
 const { eq } = await import("drizzle-orm");
 const { db } = await import("@/db");

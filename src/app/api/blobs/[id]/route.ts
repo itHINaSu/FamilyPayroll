@@ -1,20 +1,29 @@
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { getImage } from "@/lib/images";
 import { getSessionUser } from "@/lib/auth/session";
+import { deviceForToken } from "@/lib/kiosk";
 
 /**
  * Serves stored image derivatives.
  *
  * Behind auth: a household's photos of its children should not be readable by
- * anyone who guesses a URL. Kiosk devices get their own access path in phase 5,
- * when device tokens start being issued.
+ * anyone who guesses a URL. A paired kiosk counts as authorised — it needs the
+ * avatars and goal photos it renders — but only through its device token.
  */
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!(await getSessionUser())) {
+  const store = await cookies();
+  const kioskToken = store.get("fp_kiosk")?.value;
+
+  const authorised =
+    (await getSessionUser()) !== null ||
+    (kioskToken ? deviceForToken(kioskToken) !== null : false);
+
+  if (!authorised) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 

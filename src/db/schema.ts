@@ -416,6 +416,13 @@ export const job = sqliteTable(
     requiresApproval: integer("requires_approval", { mode: "boolean" })
       .notNull()
       .default(true),
+    /**
+     * Optional trust gate. Invariant I10 bounds this precisely: trust may stop a
+     * child CLAIMING work they are not ready for, and may never reduce pay for
+     * work already done. Opt-in per job, off by default.
+     */
+    trustAreaId: text("trust_area_id"),
+    minTrustLevel: integer("min_trust_level"),
     active: integer("active", { mode: "boolean" }).notNull().default(true),
     createdAt: createdAt(),
   },
@@ -799,7 +806,160 @@ export const auditLog = sqliteTable(
 );
 
 // ---------------------------------------------------------------------------
+// Track B — trust and privileges (spec 12)
+//
+// Invariant I10: nothing in this section writes a ledger entry or alters money.
+// ---------------------------------------------------------------------------
+
+export const trustArea = sqliteTable(
+  "trust_area",
+  {
+    id: id(),
+    householdId: text("household_id")
+      .notNull()
+      .references(() => household.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    icon: text("icon"),
+    drainAmount: integer("drain_amount"),
+    drainIntervalHours: integer("drain_interval_hours"),
+    capLoad: integer("cap_load"),
+    thresholdsJson: text("thresholds_json", { mode: "json" }),
+    sortOrder: integer("sort_order").notNull().default(0),
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    createdAt: createdAt(),
+  },
+  (t) => [index("trust_area_household_idx").on(t.householdId, t.active)],
+);
+
+/** Per-child drain and cap: one area moves at different speeds at 7 and at 15. */
+export const trustAreaOverride = sqliteTable(
+  "trust_area_override",
+  {
+    id: id(),
+    childId: text("child_id")
+      .notNull()
+      .references(() => child.id, { onDelete: "cascade" }),
+    trustAreaId: text("trust_area_id")
+      .notNull()
+      .references(() => trustArea.id, { onDelete: "cascade" }),
+    drainAmount: integer("drain_amount"),
+    drainIntervalHours: integer("drain_interval_hours"),
+    capLoad: integer("cap_load"),
+  },
+  (t) => [uniqueIndex("trust_override_unique").on(t.childId, t.trustAreaId)],
+);
+
+/**
+ * Tier 1. Never scored, never paid — displayed as standing expectations.
+ * Wording must be observable: "follow directions the first time", not
+ * "have a good attitude".
+ */
+export const houseRule = sqliteTable(
+  "house_rule",
+  {
+    id: id(),
+    householdId: text("household_id")
+      .notNull()
+      .references(() => household.id, { onDelete: "cascade" }),
+    trustAreaId: text("trust_area_id")
+      .notNull()
+      .references(() => trustArea.id, { onDelete: "cascade" }),
+    text: text("text").notNull(),
+    defaultWeight: integer("default_weight").notNull().default(1),
+    sortOrder: integer("sort_order").notNull().default(0),
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    createdAt: createdAt(),
+  },
+  (t) => [index("house_rule_household_idx").on(t.householdId, t.active)],
+);
+
+/**
+ * What happened. Positive weight is an infraction, negative is a credit.
+ *
+ * Unlike the ledger, a mark may be retracted. This is a parenting tool, not a
+ * financial record: a parent who marked something in anger must be able to undo
+ * it cleanly.
+ */
+export const trustMark = sqliteTable(
+  "trust_mark",
+  {
+    id: id(),
+    childId: text("child_id")
+      .notNull()
+      .references(() => child.id, { onDelete: "cascade" }),
+    trustAreaId: text("trust_area_id")
+      .notNull()
+      .references(() => trustArea.id, { onDelete: "cascade" }),
+    houseRuleId: text("house_rule_id"),
+    weight: integer("weight").notNull(),
+    note: text("note"),
+    occurredAt: integer("occurred_at").notNull().default(now),
+    createdByUserId: text("created_by_user_id"),
+    retractedAt: integer("retracted_at"),
+  },
+  (t) => [index("trust_mark_child_idx").on(t.childId, t.occurredAt)],
+);
+
+/** The cached bucket, same pattern as account.balance_cents. */
+export const trustState = sqliteTable(
+  "trust_state",
+  {
+    id: id(),
+    childId: text("child_id")
+      .notNull()
+      .references(() => child.id, { onDelete: "cascade" }),
+    trustAreaId: text("trust_area_id")
+      .notNull()
+      .references(() => trustArea.id, { onDelete: "cascade" }),
+    load: integer("load").notNull().default(0),
+    lastDrainedAt: integer("last_drained_at").notNull().default(now),
+    pinnedLevel: integer("pinned_level"),
+    pinExpiresAt: integer("pin_expires_at"),
+    updatedAt: integer("updated_at").notNull().default(now),
+  },
+  (t) => [uniqueIndex("trust_state_unique").on(t.childId, t.trustAreaId)],
+);
+
+/** Informational only. The app communicates readiness; it never enforces it. */
+export const privilege = sqliteTable(
+  "privilege",
+  {
+    id: id(),
+    householdId: text("household_id")
+      .notNull()
+      .references(() => household.id, { onDelete: "cascade" }),
+    trustAreaId: text("trust_area_id")
+      .notNull()
+      .references(() => trustArea.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    icon: text("icon"),
+    minLevel: integer("min_level").notNull().default(3),
+    sortOrder: integer("sort_order").notNull().default(0),
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    createdAt: createdAt(),
+  },
+  (t) => [index("privilege_household_idx").on(t.householdId, t.active)],
+);
+
+/** One line, never a list. A list of a child's failings is a shame board. */
+export const focusNote = sqliteTable(
+  "focus_note",
+  {
+    id: id(),
+    childId: text("child_id")
+      .notNull()
+      .references(() => child.id, { onDelete: "cascade" }),
+    text: text("text").notNull(),
+    createdByUserId: text("created_by_user_id"),
+    createdAt: createdAt(),
+    expiresAt: integer("expires_at").notNull(),
+  },
+  (t) => [index("focus_note_child_idx").on(t.childId)],
+);
+
+// ---------------------------------------------------------------------------
 // Relations
+
 // ---------------------------------------------------------------------------
 
 export const childRelations = relations(child, ({ many, one }) => ({

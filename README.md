@@ -133,13 +133,46 @@ real migrations applied.
 
 ## Status
 
-Phase 0 of twelve. See [SPEC.md section 11](./SPEC.md#11-build-order).
+All twelve phases of [SPEC.md](./SPEC.md) are implemented apart from child
+logins, which are modelled in the schema and deliberately not issued yet.
 
-**Working now:** Docker deployment, schema and migrations, first-run setup,
-parent authentication, child records with derived ages and archive-not-delete,
-the four accounts per child, photo upload with automatic downscaling, nightly
-backups, health checks.
+**Track A — money**
 
-**Next:** the ledger and manual money movement — cash in and out, purchases,
-transfers, adjustments — which makes the app useful on its own before payroll
-exists.
+- Append-only ledger with SQLite-enforced immutability, reversing corrections,
+  and a nightly reconciliation job
+- Manual money: cash in and out, purchases, donations, adjustments, transfers
+- Responsibilities with four cadences, excusals, and proportional part-weeks
+- Payroll that drafts itself at period end and posts itself on payday
+- Bills, autopay, partial collection, past-due recovery off the next paycheck,
+  and the hidden held fund behind rent
+- Savings goals with earmarking, photos, and progress
+- Daily interest accrual in micro-cents, posted monthly
+- A job board with claims, expiry, and repeat limits
+
+**Track B — trust**
+
+- Parent-defined areas, house rules, and privileges
+- A leaky bucket that drains with time, so doing nothing produces recovery
+- Four levels, per-child drain and cap, manual pins that expire on their own
+- A child-facing recovery timeline rather than a score
+
+**Everything else**
+
+- Household defaults with per-child overrides, effective-dated and never mutated
+- Age-band starter presets and soft guardrails
+- The kiosk display in three modes, paired by device token
+- Web Push to an installed PWA, with the iOS install flow handled explicitly
+- Nightly backups, health checks, and a Docker deployment
+
+80 tests, including a simulated month that runs a child through four weeks of
+payroll, a rent shortfall, a bonus job, a savings goal, interest, and a trust
+incident, then asserts every invariant still holds.
+
+### Not done
+
+- **Child accounts.** Roles exist in the schema and every child-facing payload
+  is already built through one guarded serialiser, but no child login is issued.
+- **Graduation.** What happens at eighteen — the held-fund reveal, a final
+  statement, cashing out — is deliberately still an open question in the spec.
+- **Printable pay stubs and full export.** The data is all there; the rendering
+  is not.

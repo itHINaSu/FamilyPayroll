@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: "Family Payroll",
   description: "Earn it. Save it. Share it. Every dollar has a job.",
   applicationName: "Family Payroll",
+  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     title: "Family Payroll",

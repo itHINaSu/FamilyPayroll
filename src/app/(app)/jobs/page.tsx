@@ -1,0 +1,159 @@
+import { and, eq } from "drizzle-orm";
+
+import { Alert, Button, Card, PageHeader } from "@/components/ui";
+import { db } from "@/db";
+import { child, job, trustArea } from "@/db/schema";
+import { requireParent } from "@/lib/auth/guard";
+import { pendingJobClaims, REPEAT_LABELS } from "@/lib/jobs";
+import { formatCents } from "@/lib/money";
+import { TRUST_LEVELS } from "@/lib/trust";
+import { archiveJob, decideClaim } from "./actions";
+import { AddJobForm } from "./form";
+
+export const dynamic = "force-dynamic";
+
+export default async function JobsPage() {
+  const parent = await requireParent();
+
+  const jobs = db
+    .select()
+    .from(job)
+    .where(and(eq(job.householdId, parent.householdId), eq(job.active, true)))
+    .orderBy(job.name)
+    .all();
+
+  const children = db
+    .select()
+    .from(child)
+    .where(and(eq(child.householdId, parent.householdId), eq(child.status, "active")))
+    .all();
+
+  const areas = db
+    .select()
+    .from(trustArea)
+    .where(and(eq(trustArea.householdId, parent.householdId), eq(trustArea.active, true)))
+    .all();
+
+  const pending = pendingJobClaims(parent.householdId);
+  const childName = new Map(children.map((c) => [c.id, c.displayName]));
+
+  return (
+    <>
+      <PageHeader
+        title="Job board"
+        subtitle="Extra work for extra pay. Claimed rather than assigned, and never part of potential pay."
+      />
+
+      <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+        <div className="space-y-6">
+          {pending.length > 0 && (
+            <Card>
+              <h2 className="mb-4 text-lg font-semibold">Waiting on you</h2>
+              <ul className="space-y-3">
+                {pending.map(({ claim, jobRow }) => (
+                  <li
+                    key={claim.id}
+                    className="flex items-center justify-between gap-4 border-b border-ink-100 pb-3 last:border-0 last:pb-0 dark:border-ink-700"
+                  >
+                    <div>
+                      <p className="text-sm font-medium">{jobRow.name}</p>
+                      <p className="text-xs text-ink-400">
+                        {childName.get(claim.childId) ?? "A child"} ·{" "}
+                        {formatCents(claim.valueCentsSnapshot)}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <form action={decideClaim}>
+                        <input type="hidden" name="claimId" value={claim.id} />
+                        <input type="hidden" name="decision" value="approve" />
+                        <Button type="submit" className="!px-3 !py-1 text-xs">
+                          Approve
+                        </Button>
+                      </form>
+                      <form action={decideClaim}>
+                        <input type="hidden" name="claimId" value={claim.id} />
+                        <input type="hidden" name="decision" value="reject" />
+                        <Button
+                          type="submit"
+                          variant="secondary"
+                          className="!px-3 !py-1 text-xs"
+                        >
+                          Not yet
+                        </Button>
+                      </form>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+
+          <Card>
+            <h2 className="mb-4 text-lg font-semibold">Jobs on offer</h2>
+
+            {jobs.length === 0 ? (
+              <Alert tone="info">
+                No jobs yet. Around nine or ten a flat weekly rate starts to feel
+                stale — a board of one-off work is what keeps earning interesting.
+              </Alert>
+            ) : (
+              <ul className="space-y-3">
+                {jobs.map((j) => {
+                  const area = areas.find((a) => a.id === j.trustAreaId);
+                  const gate = TRUST_LEVELS.find((l) => l.level === j.minTrustLevel);
+
+                  return (
+                    <li
+                      key={j.id}
+                      className="flex items-start justify-between gap-4 border-b border-ink-100 pb-3 last:border-0 last:pb-0 dark:border-ink-700"
+                    >
+                      <div>
+                        <p className="font-medium">
+                          {j.name}{" "}
+                          <span className="tnum ml-1 text-sm text-ledger-600 dark:text-ledger-500">
+                            {formatCents(j.valueCents)}
+                          </span>
+                        </p>
+                        {j.description && (
+                          <p className="text-xs text-ink-400">{j.description}</p>
+                        )}
+                        <p className="mt-0.5 text-xs text-ink-400">
+                          {REPEAT_LABELS[j.repeatRule]}
+                          {j.repeatRule === "every_n_days" && ` (${j.repeatN} days)`} ·{" "}
+                          {j.limitCount}× {j.limitScope === "per_child" ? "per child" : "total"}
+                          {j.eligibleChildIds?.length
+                            ? ` · ${j.eligibleChildIds.map((id) => childName.get(id)).join(", ")}`
+                            : " · anyone"}
+                        </p>
+                        {area && gate && (
+                          <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-300">
+                            Needs {gate.name} in {area.name}
+                          </p>
+                        )}
+                      </div>
+
+                      <form action={archiveJob}>
+                        <input type="hidden" name="jobId" value={j.id} />
+                        <button
+                          type="submit"
+                          className="text-xs text-ink-400 hover:text-ink-700 hover:underline"
+                        >
+                          Archive
+                        </button>
+                      </form>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Card>
+        </div>
+
+        <AddJobForm
+          children={children.map((c) => ({ id: c.id, name: c.displayName }))}
+          areas={areas.map((a) => ({ id: a.id, name: a.name }))}
+        />
+      </div>
+    </>
+  );
+}

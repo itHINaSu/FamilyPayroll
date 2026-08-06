@@ -1,6 +1,6 @@
 # Family Payroll — Technical Specification
 
-**Status:** Phase 0 implemented; Track B (section 12) is design-only. Draft for review.
+**Status:** Implemented, apart from child logins (phase 10) and graduation. See the repository README for what is and is not built.
 **Branch:** `claude/family-chore-app-planning-97p0kf`
 
 This document is the agreed design coming out of the planning conversation. It is

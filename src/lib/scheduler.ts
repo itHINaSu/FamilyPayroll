@@ -3,6 +3,11 @@ import "server-only";
 import { createBackup } from "@/lib/backup";
 import { config } from "@/lib/config";
 import { reconcileAll } from "@/lib/ledger";
+import { runPayrollCycle } from "@/lib/payroll";
+import { runBillCycle } from "@/lib/bills";
+import { accrueDaily, postMonthlyInterest } from "@/lib/interest";
+import { expireStaleClaims } from "@/lib/jobs";
+import { sendDailyNudges } from "@/lib/nudges";
 import { getSecret, setSecret } from "@/lib/secrets";
 import { pruneExpiredSessions } from "@/lib/auth/session";
 
@@ -28,6 +33,32 @@ type DailyTask = {
 };
 
 const tasks: DailyTask[] = [
+  {
+    /**
+     * The money cycle, in the order SPEC §6.3 requires: payroll posts first,
+     * then bills draw. A child is always paid before a bill hits.
+     *
+     * Runs early so a bill due today is collected against today's paycheck.
+     * Each step is idempotent, so a container that was asleep for a weekend
+     * catches up rather than skipping a payday.
+     */
+    name: "money_cycle",
+    hour: 1,
+    run: () => {
+      const payroll = runPayrollCycle();
+      const bills = runBillCycle();
+      const accrued = accrueDaily();
+      const interestPosted = postMonthlyInterest();
+      const expired = expireStaleClaims();
+      void sendDailyNudges();
+
+      console.log(
+        `[scheduler] payroll: ${payroll.drafted.length} drafted, ${payroll.posted.length} posted; ` +
+          `bills: ${bills.length} processed; interest: ${accrued} accrued, ${interestPosted} posted; ` +
+          `${expired} stale job claims expired`,
+      );
+    },
+  },
   {
     name: "nightly_backup",
     hour: config.backupCronHour,
