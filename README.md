@@ -37,7 +37,7 @@ reproduced here so you can copy it without cloning:
 ```yaml
 services:
   app:
-    image: ghcr.io/ithinasu/familypayroll:edge
+    image: ghcr.io/ithinasu/familypayroll:latest
     container_name: family-payroll
     restart: unless-stopped
 
@@ -85,22 +85,32 @@ docker compose logs -f                        # watch it
 docker compose down                           # stop; ./data is kept
 ```
 
-### While the repository is private
+### If `docker compose pull` says "denied"
 
-The published package inherits the repository's privacy, so log in once on the
-machine that runs it:
+GHCR returns `denied` both for an image that does not exist and for one you are
+not allowed to see, so the message does not tell you which. In order of
+likelihood:
+
+1. **The package is still private.** Package visibility does **not** follow the
+   repository's — making the repo public leaves the package private until you
+   change it separately: *your profile → Packages → familypayroll → Package
+   settings → Change visibility → Public*.
+2. **Nothing has been published yet.** A branch rename does not trigger a
+   workflow, and neither does flipping a repo to public. Check the Actions tab;
+   the *Publish container image* run has to have succeeded at least once. You can
+   start one by hand from that tab, or by pushing any commit.
+3. **The tag does not exist.** See the table below for what is actually built.
+
+If you would rather keep the package private, log in once on the machine that
+runs it:
 
 ```sh
 echo <TOKEN> | docker login ghcr.io -u <YOUR_GITHUB_USERNAME> --password-stdin
 ```
 
-`<TOKEN>` is a GitHub personal access token with the `read:packages` scope.
-**SSH keys do not work for this** — container registries authenticate over HTTPS
-with tokens, separately from however you access the repository itself. Docker
-stores the login, so it is one step per machine.
-
-Making the repository public later only removes that step. The image name, the
-tag, and your `compose.yaml` all stay exactly as they are.
+`<TOKEN>` is a personal access token with `read:packages`. Note that SSH keys do
+not work for this — container registries authenticate over HTTPS with tokens,
+separately from however you access the repository itself.
 
 ### Tags and architectures
 
@@ -109,17 +119,18 @@ NAS, a mini PC, or a Raspberry Pi.
 
 | Tag | Published from |
 |---|---|
-| `:edge` | feature branches — **use this until the code reaches your default branch** |
-| `:latest` | the default branch |
+| `:latest` | the default branch — **this is the one you want** |
+| `:edge` | any non-default branch |
+| `:main` | the branch name | |
 | `:v1.2.0` | a git tag, for pinning a release |
 | `:sha-abc1234` | a specific commit, for pinning exactly |
 
 ### Building from source instead
 
 Clone the repository and use the `docker-compose.yml` in it — comment out
-`image:` and uncomment one of the `build:` blocks. The GitHub build context
-(`build: https://github.com/...`) only works once the repository is public;
-Docker cannot supply credentials for a private one.
+`image:` and uncomment one of the `build:` blocks. Since the repository is
+public, `build: https://github.com/itHINaSu/FamilyPayroll.git#main` also
+works without cloning at all.
 
 ### Environment
 

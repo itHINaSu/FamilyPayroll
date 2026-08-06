@@ -12,29 +12,23 @@
 # By default this PULLS a prebuilt image published by the GitHub Action in
 # .github/workflows/publish.yml. Nothing needs to be cloned on the server.
 #
-# While the repository is private, the package is private too, so log in once
-# on the machine that runs this:
-#
-#   echo <TOKEN> | docker login ghcr.io -u <YOUR_GITHUB_USERNAME> --password-stdin
-#
-# where <TOKEN> is a GitHub personal access token with `read:packages`. SSH keys
-# do not work here — container registries authenticate over HTTPS. Making the
-# repository (and package) public later just removes the login step.
+# If a pull is denied: GHCR package visibility does NOT follow the repository's,
+# so a public repo can still have a private package. Change it under
+# your profile > Packages > familypayroll > Package settings > Change visibility.
 #
 # To BUILD FROM SOURCE instead, comment out `image:` and uncomment one `build:`.
 # ---------------------------------------------------------------------------
 
 services:
   app:
-    image: ${IMAGE:-ghcr.io/ithinasu/familypayroll:edge}
+    image: ${IMAGE:-ghcr.io/ithinasu/familypayroll:latest}
 
     # Build from a local clone:
     # build:
     #   context: .
     #   dockerfile: Dockerfile
 
-    # Or build straight from GitHub without cloning (public repos only —
-    # a private repo needs credentials Docker's git context cannot supply):
+    # Or build straight from GitHub without cloning:
     # build: https://github.com/itHINaSu/FamilyPayroll.git#main
 
     container_name: family-payroll

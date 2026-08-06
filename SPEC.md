@@ -1,7 +1,7 @@
 # Family Payroll — Technical Specification
 
 **Status:** Implemented, apart from child logins (phase 10) and graduation. See the repository README for what is and is not built.
-**Branch:** `claude/family-chore-app-planning-97p0kf`
+**Repository:** https://github.com/itHINaSu/FamilyPayroll
 
 This document is the agreed design coming out of the planning conversation. It is
 meant to be marked up. Anything labeled **[ASSUMPTION]** is a default chosen in the

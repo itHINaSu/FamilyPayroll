@@ -13,23 +13,28 @@
 #   docker compose down                             # stop (data is kept)
 #
 # ---------------------------------------------------------------------------
-# One-time login, while the repository is still private
+# If `docker compose pull` says "denied"
 #
-#   echo <TOKEN> | docker login ghcr.io -u <YOUR_GITHUB_USERNAME> --password-stdin
+# GHCR returns `denied` both for an image that does not exist and for one you
+# cannot see, so the message does not distinguish them. In order of likelihood:
 #
-# <TOKEN> is a GitHub personal access token with the `read:packages` scope.
-# SSH keys do not work for this — container registries authenticate over HTTPS
-# with tokens, separately from however you access the repository. Docker stores
-# the login, so this is once per machine. When the repository goes public the
-# step simply stops being necessary; nothing here changes.
+#   1. The package is still private. Package visibility does NOT follow the
+#      repository's — making the repo public leaves the package private until
+#      you change it too: GitHub > your profile > Packages > familypayroll >
+#      Package settings > Change visibility > Public.
+#
+#   2. No image has been published yet. Check the repository's Actions tab; the
+#      "Publish container image" run has to succeed at least once.
+#
+#   3. You asked for a tag that was never built. See the table in the README.
 # ---------------------------------------------------------------------------
 
 services:
   app:
-    # :edge tracks the development branch, :latest the default branch. Pin a
-    # version (:v1.2.0) or a commit (:sha-abc1234) instead if you would rather
-    # upgrade deliberately than track a moving tag.
-    image: ghcr.io/ithinasu/familypayroll:edge
+    # :latest tracks the default branch. Pin a version (:v1.2.0) or a commit
+    # (:sha-abc1234) instead if you would rather upgrade deliberately than
+    # follow a moving tag.
+    image: ghcr.io/ithinasu/familypayroll:latest
 
     container_name: family-payroll
 
