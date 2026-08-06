@@ -63,12 +63,55 @@ export function createChild(input: {
   });
 }
 
-export function listChildren(householdId: string, includeArchived = false) {
-  const scope = includeArchived
+export type ChildOrder = "oldest_first" | "youngest_first" | "name";
+
+/**
+ * Ordering is a display preference, not a property of the data, so it is
+ * applied here rather than baked into a column. Birth order is the default
+ * because it is how families actually think about their children and it stays
+ * stable as they grow; alphabetical is arbitrary and reshuffles when a name
+ * changes.
+ */
+export function sortChildren<T extends { birthdate: string; displayName: string }>(
+  rows: T[],
+  order: ChildOrder = "oldest_first",
+): T[] {
+  return [...rows].sort((a, b) => {
+    if (order === "name") return a.displayName.localeCompare(b.displayName);
+    // An earlier birthdate means older, so ascending dates put the eldest first.
+    const byAge = a.birthdate.localeCompare(b.birthdate);
+    if (byAge !== 0) return order === "oldest_first" ? byAge : -byAge;
+    return a.displayName.localeCompare(b.displayName); // twins
+  });
+}
+
+export function listChildren(
+  householdId: string,
+  options: { includeArchived?: boolean; order?: ChildOrder } = {},
+) {
+  const scope = options.includeArchived
     ? eq(child.householdId, householdId)
     : and(eq(child.householdId, householdId), ne(child.status, "archived"));
 
-  return db.select().from(child).where(scope).orderBy(child.sortOrder, child.displayName).all();
+  return sortChildren(db.select().from(child).where(scope).all(), options.order);
+}
+
+/**
+ * Children to show on a money-oriented surface — the dashboard and the kiosk.
+ *
+ * `pre_participant` is a real state: a child can be on the trust track, or just
+ * recorded ahead of time, years before they earn anything. Four empty balances
+ * next to a sibling's real ones is noise, so they are excluded unless a parent
+ * asks for them.
+ */
+export function listEarningChildren(
+  householdId: string,
+  options: { showNotYetEarning?: boolean; order?: ChildOrder } = {},
+) {
+  const rows = listChildren(householdId, { order: options.order });
+  return options.showNotYetEarning
+    ? rows.filter((c) => c.status !== "archived")
+    : rows.filter((c) => c.status === "active");
 }
 
 export function getChild(householdId: string, childId: string) {

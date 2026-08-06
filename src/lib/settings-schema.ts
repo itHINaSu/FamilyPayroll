@@ -319,6 +319,29 @@ export const SETTINGS_SECTIONS: SectionSpec[] = [
     ],
   },
   {
+    key: "display",
+    title: "Who shows where",
+    description:
+      "A child on the trust track before they start earning does not need to appear on a money dashboard. They stay reachable under Children either way.",
+    fields: [
+      {
+        path: "display.showNotYetEarning",
+        label: "Show children who are not yet earning on the dashboard",
+        type: "boolean",
+      },
+      {
+        path: "display.childOrder",
+        label: "Order children by",
+        type: "select",
+        options: [
+          { value: "oldest_first", label: "Oldest first" },
+          { value: "youngest_first", label: "Youngest first" },
+          { value: "name", label: "Name" },
+        ],
+      },
+    ],
+  },
+  {
     key: "kiosk",
     title: "Kiosk",
     description:

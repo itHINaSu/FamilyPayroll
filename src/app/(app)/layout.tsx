@@ -12,7 +12,7 @@ import { logout } from "@/app/login/actions";
 export const dynamic = "force-dynamic";
 
 const NAV = [
-  { href: "/", label: "Dashboard" },
+  { href: "/", label: "Today" },
   { href: "/children", label: "Children" },
   { href: "/jobs", label: "Jobs" },
   { href: "/house-rules", label: "House rules" },

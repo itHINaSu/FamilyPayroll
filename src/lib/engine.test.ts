@@ -685,3 +685,53 @@ describe("policy", () => {
     expect(checkGuardrails(slow, 15).some((w) => w.field === "trust")).toBe(false);
   });
 });
+
+const { sortChildren, listEarningChildren } = await import("@/lib/children");
+
+describe("child ordering and visibility", () => {
+
+  const rows = [
+    { displayName: "Zoe", birthdate: "2015-01-01" },
+    { displayName: "Ava", birthdate: "2019-06-15" },
+    { displayName: "Milo", birthdate: "2017-03-20" },
+  ];
+
+  it("puts the eldest first by default", () => {
+    expect(sortChildren(rows).map((r) => r.displayName)).toEqual([
+      "Zoe",
+      "Milo",
+      "Ava",
+    ]);
+  });
+
+  it("reverses for youngest first", () => {
+    expect(sortChildren(rows, "youngest_first").map((r) => r.displayName)).toEqual([
+      "Ava",
+      "Milo",
+      "Zoe",
+    ]);
+  });
+
+  it("falls back to name for twins", () => {
+    const twins = [
+      { displayName: "Sam", birthdate: "2019-06-15" },
+      { displayName: "Alex", birthdate: "2019-06-15" },
+    ];
+    expect(sortChildren(twins).map((r) => r.displayName)).toEqual(["Alex", "Sam"]);
+  });
+
+  it("hides children who are not yet earning unless asked", () => {
+    const pending = createChild({
+      householdId,
+      displayName: "Newborn",
+      birthdate: "2026-01-01",
+      status: "pre_participant",
+    });
+
+    const hidden = listEarningChildren(householdId);
+    expect(hidden.some((c: { id: string }) => c.id === pending)).toBe(false);
+
+    const shown = listEarningChildren(householdId, { showNotYetEarning: true });
+    expect(shown.some((c: { id: string }) => c.id === pending)).toBe(true);
+  });
+});

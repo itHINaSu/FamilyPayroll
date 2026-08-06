@@ -6,7 +6,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { child, device } from "@/db/schema";
 import { upcomingBills } from "@/lib/bills";
-import { ageFromBirthdate } from "@/lib/children";
+import { ageFromBirthdate, listEarningChildren } from "@/lib/children";
 import { payPeriodFor, todayInHousehold } from "@/lib/dates";
 import { listGoals } from "@/lib/goals";
 import { getBalances } from "@/lib/ledger";
@@ -86,14 +86,13 @@ export type KioskChild = {
 };
 
 export function kioskRoster(householdId: string): KioskChild[] {
-  const children = db
-    .select()
-    .from(child)
-    .where(and(eq(child.householdId, householdId), eq(child.status, "active")))
-    .orderBy(child.sortOrder, child.displayName)
-    .all();
-
   const today = todayInHousehold();
+  const householdPolicy = resolvePolicy(householdId, null, today);
+
+  const children = listEarningChildren(householdId, {
+    showNotYetEarning: householdPolicy.display.showNotYetEarning,
+    order: householdPolicy.display.childOrder,
+  });
 
   return children.map((c) => {
     const policy = resolvePolicy(householdId, c.id, today);

@@ -7,12 +7,19 @@ import {
   CHILD_STATUS_LABELS,
   listChildren,
 } from "@/lib/children";
+import { getBalances } from "@/lib/ledger";
+import { formatCents } from "@/lib/money";
+import { resolveHouseholdPolicy } from "@/lib/policy";
 import { AddChildForm } from "./add-child-form";
 import { ArchiveButton, RestoreButton } from "./row-actions";
 
 export default async function ChildrenPage() {
   const parent = await requireParent();
-  const children = listChildren(parent.householdId, true);
+  const policy = resolveHouseholdPolicy(parent.householdId);
+  const children = listChildren(parent.householdId, {
+    includeArchived: true,
+    order: policy.display.childOrder,
+  });
 
   const activeChildren = children.filter((c) => c.status !== "archived");
   const archivedChildren = children.filter((c) => c.status === "archived");
@@ -21,7 +28,7 @@ export default async function ChildrenPage() {
     <>
       <PageHeader
         title="Children"
-        subtitle="Add a child as they are born, and archive them as they grow out. Nothing is ever deleted."
+        subtitle="Balances, history, and settings for each child. Add one as they are born; archive them as they grow out. Nothing is ever deleted."
       />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
@@ -59,6 +66,13 @@ export default async function ChildrenPage() {
                     {ageFromBirthdate(c.birthdate)} years old ·{" "}
                     {CHILD_STATUS_LABELS[c.status]}
                   </p>
+                </div>
+
+                <div className="text-right">
+                  <p className="tnum text-lg">
+                    {formatCents(getBalances(c.id).visibleTotal)}
+                  </p>
+                  <p className="text-xs text-ink-400">total</p>
                 </div>
 
                 <ArchiveButton childId={c.id} name={c.displayName} />

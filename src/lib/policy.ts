@@ -95,6 +95,16 @@ export const PolicySchema = z.object({
     showPendingPaycheck: z.boolean(),
   }),
 
+  display: z.object({
+    /**
+     * A child can be on the trust track long before they earn anything. Showing
+     * them on a money dashboard with four empty balances is noise, so they are
+     * hidden here by default and always reachable under Children.
+     */
+    showNotYetEarning: z.boolean(),
+    childOrder: z.enum(["oldest_first", "youngest_first", "name"]),
+  }),
+
   trust: z.object({
     enabled: z.boolean(),
     drainAmount: z.number().int().min(1).max(20),
@@ -169,6 +179,12 @@ export const DEFAULT_POLICY: Policy = {
   kiosk: {
     dashboardMode: "roster",
     showPendingPaycheck: true,
+  },
+  display: {
+    showNotYetEarning: false,
+    // Oldest first: birth order is how families actually think about their
+    // children, and it stays stable as they grow. Alphabetical is arbitrary.
+    childOrder: "oldest_first",
   },
   trust: {
     enabled: true,
