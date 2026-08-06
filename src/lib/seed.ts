@@ -1,10 +1,21 @@
 import "server-only";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { houseRule, privilege, trustArea } from "@/db/schema";
+import {
+  houseRule,
+  privilege,
+  responsibility,
+  trustArea,
+  trustAreaOverride,
+} from "@/db/schema";
+import { AGE_PRESETS, bandForAge, type AgeBand } from "@/lib/age-presets";
+import { todayInHousehold } from "@/lib/dates";
 import { DEFAULT_AREAS, DEFAULT_HOUSE_RULES } from "@/lib/trust";
+
+export { AGE_PRESETS, bandForAge };
+export type { AgeBand };
 
 /**
  * Starter content for a new household.
@@ -84,65 +95,100 @@ export function seedHousehold(householdId: string): void {
 }
 
 /**
- * Age-band starter responsibilities, offered when a child is created.
+ * Fill a freshly created child with the age-band starter set: a handful of
+ * responsibilities and matching trust drain/cap. This is the single change
+ * that most affects how the app feels on day one — the alternative is a blank
+ * form staring back at a parent who just wants to get started.
  *
- * Values are weekly. The bands move both the money and the trust settings
- * together, since a seven-year-old and a fifteen-year-old need different
- * amounts of everything.
+ * Everything written here is a normal row a parent can edit or delete
+ * afterward; this only exists to skip the blank-page moment.
  */
-export const AGE_PRESETS = {
-  "5-7": {
-    label: "Ages 5–7",
-    trust: { drainAmount: 2, drainIntervalHours: 12, capLoad: 6 },
-    responsibilities: [
-      { name: "Make your bed", weeklyValueCents: 350, cadence: "daily" as const },
-      { name: "Clear your plate", weeklyValueCents: 350, cadence: "daily" as const },
-      { name: "Put away your laundry", weeklyValueCents: 200, cadence: "weekly" as const },
-      {
-        name: "Tidy the playroom",
-        weeklyValueCents: 300,
-        cadence: "up_to_n" as const,
-        maxOccurrences: 3,
-      },
-    ],
-  },
-  "8-10": {
-    label: "Ages 8–10",
-    trust: { drainAmount: 2, drainIntervalHours: 24, capLoad: 8 },
-    responsibilities: [
-      { name: "Make your bed", weeklyValueCents: 350, cadence: "daily" as const },
-      { name: "Homework before screens", weeklyValueCents: 500, cadence: "daily" as const },
-      { name: "Take out the trash", weeklyValueCents: 200, cadence: "weekly" as const },
-      { name: "Feed the pet", weeklyValueCents: 350, cadence: "daily" as const },
-    ],
-  },
-  "11-13": {
-    label: "Ages 11–13",
-    trust: { drainAmount: 1, drainIntervalHours: 24, capLoad: 10 },
-    responsibilities: [
-      { name: "Keep your room tidy", weeklyValueCents: 400, cadence: "weekly" as const },
-      { name: "Homework done on time", weeklyValueCents: 700, cadence: "daily" as const },
-      { name: "Dishes after dinner", weeklyValueCents: 500, cadence: "daily" as const },
-      { name: "Clean a bathroom", weeklyValueCents: 500, cadence: "weekly" as const },
-    ],
-  },
-  "14+": {
-    label: "Ages 14 and up",
-    trust: { drainAmount: 1, drainIntervalHours: 24, capLoad: 14 },
-    responsibilities: [
-      { name: "Keep your room tidy", weeklyValueCents: 500, cadence: "weekly" as const },
-      { name: "Dishes after dinner", weeklyValueCents: 700, cadence: "daily" as const },
-      { name: "Laundry, start to finish", weeklyValueCents: 600, cadence: "weekly" as const },
-      { name: "Mow the lawn", weeklyValueCents: 800, cadence: "weekly" as const },
-    ],
-  },
-} as const;
+export function applyAgePreset(childId: string, householdId: string, band: AgeBand): void {
+  const preset = AGE_PRESETS[band];
+  const today = todayInHousehold();
 
-export type AgeBand = keyof typeof AGE_PRESETS;
+  preset.responsibilities.forEach((r, index) => {
+    db.insert(responsibility)
+      .values({
+        childId,
+        name: r.name,
+        weeklyValueCents: r.weeklyValueCents,
+        cadence: r.cadence,
+        maxOccurrences: "maxOccurrences" in r ? r.maxOccurrences : null,
+        effectiveFrom: today,
+        sortOrder: index,
+      })
+      .run();
+  });
 
-export function bandForAge(age: number): AgeBand {
-  if (age <= 7) return "5-7";
-  if (age <= 10) return "8-10";
-  if (age <= 13) return "11-13";
-  return "14+";
+  // A per-child override for every active trust area, so a seven-year-old and
+  // a fifteen-year-old sibling recover at different speeds from day one
+  // (SPEC §12.9's age-preset table) rather than sharing the household default.
+  const areas = db
+    .select({ id: trustArea.id })
+    .from(trustArea)
+    .where(and(eq(trustArea.householdId, householdId), eq(trustArea.active, true)))
+    .all();
+
+  for (const area of areas) {
+    db.insert(trustAreaOverride)
+      .values({
+        childId,
+        trustAreaId: area.id,
+        drainAmount: preset.trust.drainAmount,
+        drainIntervalHours: preset.trust.drainIntervalHours,
+        capLoad: preset.trust.capLoad,
+      })
+      .run();
+  }
+}
+
+/**
+ * Start a new child from an existing sibling's setup instead of a preset.
+ * Useful once the first child's responsibilities have already been tuned by
+ * hand — the second child gets the same starting point rather than the
+ * generic age band, and each can diverge from there.
+ */
+export function copyFromSibling(sourceChildId: string, targetChildId: string): void {
+  const today = todayInHousehold();
+
+  const sourceResponsibilities = db
+    .select()
+    .from(responsibility)
+    .where(and(eq(responsibility.childId, sourceChildId), eq(responsibility.active, true)))
+    .all();
+
+  sourceResponsibilities.forEach((r, index) => {
+    db.insert(responsibility)
+      .values({
+        childId: targetChildId,
+        name: r.name,
+        icon: r.icon,
+        weeklyValueCents: r.weeklyValueCents,
+        cadence: r.cadence,
+        daysOfWeek: r.daysOfWeek,
+        maxOccurrences: r.maxOccurrences,
+        effectiveFrom: today,
+        sortOrder: index,
+      })
+      .run();
+  });
+
+  const sourceOverrides = db
+    .select()
+    .from(trustAreaOverride)
+    .where(eq(trustAreaOverride.childId, sourceChildId))
+    .all();
+
+  for (const o of sourceOverrides) {
+    db.insert(trustAreaOverride)
+      .values({
+        childId: targetChildId,
+        trustAreaId: o.trustAreaId,
+        drainAmount: o.drainAmount,
+        drainIntervalHours: o.drainIntervalHours,
+        capLoad: o.capLoad,
+      })
+      .run();
+  }
 }

@@ -25,6 +25,14 @@ export type SectionSpec = {
   title: string;
   description: string;
   fields: FieldSpec[];
+  /**
+   * Expanded by default; everything else starts collapsed. Nine sections shown
+   * open at once is the wall a new household hits on the first visit to
+   * Settings — most people need payday and the allocation split, and nothing
+   * else, on day one. A child-scope section still opens automatically the
+   * moment it holds an override, regardless of this flag.
+   */
+  commonlyUsed?: boolean;
 };
 
 export const SETTINGS_SECTIONS: SectionSpec[] = [
@@ -33,6 +41,7 @@ export const SETTINGS_SECTIONS: SectionSpec[] = [
     title: "Pay schedule",
     description:
       "Pay date is deliberately separate from period end. That gap is what creates 'earned but not yet paid', exactly as a real job does.",
+    commonlyUsed: true,
     fields: [
       {
         path: "pay.cadence",
@@ -119,6 +128,7 @@ export const SETTINGS_SECTIONS: SectionSpec[] = [
     title: "Allocation",
     description:
       "How a net deposit is split. These must total 100, and every leftover cent goes to the bucket you choose.",
+    commonlyUsed: true,
     fields: [
       { path: "allocation.checkingPct", label: "Checking %", type: "percent" },
       { path: "allocation.savingsPct", label: "Savings %", type: "percent" },

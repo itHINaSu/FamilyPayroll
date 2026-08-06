@@ -7,8 +7,9 @@ import { z } from "zod";
 import { db } from "@/db";
 import { auditLog, child } from "@/db/schema";
 import { requireParent } from "@/lib/auth/guard";
-import { createChild, getChild } from "@/lib/children";
+import { ageFromBirthdate, createChild, getChild } from "@/lib/children";
 import { storeImage, ACCEPTED_UPLOAD_TYPES } from "@/lib/images";
+import { applyAgePreset, bandForAge, copyFromSibling } from "@/lib/seed";
 
 const ChildSchema = z.object({
   displayName: z.string().trim().min(1, "Enter a name."),
@@ -18,6 +19,8 @@ const ChildSchema = z.object({
     .refine((v) => !Number.isNaN(Date.parse(v)), "That date is not valid.")
     .refine((v) => Date.parse(v) <= Date.now(), "Birthdate cannot be in the future."),
   status: z.enum(["pre_participant", "active", "graduated", "archived"]),
+  starterSetup: z.enum(["preset", "copy", "blank"]).default("preset"),
+  copyFromChildId: z.string().optional(),
 });
 
 export type ChildFormState = { error?: string; ok?: boolean };
@@ -48,6 +51,8 @@ export async function addChild(
     displayName: formData.get("displayName"),
     birthdate: formData.get("birthdate"),
     status: formData.get("status"),
+    starterSetup: formData.get("starterSetup") || undefined,
+    copyFromChildId: formData.get("copyFromChildId") || undefined,
   });
 
   if (!parsed.success) {
@@ -69,6 +74,18 @@ export async function addChild(
     photoBlobId,
   });
 
+  // Fill the blank-page moment: a preset by default, or a sibling's existing
+  // setup if the parent asked for that instead. Everything written here is a
+  // normal, editable row — this only saves the first hour of setup.
+  if (parsed.data.starterSetup === "copy" && parsed.data.copyFromChildId) {
+    if (getChild(parent.householdId, parsed.data.copyFromChildId)) {
+      copyFromSibling(parsed.data.copyFromChildId, childId);
+    }
+  } else if (parsed.data.starterSetup === "preset") {
+    const band = bandForAge(ageFromBirthdate(parsed.data.birthdate));
+    applyAgePreset(childId, parent.householdId, band);
+  }
+
   db.insert(auditLog)
     .values({
       actorUserId: parent.id,
@@ -80,6 +97,8 @@ export async function addChild(
     .run();
 
   revalidatePath("/children");
+  revalidatePath(`/children/${childId}`);
+  revalidatePath("/");
   return { ok: true };
 }
 

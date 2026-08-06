@@ -102,7 +102,9 @@ export default async function ChildrenPage() {
           )}
         </div>
 
-        <AddChildForm />
+        <AddChildForm
+          siblings={activeChildren.map((c) => ({ id: c.id, name: c.displayName }))}
+        />
       </div>
     </>
   );

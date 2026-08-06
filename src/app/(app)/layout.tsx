@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth/guard";
 import { getHousehold } from "@/lib/auth/guard";
 import { logout } from "@/app/login/actions";
+import { Nav } from "./nav";
 
 /**
  * Never prerendered: this page reads the session cookie and the database, both
@@ -10,15 +11,6 @@ import { logout } from "@/app/login/actions";
  * snapshot of an empty database into the image.
  */
 export const dynamic = "force-dynamic";
-
-const NAV = [
-  { href: "/", label: "Today" },
-  { href: "/children", label: "Children" },
-  { href: "/jobs", label: "Jobs" },
-  { href: "/house-rules", label: "House rules" },
-  { href: "/notifications", label: "Alerts" },
-  { href: "/settings", label: "Settings" },
-];
 
 export default async function AppLayout({
   children,
@@ -36,17 +28,7 @@ export default async function AppLayout({
             <Link href="/" className="font-semibold tracking-tight">
               Family Payroll
             </Link>
-            <nav className="flex gap-4 text-sm">
-              {NAV.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="text-ink-500 transition hover:text-ink-900 dark:text-ink-300 dark:hover:text-white"
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
+            <Nav />
           </div>
 
           <div className="flex items-center gap-3 text-sm">

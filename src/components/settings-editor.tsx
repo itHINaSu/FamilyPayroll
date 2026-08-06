@@ -97,6 +97,19 @@ export function SettingsEditor({
     ),
   );
 
+  // Nine sections open at once is the wall a new household hits here. Only the
+  // ones marked commonlyUsed start expanded; anything already overridden at
+  // child scope opens too, since a parent editing a divergence should not have
+  // to go find it first.
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(
+    Object.fromEntries(
+      SETTINGS_SECTIONS.map((s) => [
+        s.key,
+        !!s.commonlyUsed || overriddenSections.includes(s.key),
+      ]),
+    ),
+  );
+
   return (
     <form action={formAction} className="space-y-6">
       <input type="hidden" name="scopeType" value={scopeType} />
@@ -119,31 +132,54 @@ export function SettingsEditor({
 
       {SETTINGS_SECTIONS.map((section) => {
         const isOn = enabled[section.key];
+        const isExpanded = expanded[section.key];
         const fields = section.fields.filter((f) => showAdvanced || !f.advanced);
 
         return (
           <Card key={section.key}>
-            <div className="mb-4 flex items-start justify-between gap-4">
-              <div>
-                <h3 className="font-semibold">
-                  {section.title}
-                  {scopeType === "child" && isOn && (
-                    <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200">
-                      overridden
-                    </span>
+            <div className="flex items-start justify-between gap-4">
+              <button
+                type="button"
+                onClick={() =>
+                  setExpanded({ ...expanded, [section.key]: !isExpanded })
+                }
+                className="flex flex-1 items-start gap-2 text-left"
+                aria-expanded={isExpanded}
+              >
+                <span
+                  className={`mt-1 text-ink-400 transition-transform ${
+                    isExpanded ? "rotate-90" : ""
+                  }`}
+                  aria-hidden
+                >
+                  ▸
+                </span>
+                <span>
+                  <h3 className="font-semibold">
+                    {section.title}
+                    {scopeType === "child" && isOn && (
+                      <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                        overridden
+                      </span>
+                    )}
+                  </h3>
+                  {isExpanded && (
+                    <p className="mt-1 text-xs text-ink-400">{section.description}</p>
                   )}
-                </h3>
-                <p className="mt-1 text-xs text-ink-400">{section.description}</p>
-              </div>
+                </span>
+              </button>
 
               {scopeType === "child" && (
                 <label className="flex flex-shrink-0 items-center gap-2 text-xs text-ink-400">
                   <input
                     type="checkbox"
                     checked={isOn}
-                    onChange={(e) =>
-                      setEnabled({ ...enabled, [section.key]: e.target.checked })
-                    }
+                    onChange={(e) => {
+                      setEnabled({ ...enabled, [section.key]: e.target.checked });
+                      // Ticking an override with the section still collapsed
+                      // would hide the very fields being turned on.
+                      if (e.target.checked) setExpanded({ ...expanded, [section.key]: true });
+                    }}
                   />
                   Override
                 </label>
@@ -152,25 +188,30 @@ export function SettingsEditor({
 
             {isOn && <input type="hidden" name={`__section_${section.key}`} value="1" />}
 
-            <div
-              className={`grid gap-4 sm:grid-cols-2 ${
-                isOn ? "" : "pointer-events-none opacity-40"
-              }`}
-            >
-              {fields.map((field) => (
-                <FieldInput
-                  key={field.path}
-                  field={field}
-                  value={getAtPath(effective, field.path)}
-                />
-              ))}
-            </div>
+            {/* Hidden via class rather than unmounted, so a collapsed section's
+                values still post — collapsing is a display preference, not a
+                way to discard what is set. */}
+            <div className={isExpanded ? "mt-4" : "hidden"}>
+              <div
+                className={`grid gap-4 sm:grid-cols-2 ${
+                  isOn ? "" : "pointer-events-none opacity-40"
+                }`}
+              >
+                {fields.map((field) => (
+                  <FieldInput
+                    key={field.path}
+                    field={field}
+                    value={getAtPath(effective, field.path)}
+                  />
+                ))}
+              </div>
 
-            {scopeType === "child" && !isOn && (
-              <p className="mt-3 text-xs text-ink-400">
-                Following the household setting. Tick Override to diverge.
-              </p>
-            )}
+              {scopeType === "child" && !isOn && (
+                <p className="mt-3 text-xs text-ink-400">
+                  Following the household setting. Tick Override to diverge.
+                </p>
+              )}
+            </div>
           </Card>
         );
       })}

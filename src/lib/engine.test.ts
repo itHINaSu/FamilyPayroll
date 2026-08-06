@@ -735,3 +735,90 @@ describe("child ordering and visibility", () => {
     expect(shown.some((c: { id: string }) => c.id === pending)).toBe(true);
   });
 });
+
+const { applyAgePreset, copyFromSibling, bandForAge, AGE_PRESETS } = await import(
+  "@/lib/seed"
+);
+const { listResponsibilities } = await import("@/lib/responsibilities");
+
+describe("starter setup — age preset and copy-from-sibling", () => {
+
+  it("fills a new child with the age-band preset", () => {
+    const kidId = createChild({
+      householdId,
+      displayName: "Preset Kid",
+      birthdate: "2019-01-01", // lands in the 5-7 band as of 2026
+      status: "active",
+    });
+
+    const band = bandForAge(7);
+    applyAgePreset(kidId, householdId, band);
+
+    const responsibilities = listResponsibilities(kidId);
+    expect(responsibilities.length).toBe(AGE_PRESETS[band].responsibilities.length);
+    expect(responsibilities.map((r) => r.name)).toContain("Make your bed");
+
+    // Trust overrides land on every active household area.
+    const areas = db
+      .select()
+      .from(schema.trustArea)
+      .where(eq(schema.trustArea.householdId, householdId))
+      .all();
+    const overrides = db
+      .select()
+      .from(schema.trustAreaOverride)
+      .where(eq(schema.trustAreaOverride.childId, kidId))
+      .all();
+    expect(overrides.length).toBe(areas.length);
+    expect(overrides[0].drainAmount).toBe(AGE_PRESETS[band].trust.drainAmount);
+  });
+
+  it("copies a sibling's responsibilities and trust overrides rather than the preset", () => {
+    const first = createChild({
+      householdId,
+      displayName: "First",
+      birthdate: "2015-01-01",
+      status: "active",
+    });
+    applyAgePreset(first, householdId, "11-13");
+
+    const second = createChild({
+      householdId,
+      displayName: "Second",
+      birthdate: "2016-01-01",
+      status: "active",
+    });
+    copyFromSibling(first, second);
+
+    const firstNames = listResponsibilities(first)
+      .map((r) => r.name)
+      .sort();
+    const secondNames = listResponsibilities(second)
+      .map((r) => r.name)
+      .sort();
+    expect(secondNames).toEqual(firstNames);
+
+    const firstOverrides = db
+      .select()
+      .from(schema.trustAreaOverride)
+      .where(eq(schema.trustAreaOverride.childId, first))
+      .all();
+    const secondOverrides = db
+      .select()
+      .from(schema.trustAreaOverride)
+      .where(eq(schema.trustAreaOverride.childId, second))
+      .all();
+    expect(secondOverrides.length).toBe(firstOverrides.length);
+  });
+
+  it("leaves a blank child with nothing, when asked", () => {
+    const kidId = createChild({
+      householdId,
+      displayName: "Blank Kid",
+      birthdate: "2018-01-01",
+      status: "active",
+    });
+
+    expect(listResponsibilities(kidId)).toEqual([]);
+  });
+});
