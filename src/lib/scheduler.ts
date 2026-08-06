@@ -2,6 +2,7 @@ import "server-only";
 
 import { createBackup } from "@/lib/backup";
 import { config } from "@/lib/config";
+import { reconcileAll } from "@/lib/ledger";
 import { getSecret, setSecret } from "@/lib/secrets";
 import { pruneExpiredSessions } from "@/lib/auth/session";
 
@@ -34,6 +35,31 @@ const tasks: DailyTask[] = [
       const file = createBackup();
       const pruned = pruneExpiredSessions();
       console.log(`[scheduler] backup written: ${file} (pruned ${pruned} sessions)`);
+    },
+  },
+  {
+    /**
+     * Invariant I6. Every account's cached balance must equal the sum of its
+     * ledger entries. Drift means some write path bypassed the ledger service,
+     * which is a bug to find rather than a number to quietly repair — so this
+     * reports loudly and changes nothing.
+     */
+    name: "reconcile_balances",
+    hour: config.backupCronHour,
+    run: () => {
+      const drifted = reconcileAll();
+      if (drifted.length === 0) {
+        console.log("[scheduler] reconciliation clean");
+        return;
+      }
+      console.error(
+        `[scheduler] BALANCE DRIFT on ${drifted.length} account(s) — invariant I6 violated`,
+      );
+      for (const d of drifted) {
+        console.error(
+          `[scheduler]   account ${d.accountId}: cached ${d.cached}, ledger ${d.derived}`,
+        );
+      }
     },
   },
 ];
