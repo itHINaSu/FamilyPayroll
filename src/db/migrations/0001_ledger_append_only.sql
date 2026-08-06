@@ -3,10 +3,6 @@
 -- Enforced in the database rather than in application code, because the whole
 -- point of an immutable ledger is that no future code path can quietly violate
 -- it. Corrections are new rows with reverses_entry_id set; the original stays.
---
--- The one permitted mutation is deleting a child, which cascades. Ledger rows
--- should outlive participation (invariant I7 archives children instead of
--- deleting them), so the delete trigger fires unconditionally.
 
 CREATE TRIGGER ledger_entry_no_update
 BEFORE UPDATE ON ledger_entry

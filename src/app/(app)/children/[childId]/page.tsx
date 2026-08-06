@@ -80,7 +80,7 @@ export default async function ChildDetailPage({
           </Card>
 
           <Alert tone="info">
-            Expectations, pay stubs, bills, and the ledger arrive in later phases.
+            Responsibilities, pay stubs, bills, and the ledger arrive in later phases.
             This page currently covers the child record and their accounts.
           </Alert>
         </div>

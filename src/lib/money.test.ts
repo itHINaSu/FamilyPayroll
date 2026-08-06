@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   allocate,
   dailyAccrualMicroCents,
-  earnedForExpectation,
+  earnedForResponsibility,
   formatCents,
   microCentsToCents,
   parseAmountToCents,
@@ -75,32 +75,32 @@ describe("allocate — invariant I3", () => {
   });
 });
 
-describe("earnedForExpectation — invariants I8 and I9", () => {
+describe("earnedForResponsibility — invariants I8 and I9", () => {
   it("pays the full weekly value for full completion", () => {
-    expect(earnedForExpectation(350, 7, 7)).toBe(350);
+    expect(earnedForResponsibility(350, 7, 7)).toBe(350);
   });
 
   it("never exceeds the period value even with over-claimed completions", () => {
-    expect(earnedForExpectation(350, 99, 7)).toBe(350);
+    expect(earnedForResponsibility(350, 99, 7)).toBe(350);
   });
 
   it("pays proportionally for partial completion", () => {
-    expect(earnedForExpectation(350, 5, 7)).toBe(250);
+    expect(earnedForResponsibility(350, 5, 7)).toBe(250);
   });
 
   it("avoids drift on values that do not divide evenly", () => {
     // $2.00 across 3 chances: per-occurrence would be $0.66, and 3 x 66 = 198.
-    expect(earnedForExpectation(200, 3, 3)).toBe(200);
-    expect(earnedForExpectation(200, 1, 3)).toBe(67);
-    expect(earnedForExpectation(200, 2, 3)).toBe(133);
+    expect(earnedForResponsibility(200, 3, 3)).toBe(200);
+    expect(earnedForResponsibility(200, 1, 3)).toBe(67);
+    expect(earnedForResponsibility(200, 2, 3)).toBe(133);
   });
 
   it("returns zero when every occurrence is excused", () => {
-    expect(earnedForExpectation(350, 0, 0)).toBe(0);
+    expect(earnedForResponsibility(350, 0, 0)).toBe(0);
   });
 
   it("treats negative completions as zero", () => {
-    expect(earnedForExpectation(350, -3, 7)).toBe(0);
+    expect(earnedForResponsibility(350, -3, 7)).toBe(0);
   });
 });
 

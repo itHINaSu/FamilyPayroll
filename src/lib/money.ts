@@ -64,7 +64,7 @@ export function allocate<K extends string>(
 }
 
 /**
- * Earned pay for one expectation over one pay period.
+ * Earned pay for one responsibility over one pay period.
  *
  * Proportional rather than per-occurrence: computing a per-occurrence value up
  * front and multiplying would accumulate rounding drift, and full completion
@@ -74,7 +74,7 @@ export function allocate<K extends string>(
  * The displayed "$0.50 each" on the kiosk is therefore an approximation of this
  * calculation, not its source.
  */
-export function earnedForExpectation(
+export function earnedForResponsibility(
   periodValueCents: number,
   completed: number,
   chances: number,

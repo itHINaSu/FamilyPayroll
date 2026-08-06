@@ -112,7 +112,7 @@ CREATE TABLE `child` (
 CREATE INDEX `child_household_idx` ON `child` (`household_id`,`status`);--> statement-breakpoint
 CREATE TABLE `completion` (
 	`id` text PRIMARY KEY NOT NULL,
-	`expectation_id` text NOT NULL,
+	`responsibility_id` text NOT NULL,
 	`child_id` text NOT NULL,
 	`occurrence_date` text NOT NULL,
 	`occurrence_index` integer DEFAULT 0 NOT NULL,
@@ -122,11 +122,11 @@ CREATE TABLE `completion` (
 	`claimed_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,
 	`decided_at` integer,
 	`pay_period_id` text,
-	FOREIGN KEY (`expectation_id`) REFERENCES `expectation`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`responsibility_id`) REFERENCES `responsibility`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`child_id`) REFERENCES `child`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `completion_occurrence_unique` ON `completion` (`expectation_id`,`occurrence_date`,`occurrence_index`);--> statement-breakpoint
+CREATE UNIQUE INDEX `completion_occurrence_unique` ON `completion` (`responsibility_id`,`occurrence_date`,`occurrence_index`);--> statement-breakpoint
 CREATE INDEX `completion_child_date_idx` ON `completion` (`child_id`,`occurrence_date`);--> statement-breakpoint
 CREATE TABLE `device` (
 	`id` text PRIMARY KEY NOT NULL,
@@ -148,31 +148,13 @@ CREATE TABLE `excusal` (
 	`end_date` text NOT NULL,
 	`reason` text,
 	`scope` text DEFAULT 'all' NOT NULL,
-	`expectation_ids` text,
+	`responsibility_ids` text,
 	`created_by_user_id` text,
 	`created_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,
 	FOREIGN KEY (`child_id`) REFERENCES `child`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
 CREATE INDEX `excusal_child_idx` ON `excusal` (`child_id`,`start_date`,`end_date`);--> statement-breakpoint
-CREATE TABLE `expectation` (
-	`id` text PRIMARY KEY NOT NULL,
-	`child_id` text NOT NULL,
-	`name` text NOT NULL,
-	`icon` text,
-	`weekly_value_cents` integer NOT NULL,
-	`cadence` text NOT NULL,
-	`days_of_week` text,
-	`max_occurrences` integer,
-	`active` integer DEFAULT true NOT NULL,
-	`effective_from` text NOT NULL,
-	`archived_at` integer,
-	`sort_order` integer DEFAULT 0 NOT NULL,
-	`created_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,
-	FOREIGN KEY (`child_id`) REFERENCES `child`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE INDEX `expectation_child_idx` ON `expectation` (`child_id`,`active`);--> statement-breakpoint
 CREATE TABLE `goal` (
 	`id` text PRIMARY KEY NOT NULL,
 	`child_id` text NOT NULL,
@@ -389,6 +371,24 @@ CREATE TABLE `push_subscription` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `push_endpoint_unique` ON `push_subscription` (`endpoint`);--> statement-breakpoint
+CREATE TABLE `responsibility` (
+	`id` text PRIMARY KEY NOT NULL,
+	`child_id` text NOT NULL,
+	`name` text NOT NULL,
+	`icon` text,
+	`weekly_value_cents` integer NOT NULL,
+	`cadence` text NOT NULL,
+	`days_of_week` text,
+	`max_occurrences` integer,
+	`active` integer DEFAULT true NOT NULL,
+	`effective_from` text NOT NULL,
+	`archived_at` integer,
+	`sort_order` integer DEFAULT 0 NOT NULL,
+	`created_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,
+	FOREIGN KEY (`child_id`) REFERENCES `child`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `responsibility_child_idx` ON `responsibility` (`child_id`,`active`);--> statement-breakpoint
 CREATE TABLE `session` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL,

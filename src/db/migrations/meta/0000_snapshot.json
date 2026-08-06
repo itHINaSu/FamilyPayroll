@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "9d82d61f-9ab2-4f01-b948-5b74d07a4397",
+  "id": "3bf59546-3b4f-4e7b-986b-096b08b35230",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "account": {
@@ -789,8 +789,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "expectation_id": {
-          "name": "expectation_id",
+        "responsibility_id": {
+          "name": "responsibility_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -866,7 +866,7 @@
         "completion_occurrence_unique": {
           "name": "completion_occurrence_unique",
           "columns": [
-            "expectation_id",
+            "responsibility_id",
             "occurrence_date",
             "occurrence_index"
           ],
@@ -882,12 +882,12 @@
         }
       },
       "foreignKeys": {
-        "completion_expectation_id_expectation_id_fk": {
-          "name": "completion_expectation_id_expectation_id_fk",
+        "completion_responsibility_id_responsibility_id_fk": {
+          "name": "completion_responsibility_id_responsibility_id_fk",
           "tableFrom": "completion",
-          "tableTo": "expectation",
+          "tableTo": "responsibility",
           "columnsFrom": [
-            "expectation_id"
+            "responsibility_id"
           ],
           "columnsTo": [
             "id"
@@ -1050,8 +1050,8 @@
           "autoincrement": false,
           "default": "'all'"
         },
-        "expectation_ids": {
-          "name": "expectation_ids",
+        "responsibility_ids": {
+          "name": "responsibility_ids",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -1088,133 +1088,6 @@
         "excusal_child_id_child_id_fk": {
           "name": "excusal_child_id_child_id_fk",
           "tableFrom": "excusal",
-          "tableTo": "child",
-          "columnsFrom": [
-            "child_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "expectation": {
-      "name": "expectation",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "child_id": {
-          "name": "child_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "icon": {
-          "name": "icon",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "weekly_value_cents": {
-          "name": "weekly_value_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "cadence": {
-          "name": "cadence",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "days_of_week": {
-          "name": "days_of_week",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "max_occurrences": {
-          "name": "max_occurrences",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "active": {
-          "name": "active",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": true
-        },
-        "effective_from": {
-          "name": "effective_from",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "archived_at": {
-          "name": "archived_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "sort_order": {
-          "name": "sort_order",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(unixepoch() * 1000)"
-        }
-      },
-      "indexes": {
-        "expectation_child_idx": {
-          "name": "expectation_child_idx",
-          "columns": [
-            "child_id",
-            "active"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "expectation_child_id_child_id_fk": {
-          "name": "expectation_child_id_child_id_fk",
-          "tableFrom": "expectation",
           "tableTo": "child",
           "columnsFrom": [
             "child_id"
@@ -2729,6 +2602,133 @@
           "tableTo": "user",
           "columnsFrom": [
             "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "responsibility": {
+      "name": "responsibility",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "child_id": {
+          "name": "child_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "icon": {
+          "name": "icon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "weekly_value_cents": {
+          "name": "weekly_value_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "cadence": {
+          "name": "cadence",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "days_of_week": {
+          "name": "days_of_week",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "max_occurrences": {
+          "name": "max_occurrences",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "active": {
+          "name": "active",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "effective_from": {
+          "name": "effective_from",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        }
+      },
+      "indexes": {
+        "responsibility_child_idx": {
+          "name": "responsibility_child_idx",
+          "columns": [
+            "child_id",
+            "active"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "responsibility_child_id_child_id_fk": {
+          "name": "responsibility_child_id_child_id_fk",
+          "tableFrom": "responsibility",
+          "tableTo": "child",
+          "columnsFrom": [
+            "child_id"
           ],
           "columnsTo": [
             "id"

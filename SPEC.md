@@ -1,6 +1,6 @@
 # Family Payroll — Technical Specification
 
-**Status:** Draft for review. No application code exists yet.
+**Status:** Phase 0 implemented; Track B (section 12) is design-only. Draft for review.
 **Branch:** `claude/family-chore-app-planning-97p0kf`
 
 This document is the agreed design coming out of the planning conversation. It is
@@ -13,12 +13,26 @@ absence of an explicit decision and can be struck without argument.
 
 Family Payroll is a self-hosted web application that teaches children personal
 finance by modeling a real payroll and banking system. Children earn money by
-meeting expectations, get paid on a schedule, pay recurring bills, save toward
+meeting responsibilities, get paid on a schedule, pay recurring bills, save toward
 goals, earn interest, and give money away — all recorded in a permanent ledger.
+
+**Two independent tracks.** Money is one of them, and it is the larger part of
+this document. The second is Trust, which governs privileges and freedom rather
+than money (section 12). They never touch: character is not for sale, and a bad
+Tuesday never reduces a paycheck.
+
+| Tier | Name | Track | Paid? | Tracked? |
+|---|---|---|---|---|
+| 1 | **House Rules** | Trust | Never | Not scored — displayed as standing expectations |
+| 2 | **Responsibilities** | Money | Weekly payroll | Per occurrence |
+| 3 | **Bonus Jobs** | Money | Per job | Claimed and approved |
+
+What both tracks unlock is the same thing — bigger opportunities: raises, harder
+jobs, more independence. That is an outcome, not a third currency to score.
 
 **Core philosophy**
 
-- Children **earn**; they never **lose**. Unmet expectations mean money not earned,
+- Children **earn**; they never **lose**. Unmet responsibilities mean money not earned,
   never money taken away.
 - The application is the **ledger of record**. It is virtual. Real cash lives
   outside it and crosses the boundary through explicit deposit and withdrawal
@@ -70,7 +84,9 @@ These are non-negotiable and should be enforced in code and covered by tests.
 | I6 | Every account's cached balance equals the sum of its ledger entries. A nightly reconciliation job asserts this and alerts on drift. |
 | I7 | Children are **archived**, never deleted. Ledger history outlives participation. |
 | I8 | Excused occurrences reduce **potential** pay, never appearing as unearned pay. |
-| I9 | Earned pay for an expectation can never exceed its scaled period value. |
+| I9 | Earned pay for a responsibility can never exceed its scaled period value. |
+| I10 | **Trust never touches money.** No Track B action writes a ledger entry, alters a balance, or changes earned pay. Trust may gate *eligibility for future opportunity*; it may never reduce pay for work already done. |
+| I11 | Trust status never appears on a shared or multi-child view, and the numeric trust load is never shown to a child unless a parent explicitly enables it. |
 
 ---
 
@@ -164,9 +180,9 @@ not as separate accounts:
 Earmarking is a `earmark_out` / `earmark_in` pair inside the savings account. Both
 the real savings balance and the general balance are always displayed.
 
-### 4.4 Expectations
+### 4.4 Responsibilities
 
-**`expectation`**
+**`responsibility`**
 `id, child_id, name, icon?, weekly_value_cents, cadence, days_of_week?, max_occurrences?, active, effective_from, archived_at?, sort_order`
 
 | Cadence | Meaning | Chances/week | Example |
@@ -180,13 +196,13 @@ the real savings balance and the general balance are always displayed.
 presents it as opportunity rather than a miss.
 
 **`completion`**
-`id, expectation_id, child_id, occurrence_date, occurrence_index, status, claimed_by_user_id?, decided_by_user_id?, claimed_at, decided_at?, pay_period_id?`
+`id, responsibility_id, child_id, occurrence_date, occurrence_index, status, claimed_by_user_id?, decided_by_user_id?, claimed_at, decided_at?, pay_period_id?`
 
 - `status` ∈ `claimed` | `approved` | `rejected` | `excused`
 - `occurrence_index` disambiguates multiple same-day completions under `up_to_n`.
 
 **`excusal`** — vacation, illness, "at grandma's."
-`id, child_id, start_date, end_date, reason, scope, expectation_ids?`
+`id, child_id, start_date, end_date, reason, scope, responsibility_ids?`
 
 Excused occurrences are removed from the **chances** denominator. Potential pay
 drops; earned pay is untouched. Per **I8**, a sick week never looks like a failed
@@ -251,7 +267,7 @@ at once, but the records are per-child so amounts can diverge.
 **`paystub_line`**
 `id, paystub_id, kind, ref_id?, label, potential_cents, earned_cents, detail_json`
 
-- `kind` ∈ `expectation` | `job` | `adjustment` | `past_due_recovery`
+- `kind` ∈ `responsibility` | `job` | `adjustment` | `past_due_recovery`
 
 ### 4.8 Interest
 
@@ -402,7 +418,7 @@ should never be able to reach an unrecoverable position.
 | Setting | Default |
 |---|---|
 | `raise.mode` | `manual` |
-| `raise.scope` | `all_expectations` (option: selected only) |
+| `raise.scope` | `all_responsibilities` (option: selected only) |
 | `raise.auto_amount_type` | `percent` |
 | `raise.auto_frequency` | — (unset while manual) |
 
@@ -410,7 +426,7 @@ Every raise is written to the audit log and surfaced in the child's history as a
 visible event. Note that many real raises are **scope** raises rather than **rate**
 raises — a child does not get paid more for making the bed, they get the
 opportunity to clean the bathroom for another $5/week. That is just adding an
-expectation and needs no special mechanism.
+responsibility and needs no special mechanism.
 
 ### 5.9 Visibility
 
@@ -433,7 +449,7 @@ for each active child whose period is closing:
     policy ← resolve(child, period_end)
 
     potential ← 0 ; earned ← 0
-    for each expectation active during the period:
+    for each responsibility active during the period:
         chances   ← occurrences(cadence, period, days_of_week, max_occurrences)
                     minus excused occurrences                        # I8
         completed ← completions counted per policy.completion.mode
@@ -539,7 +555,7 @@ earns exactly one day of interest.
 
 - Round-half-up on every conversion to cents.
 - Allocation uses **largest-remainder**, so the parts always sum to the whole (I3).
-- Per-occurrence expectation values are **display-only approximations**. Actual
+- Per-occurrence responsibility values are **display-only approximations**. Actual
   earnings are computed proportionally at payroll time (§6.1), which eliminates
   rounding drift and guarantees full completion pays exactly the weekly value.
 
@@ -564,7 +580,7 @@ Design constraints:
 - **Children this age read unevenly.** Icons, color, progress rings, large numbers.
   The payroll aesthetic is for the parents and for children around 11+; the young
   view is pictographic.
-- **Never a shame board.** Unmet expectations are framed as *still available to
+- **Never a shame board.** Unmet responsibilities are framed as *still available to
   earn* — money on the table, not failure. Same data, opposite valence. Especially
   important when a sibling is standing right there.
 - **Parent actions on the kiosk require a PIN.** Otherwise a seven-year-old walks up
@@ -685,9 +701,9 @@ Warnings, never blocks (§2.3).
 - Interest enabled on Checking while Checking → Savings transfers are free
 - A child has active goals but Savings → Checking is set to free (goals become
   advisory)
-- An expectation's weekly value is zero
+- An responsibility's weekly value is zero
 - Pay date precedes period end
-- A child is `active` with no expectations defined
+- A child is `active` with no responsibilities defined
 
 ---
 
@@ -724,10 +740,11 @@ Each phase should leave the system usable.
 |---|---|
 | **0 — Foundation** | Docker, SQLite, migrations, auth, household + child CRUD, photo pipeline, backups |
 | **1 — Ledger** | Accounts, append-only ledger with triggers, manual money: cash deposit/withdrawal, purchases, adjustments, transfers. *Useful on its own from day one.* |
-| **2 — Payroll** | Expectations, completions, excusals, pay periods, draft/post, pay stubs, policy versioning + snapshots |
+| **2 — Payroll** | Responsibilities, completions, excusals, pay periods, draft/post, pay stubs, policy versioning + snapshots |
 | **3 — Notifications** | PWA manifest + service worker, iOS install onboarding, VAPID setup, Web Push subscription lifecycle, rules, payroll alerts. Early, because follow-through depends on it. |
 | **4 — Bills** | Bills, instances, autopay, shortfall, past-due recovery, dispositions, held account, the nudge |
 | **5 — Kiosk** | Three dashboard modes, child detail view, PIN gate, offline tolerance |
+| **5b — Trust** | Trust areas, house rules, marks with leaky-bucket drain, levels, focus note, privilege catalogue, child-facing readiness view. Ships beside the kiosk because that is where visibility rules bite. |
 | **6 — Goals** | Multiple goals per child, earmarking, goal photos, progress |
 | **7 — Interest** | Daily accrual, monthly posting, lifetime-earned display |
 | **8 — Job board** | Jobs, claims, expiry, repeat and limit rules, bonus pay |
@@ -737,7 +754,202 @@ Each phase should leave the system usable.
 
 ---
 
-## 12. Open items
+## 12. Track B — Trust and privileges
+
+Track A answers *what did you earn?* Track B answers *what are you ready for?*
+They are deliberately separate systems, and invariant I10 keeps them that way.
+
+### 12.1 Why trust is not a currency
+
+Money and trust look parallel but behave nothing alike, and conflating them
+reintroduces exactly the transactional thinking this track exists to avoid.
+
+| | Money | Trust |
+|---|---|---|
+| Owned by | the child | the parent |
+| Shape | a number and a ledger | a state and a sentence |
+| Earned by | completing responsibilities | showing good judgment |
+| Spent on | things | nothing — it is not spent |
+| Unlocks | purchases, goals, giving | privileges, freedom, independence |
+
+The consequence for the UI: money gets digits, history, and a running total.
+Trust gets a colour and a note. **No streaks, no percentages, no history graph
+shown to a child.** The moment trust displays a running score to the person being
+measured, it has become the behaviour chart this design is trying to replace.
+
+### 12.2 The mechanism: a leaky bucket
+
+Each child has a **trust load** per area — an integer that rises when a parent
+records an infraction and drains steadily with time. More marks means a longer
+climb back, which is the property that makes it feel real rather than arbitrary.
+
+This is a leaky bucket, and its real-world analogue is **driver's licence demerit
+points**: infractions add points, time removes them, and enough accumulation
+costs you privileges. That analogue is worth preserving deliberately — this
+application already models payroll, banking, and rent, and modelling demerit
+points fits the same "this is how the adult world works" thesis.
+
+**Time drains the bucket; parents do not have to.** This is the single most
+important property of the design. On the money track, a parent who does nothing
+still produces the right outcome: payroll runs, the child gets paid. Trust must
+have the same asymmetry, or forgetting to reset a status becomes a silent
+punishment that runs for a week over something neither party remembers. A
+constant drain means **doing nothing heals**.
+
+**Credits cannot be banked.** Positive marks subtract from the load, but the load
+floors at zero. A child can accelerate their own recovery; a child cannot bank
+goodwill against a bad afternoon they have not had yet. That distinction is the
+whole line between *making it right* and *buying an indulgence*, and it is why
+the floor is a hard rule rather than a setting.
+
+**The load is capped.** Without a ceiling, one catastrophic afternoon creates a
+two-week hole, which is a sentence rather than a consequence. The cap bounds the
+worst case to a recovery a young child can actually see the end of.
+
+### 12.3 Areas
+
+Trust is domain-specific. A child can be entirely reliable at home and unkind
+with one particular friend, and losing television over the second one teaches
+nothing about the first.
+
+Each **trust area** carries its own load, its own level, and its own privileges.
+Shipped defaults, all editable:
+
+| Area | Covers |
+|---|---|
+| Home | Following directions, respect, cleaning up |
+| Friendships | Kindness, sharing, handling disagreement |
+| Screens | Stopping when asked, honesty about time |
+| Out & About | Staying close, safety, independence away from home |
+
+House Rules are tagged to an area, so an infraction lands in the right bucket.
+Privileges are tagged to an area and a minimum level.
+
+### 12.4 Levels
+
+Four levels per area, derived from the load. Names are what a child sees, and the
+lowest one carries its own time bound so that tomorrow is visibly a fresh start.
+
+| Level | Default name | Default load | Meaning |
+|---|---|---|---|
+| 3 | Trusted | 0 | Everything appropriate for their age |
+| 2 | Working on it | 1–2 | Some privileges paused |
+| 1 | Not ready today | 3–4 | Most privileges in this area paused |
+| 0 | Taking a break | 5+ | This area is on hold; parent conversation required |
+
+A parent can also **pin** a level directly, overriding the computed one. Pins
+carry an expiry (default: end of day) and appear in the parent's nudge queue,
+because an un-expiring manual pin is the silent-punishment failure mode
+returning by another door.
+
+### 12.5 Communicate, do not enforce
+
+The application does **not** disable the television. It answers *what am I ready
+for today?* and removes the "but you never said" argument. Enforcement would put
+a child in an argument with a screen instead of a conversation with a parent,
+which loses the entire point.
+
+The privilege catalogue is therefore **optional infrastructure**. Trust levels
+plus a single focus note are the durable core; the catalogue is a convenience
+that will go stale if it is not maintained, and the system must stay useful when
+it is empty.
+
+### 12.6 Today's Focus
+
+One optional free-text line per child: *"Working on: listening the first time."*
+
+**One item, never a list.** A list of a child's failings rendered on a screen is
+a shame board regardless of the words chosen. Expires by default at end of day.
+
+### 12.7 Visibility
+
+| Surface | Shows |
+|---|---|
+| Kiosk roster (shared) | **Nothing.** No colour, no status, no indicator (I11) |
+| Child's own detail view | Their level per area, their focus note, what they are ready for |
+| Parent views | Everything: load, marks, history, pins |
+
+Trust is deliberately absent from every side-by-side view. A red state next to a
+sibling's green state converts a private conversation into a scoreboard, and
+produces exactly the comparison dynamic the money track already has to manage.
+
+### 12.8 Data model
+
+**`trust_area`**
+`id, household_id, name, icon?, drain_amount, drain_interval_hours, cap_load, thresholds_json, sort_order, active`
+
+**`house_rule`** — tier 1. Concrete and observable, never scored, never paid.
+`id, household_id, trust_area_id, text, default_weight, active, sort_order`
+
+Wording matters here: *"follow directions the first time"* is observable;
+*"have a good attitude"* is not measurable and should be guarded against in the
+UI copy.
+
+**`trust_mark`** — the append-only-ish log of what happened.
+`id, child_id, trust_area_id, house_rule_id?, weight, note?, occurred_at, created_by_user_id, retracted_at?`
+
+- Positive weight = infraction; negative = credit.
+- **Unlike the ledger, a mark may be retracted.** This is a parenting tool, not a
+  financial record. A parent who marked something in anger must be able to undo
+  it cleanly, and requiring a compensating entry to erase an unfair mark would be
+  both bad UX and bad parenting.
+
+**`trust_state`** — the cached bucket, same pattern as `account.balance_cents`.
+`child_id, trust_area_id, load, last_drained_at, pinned_level?, pin_expires_at?, updated_at`
+
+Drain is applied lazily on read and persisted on write:
+
+```
+elapsed  = now − last_drained_at
+periods  = floor(elapsed ÷ drain_interval)
+load     = max(0, load − periods × drain_amount)
+last_drained_at += periods × drain_interval
+```
+
+**`privilege`**
+`id, household_id, trust_area_id, name, icon?, min_level, active, sort_order`
+
+**`focus_note`**
+`id, child_id, text, created_by_user_id, created_at, expires_at`
+
+### 12.9 Settings
+
+| Setting | Default |
+|---|---|
+| `trust.enabled` | on |
+| `trust.drain_amount` | 1 |
+| `trust.drain_interval_hours` | 24 **[ASSUMPTION]** |
+| `trust.drain_anchor_hour` | 06:00, so the day starts fresh **[ASSUMPTION]** |
+| `trust.cap_load` | 6 **[ASSUMPTION]** — bounds worst-case recovery to six days |
+| `trust.show_load_to_child` | off — the licence analogy may motivate an older child |
+| `trust.pin_default_expiry` | end of day |
+| `trust.gates_bonus_jobs` | available, **opt-in per job**, default off |
+
+### 12.10 Trust gating paid opportunity
+
+A bonus job may require a minimum trust level in a chosen area. This is the one
+sanctioned point of contact between the tracks, and it is bounded by I10:
+
+- **Permitted:** trust blocks a child from *claiming* a job they are not ready
+  for. You do not get promoted if you are not trustworthy.
+- **Forbidden:** trust reducing earned pay, altering an allocation, touching a
+  balance, or affecting a job already claimed and completed.
+
+Opt-in per job, default off, so gating is a deliberate decision each time rather
+than an ambient condition on the whole board.
+
+### 12.11 Guardrails
+
+- A privilege requires a level its area's thresholds can never produce
+- `cap_load ÷ drain_amount` implies a recovery longer than seven days
+- A house rule is worded as an emotion rather than an observable behaviour
+  (heuristic warning on words like *attitude*, *nice*, *good*)
+- A child sits at level 0 or 1 for more than three days — nudges the parent to
+  confirm it is still accurate
+
+---
+
+## 13. Open items
 
 1. **`past_due_max_recovery_pct` default** — 100% (realistic) or 50% (never a $0
    payday)? §5.7.
@@ -746,4 +958,10 @@ Each phase should leave the system usable.
    child gets close.
 3. **Child login age** — undecided, deferred to phase 10.
 4. **Starter preset bands** — proposed 5–7, 8–10, 11–13, 14+. Content to be defined.
-5. All **[ASSUMPTION]** defaults throughout §5.
+5. **Trust area defaults** — are Home / Friendships / Screens / Out & About the
+   right four to ship, or do you want different domains?
+6. **Trust level names** — Trusted / Working on it / Not ready today / Taking a
+   break. The lowest two carry the "readiness" framing deliberately.
+7. **Drain rate** — 1 point per 24 hours with a 6-point cap means a worst case of
+   six days back to Trusted. Too slow, too fast, or right?
+8. All **[ASSUMPTION]** defaults throughout §5 and §12.9.

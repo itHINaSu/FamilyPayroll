@@ -292,13 +292,13 @@ export const ledgerEntry = sqliteTable(
 );
 
 // ---------------------------------------------------------------------------
-// Expectations — spec 4.4
+// Responsibilities — spec 4.4 (the paid tier; see also House Rules in spec 12)
 // ---------------------------------------------------------------------------
 
 export type Cadence = "daily" | "daily_selected" | "weekly" | "up_to_n";
 
-export const expectation = sqliteTable(
-  "expectation",
+export const responsibility = sqliteTable(
+  "responsibility",
   {
     id: id(),
     childId: text("child_id")
@@ -319,7 +319,7 @@ export const expectation = sqliteTable(
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: createdAt(),
   },
-  (t) => [index("expectation_child_idx").on(t.childId, t.active)],
+  (t) => [index("responsibility_child_idx").on(t.childId, t.active)],
 );
 
 export type CompletionStatus = "claimed" | "approved" | "rejected" | "excused";
@@ -328,9 +328,9 @@ export const completion = sqliteTable(
   "completion",
   {
     id: id(),
-    expectationId: text("expectation_id")
+    responsibilityId: text("responsibility_id")
       .notNull()
-      .references(() => expectation.id, { onDelete: "cascade" }),
+      .references(() => responsibility.id, { onDelete: "cascade" }),
     childId: text("child_id")
       .notNull()
       .references(() => child.id, { onDelete: "cascade" }),
@@ -346,7 +346,7 @@ export const completion = sqliteTable(
   },
   (t) => [
     uniqueIndex("completion_occurrence_unique").on(
-      t.expectationId,
+      t.responsibilityId,
       t.occurrenceDate,
       t.occurrenceIndex,
     ),
@@ -372,7 +372,7 @@ export const excusal = sqliteTable(
     endDate: text("end_date").notNull(),
     reason: text("reason"),
     scope: text("scope").$type<ExcusalScope>().notNull().default("all"),
-    expectationIds: text("expectation_ids", { mode: "json" }).$type<string[]>(),
+    responsibilityIds: text("responsibility_ids", { mode: "json" }).$type<string[]>(),
     createdByUserId: text("created_by_user_id"),
     createdAt: createdAt(),
   },
@@ -615,7 +615,7 @@ export const paystub = sqliteTable(
 );
 
 export type PaystubLineKind =
-  | "expectation"
+  | "responsibility"
   | "job"
   | "adjustment"
   | "past_due_recovery";
@@ -805,7 +805,7 @@ export const auditLog = sqliteTable(
 export const childRelations = relations(child, ({ many, one }) => ({
   accounts: many(account),
   goals: many(goal),
-  expectations: many(expectation),
+  responsibilities: many(responsibility),
   bills: many(bill),
   payPeriods: many(payPeriod),
   household: one(household, {
