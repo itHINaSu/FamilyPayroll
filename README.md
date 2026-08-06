@@ -99,21 +99,35 @@ src/
 │   └── invariants.test.ts # asserts SPEC.md section 3 against a real database
 ├── lib/
 │   ├── money.ts           # integer-cent math, allocation, interest accrual
+│   ├── ledger.ts          # the one path money moves through
+│   ├── policy.ts          # settings catalogue, resolution, guardrails
+│   ├── payroll.ts         # draft at period end, post on payday
+│   ├── bills.ts           # generation, collection, shortfall, dispositions
+│   ├── interest.ts        # daily micro-cent accrual, monthly posting
+│   ├── goals.ts           # savings sub-buckets and earmarking
+│   ├── jobs.ts            # the bonus job board
+│   ├── trust.ts           # Track B: the leaky bucket, levels, privileges
+│   ├── kiosk.ts           # the ONLY child-facing serialiser (I4, I11)
+│   ├── notifications.ts   # Web Push, subscription lifecycle
+│   ├── nudges.ts          # the daily shortfall warning
 │   ├── children.ts        # child records and the four accounts each one gets
+│   ├── dates.ts           # calendar arithmetic; pay periods and due dates
+│   ├── seed.ts            # starter areas, rules, privileges, age presets
 │   ├── auth/              # scrypt passwords, session cookies, route guards
 │   ├── images.ts          # upload -> downscale -> WebP -> blob
 │   ├── backup.ts          # VACUUM INTO snapshots and retention
-│   └── scheduler.ts       # in-process daily tick
+│   └── scheduler.ts       # in-process tick: payroll, bills, interest, backups
 └── app/
     ├── setup/             # first-run wizard
     ├── login/
-    ├── (app)/             # authenticated shell: dashboard, children, settings
+    ├── kiosk/             # the always-on display, paired by device token
+    ├── (app)/             # parent app: children, jobs, house rules, settings
     └── api/               # health, blob serving
 ```
 
 ### The rules that matter
 
-Nine invariants in [SPEC.md](./SPEC.md#3-hard-invariants) hold the system
+Eleven invariants in [SPEC.md](./SPEC.md#3-hard-invariants) hold the system
 together. The load-bearing ones:
 
 - **Money is integer cents.** No floats in the money path, ever. Interest
@@ -123,11 +137,20 @@ together. The load-bearing ones:
 - **Posted pay stubs are immutable** and carry a snapshot of the policy that
   produced them, so history stays reproducible after every setting has changed.
 - **The `held` account is never child-visible.** It is where bills with a
-  `held_for_child` disposition accumulate — the rent fund. Child-facing code
-  reads `getVisibleAccounts()`, never `getAccounts()`.
+  `held_for_child` disposition accumulate — the rent fund. Every child-facing
+  payload is assembled in `lib/kiosk.ts` and nowhere else, so this is enforced at
+  one boundary rather than trusted to each template.
+- **Trust never touches money.** Nothing in `lib/trust.ts` writes a ledger entry
+  or alters a balance. Trust may gate access to a bonus job; it may never reduce
+  pay for work already done.
+- **Doing nothing produces the right outcome.** Payroll drafts and posts on
+  schedule without a parent acting, and the trust bucket drains with time rather
+  than needing to be cleared. Both are deliberate: a system that punishes a busy
+  week is one you stop using.
 
 `src/db/invariants.test.ts` asserts these against a real SQLite file with the
-real migrations applied.
+real migrations applied, and `src/lib/lifecycle.test.ts` re-checks them after a
+simulated month.
 
 ---
 
