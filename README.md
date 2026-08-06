@@ -29,18 +29,48 @@ generate themselves on first boot and persist in `./data`, so there are no
 default credentials in the image and nothing to log into until you have
 completed setup.
 
-### Running from GitHub without cloning
+### Where the image comes from
 
-Replace the `build` block in `docker-compose.yml` with a git context:
+By default `docker compose up -d` **pulls a prebuilt image** from GitHub
+Container Registry, published by `.github/workflows/publish.yml` on every push.
+Nothing has to be cloned on the server — the compose file and a `data/`
+directory are enough.
 
-```yaml
-services:
-  app:
-    build: https://github.com/<you>/FamilyPayroll.git#main
+Images are built for `linux/amd64` and `linux/arm64`, so the same tag works on a
+NAS, a mini PC, or a Raspberry Pi.
+
+**While the repository is private**, the package is private too. Log in once on
+the machine that runs it:
+
+```sh
+echo <TOKEN> | docker login ghcr.io -u <YOUR_GITHUB_USERNAME> --password-stdin
 ```
 
-Then `docker compose build --pull && docker compose up -d` fetches and builds
-the latest source each time.
+`<TOKEN>` is a GitHub personal access token with the `read:packages` scope.
+Note that **SSH keys do not work here** — container registries authenticate over
+HTTPS with tokens, so repository access over SSH is a separate thing. Docker
+stores the login, so this is a one-time step per machine.
+
+Going public later only removes that step. The image name, the tag, and the
+compose file all stay the same.
+
+**Which tag:** `:edge` is published from feature branches, `:latest` from the
+default branch. Version tags (`:v1.2.0`) and commit tags (`:sha-abc1234`) are
+also published, if you would rather upgrade deliberately than track a moving
+tag. Set `IMAGE` in `.env` to choose.
+
+To upgrade:
+
+```sh
+docker compose pull && docker compose up -d
+```
+
+### Building from source instead
+
+Comment out `image:` in `docker-compose.yml` and uncomment one of the `build:`
+blocks. A local clone always works. The GitHub build context (`build:
+https://github.com/...`) only works for a public repository — Docker cannot
+supply credentials for a private one, so clone it while it is private.
 
 ### Environment
 

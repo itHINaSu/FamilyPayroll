@@ -6,18 +6,37 @@
 # persist in ./data, so there is nothing to configure before starting — you
 # create the household and your parent account in the browser.
 #
-# To run from GitHub without cloning, replace the `build` block below with:
+# ---------------------------------------------------------------------------
+# Where the image comes from
 #
-#   build: https://github.com/<you>/FamilyPayroll.git#main
+# By default this PULLS a prebuilt image published by the GitHub Action in
+# .github/workflows/publish.yml. Nothing needs to be cloned on the server.
 #
-# and `docker compose build --pull` will fetch the latest source each time.
+# While the repository is private, the package is private too, so log in once
+# on the machine that runs this:
+#
+#   echo <TOKEN> | docker login ghcr.io -u <YOUR_GITHUB_USERNAME> --password-stdin
+#
+# where <TOKEN> is a GitHub personal access token with `read:packages`. SSH keys
+# do not work here — container registries authenticate over HTTPS. Making the
+# repository (and package) public later just removes the login step.
+#
+# To BUILD FROM SOURCE instead, comment out `image:` and uncomment one `build:`.
+# ---------------------------------------------------------------------------
 
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: family-payroll:latest
+    image: ${IMAGE:-ghcr.io/ithinasu/familypayroll:edge}
+
+    # Build from a local clone:
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+
+    # Or build straight from GitHub without cloning (public repos only —
+    # a private repo needs credentials Docker's git context cannot supply):
+    # build: https://github.com/itHINaSu/FamilyPayroll.git#main
+
     container_name: family-payroll
     restart: unless-stopped
 
