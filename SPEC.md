@@ -86,7 +86,7 @@ These are non-negotiable and should be enforced in code and covered by tests.
 | I8 | Excused occurrences reduce **potential** pay, never appearing as unearned pay. |
 | I9 | Earned pay for a responsibility can never exceed its scaled period value. |
 | I10 | **Trust never touches money.** No Track B action writes a ledger entry, alters a balance, or changes earned pay. Trust may gate *eligibility for future opportunity*; it may never reduce pay for work already done. |
-| I11 | Trust status never appears on a shared or multi-child view, and the numeric trust load is never shown to a child unless a parent explicitly enables it. |
+| I11 | Trust status never appears on a shared or multi-child view. What a child sees of their own trust is governed by `trust.child_visibility`; the **recovery timeline is always shown**, the numeric load and the house-rule tariff only when a parent opts in (§12.2.1). |
 
 ---
 
@@ -802,9 +802,54 @@ goodwill against a bad afternoon they have not had yet. That distinction is the
 whole line between *making it right* and *buying an indulgence*, and it is why
 the floor is a hard rule rather than a setting.
 
-**The load is capped.** Without a ceiling, one catastrophic afternoon creates a
-two-week hole, which is a sentence rather than a consequence. The cap bounds the
-worst case to a recovery a young child can actually see the end of.
+**The load is capped, and the cap is a setting.** Without a ceiling, one
+catastrophic afternoon creates a two-week hole, which is a sentence rather than a
+consequence. The cap is per-area with a per-child override, because a fifteen
+year old can reasonably carry a longer consequence than a seven year old — and
+because the same child needs a different ceiling at seven and at fifteen.
+
+**Consequence proximity is a design constraint.** A consequence too far removed
+from the action stops teaching and just feels like weather. This is the reason
+the defaults drain fast (§12.9) and the reason the guardrails warn on long
+recoveries scaled to the child's age (§12.11). As children get older the drain
+slows and the cap rises; the starter presets move both together.
+
+### 12.2.1 Should the child see the points?
+
+Yes — but the child-facing unit is **time, not points**.
+
+There is a real distinction between two things that both look like "showing the
+score":
+
+- **The balance and the recovery timeline** — *"you have 3 marks; one clears
+  every morning; you're back to Trusted on Thursday."* This teaches duration and
+  agency. It makes "this is how long it takes to undo what I did" concrete, which
+  is the single most valuable thing this mechanism can convey.
+- **The tariff** — a browsable price list saying hitting costs 2 and not
+  listening costs 1. This invites arithmetic. A child sitting at zero who knows
+  hitting costs 2, and knows 2 clears by tomorrow, has been handed a quote.
+
+The first is worth showing. The second is the transactional failure mode wearing
+the first one's clothes. So weights are revealed **when a mark is recorded**
+("that one was a 2"), not published in advance as a menu.
+
+A child will infer the rough tariff from experience within a few weeks, and that
+is fine — that is how consequences are learned everywhere else. The difference
+between learning it through experience and reading it off a laminated card is the
+difference between a consequence and a vending machine.
+
+**Therefore the primary child-facing display is a recovery timeline, not a
+number.** "Back to Trusted: Thursday morning" is the same information as "3
+marks" expressed in the unit the lesson is actually about, and a seven year old
+understands Thursday far better than they understand 3.
+
+Numeric load visibility is a three-position setting per child (§12.9):
+
+| Mode | Child sees | Suited to |
+|---|---|---|
+| `level_only` | Their level and the recovery timeline | Young children |
+| `show_load` | The above plus the numeric load | ~8 and up |
+| `show_tariff` | The above plus house-rule weights | Teens, where the licence analogy lands and transparency outweighs pricing |
 
 ### 12.3 Areas
 
@@ -812,7 +857,12 @@ Trust is domain-specific. A child can be entirely reliable at home and unkind
 with one particular friend, and losing television over the second one teaches
 nothing about the first.
 
-Each **trust area** carries its own load, its own level, and its own privileges.
+Areas are **entirely parent-defined** — add, rename, reorder, or delete them.
+The shipped set is a starting point, not a structure to work within, and a
+household that wants one general area plus nothing else should get exactly that.
+Having the framework is often enough on its own: an untracked area can still be
+useful purely as a place to hang a privilege.
+
 Shipped defaults, all editable:
 
 | Area | Covers |
@@ -866,7 +916,7 @@ a shame board regardless of the words chosen. Expires by default at end of day.
 | Surface | Shows |
 |---|---|
 | Kiosk roster (shared) | **Nothing.** No colour, no status, no indicator (I11) |
-| Child's own detail view | Their level per area, their focus note, what they are ready for |
+| Child's own detail view | Their level per area, **the recovery timeline**, their focus note, what they are ready for. Numeric load and weights per `trust.child_visibility` (§12.2.1) |
 | Parent views | Everything: load, marks, history, pins |
 
 Trust is deliberately absent from every side-by-side view. A red state next to a
@@ -877,6 +927,10 @@ produces exactly the comparison dynamic the money track already has to manage.
 
 **`trust_area`**
 `id, household_id, name, icon?, drain_amount, drain_interval_hours, cap_load, thresholds_json, sort_order, active`
+
+**`trust_area_override`** — per-child drain and cap, so one area can move at
+different speeds for a seven year old and a fifteen year old.
+`child_id, trust_area_id, drain_amount?, drain_interval_hours?, cap_load?`
 
 **`house_rule`** — tier 1. Concrete and observable, never scored, never paid.
 `id, household_id, trust_area_id, text, default_weight, active, sort_order`
@@ -914,16 +968,34 @@ last_drained_at += periods × drain_interval
 
 ### 12.9 Settings
 
+Every setting below is a household default with a per-child override, and the
+drain and cap are additionally per-area.
+
 | Setting | Default |
 |---|---|
 | `trust.enabled` | on |
-| `trust.drain_amount` | 1 |
-| `trust.drain_interval_hours` | 24 **[ASSUMPTION]** |
-| `trust.drain_anchor_hour` | 06:00, so the day starts fresh **[ASSUMPTION]** |
-| `trust.cap_load` | 6 **[ASSUMPTION]** — bounds worst-case recovery to six days |
-| `trust.show_load_to_child` | off — the licence analogy may motivate an older child |
+| `trust.drain_amount` | 2 |
+| `trust.drain_interval_hours` | 12 |
+| `trust.drain_anchor_hour` | 06:00, so a day visibly starts fresh |
+| `trust.cap_load` | 6 |
+| `trust.child_visibility` | `level_only` (§12.2.1) |
 | `trust.pin_default_expiry` | end of day |
 | `trust.gates_bonus_jobs` | available, **opt-in per job**, default off |
+
+The defaults drain fast on purpose: 2 points every 12 hours against a cap of 6
+means even a worst-possible day is back to Trusted inside two days. For a six or
+seven year old that is the right end of the range — a consequence they cannot see
+the end of has stopped teaching and become weather. Expect to hit the cap
+regularly at first; that is the system working, not misconfigured.
+
+**Age presets move drain and cap together**, in opposite directions:
+
+| Band | Drain | Cap | Worst case |
+|---|---|---|---|
+| 5–7 | 2 / 12h | 6 | ~1.5 days |
+| 8–10 | 2 / 24h | 8 | 4 days |
+| 11–13 | 1 / 24h | 10 | 10 days |
+| 14+ | 1 / 24h | 14 | 2 weeks |
 
 ### 12.10 Trust gating paid opportunity
 
@@ -941,7 +1013,10 @@ than an ambient condition on the whole board.
 ### 12.11 Guardrails
 
 - A privilege requires a level its area's thresholds can never produce
-- `cap_load ÷ drain_amount` implies a recovery longer than seven days
+- **Worst-case recovery exceeds what is age-appropriate** — `cap_load ÷
+  drain_amount` compared against a threshold scaled to the child's derived age
+  (3 days under 8, 7 days to 12, 14 days above). This is the consequence-proximity
+  constraint from §12.2 expressed as a warning rather than a limit.
 - A house rule is worded as an emotion rather than an observable behaviour
   (heuristic warning on words like *attitude*, *nice*, *good*)
 - A child sits at level 0 or 1 for more than three days — nudges the parent to
@@ -958,10 +1033,13 @@ than an ambient condition on the whole board.
    child gets close.
 3. **Child login age** — undecided, deferred to phase 10.
 4. **Starter preset bands** — proposed 5–7, 8–10, 11–13, 14+. Content to be defined.
-5. **Trust area defaults** — are Home / Friendships / Screens / Out & About the
-   right four to ship, or do you want different domains?
-6. **Trust level names** — Trusted / Working on it / Not ready today / Taking a
-   break. The lowest two carry the "readiness" framing deliberately.
-7. **Drain rate** — 1 point per 24 hours with a 6-point cap means a worst case of
-   six days back to Trusted. Too slow, too fast, or right?
-8. All **[ASSUMPTION]** defaults throughout §5 and §12.9.
+5. **Teens and Track B.** The trust mechanism is tuned for children young enough
+   that a bounded, mechanical recovery is legible. Whether it stays the right
+   tool at fifteen — or whether privileges by then are better handled entirely by
+   conversation — is an open question worth revisiting before the eldest gets
+   there. The age presets in §12.9 assume it remains useful; that assumption is
+   untested.
+6. **House rule starter content.** The wording of the shipped examples matters
+   more than usual, since they model the observable-not-emotional standard the
+   guardrail enforces.
+7. All **[ASSUMPTION]** defaults throughout §5 and §12.9.
