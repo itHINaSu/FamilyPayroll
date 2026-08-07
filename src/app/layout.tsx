@@ -20,6 +20,14 @@ export const metadata: Metadata = {
     title: "Family Payroll",
     statusBarStyle: "default",
   },
+  other: {
+    // Next's `appleWebApp.capable` only renders the newer, unprefixed
+    // "mobile-web-app-capable" tag — iOS Safari still ignores that one and
+    // only honors this Apple-prefixed name for standalone (no URL bar, no
+    // browser buttons) launch from a home-screen icon. Without it, "Add to
+    // Home Screen" just opens a bookmark in ordinary Safari.
+    "apple-mobile-web-app-capable": "yes",
+  },
 };
 
 export const viewport: Viewport = {
