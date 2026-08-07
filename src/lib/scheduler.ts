@@ -9,7 +9,7 @@ import { accrueDaily, postMonthlyInterest } from "@/lib/interest";
 import { expireStaleClaims } from "@/lib/jobs";
 import { sendDailyNudges } from "@/lib/nudges";
 import { getSecret, setSecret } from "@/lib/secrets";
-import { pruneExpiredSessions } from "@/lib/auth/session";
+import { pruneExpiredMfaChallenges, pruneExpiredSessions } from "@/lib/auth/session";
 
 /**
  * In-process scheduler.
@@ -65,7 +65,10 @@ const tasks: DailyTask[] = [
     run: () => {
       const file = createBackup();
       const pruned = pruneExpiredSessions();
-      console.log(`[scheduler] backup written: ${file} (pruned ${pruned} sessions)`);
+      const prunedMfa = pruneExpiredMfaChallenges();
+      console.log(
+        `[scheduler] backup written: ${file} (pruned ${pruned} sessions, ${prunedMfa} MFA challenges)`,
+      );
     },
   },
   {

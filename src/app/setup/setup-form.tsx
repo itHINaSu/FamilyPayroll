@@ -49,8 +49,8 @@ export function SetupForm({ defaultTimezone }: { defaultTimezone: string }) {
           <Input name="displayName" required autoComplete="name" />
         </Field>
 
-        <Field label="Email">
-          <Input name="email" type="email" required autoComplete="email" />
+        <Field label="Username" hint="3-32 characters. What you'll log in with.">
+          <Input name="email" type="text" required autoComplete="username" />
         </Field>
 
         <Field label="Password" hint="At least 8 characters.">

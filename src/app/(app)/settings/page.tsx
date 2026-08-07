@@ -18,8 +18,10 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { device, user } from "@/db/schema";
 import { AccountForm } from "./account-form";
+import { BackupControls } from "./backup-controls";
 import { HouseholdForm } from "./household-form";
 import { KioskForm } from "./kiosk-form";
+import { MfaForm } from "./mfa-form";
 import { toggleEvent } from "./notification-actions";
 import { PushSetup, TestButton } from "./push-setup";
 
@@ -72,6 +74,8 @@ export default async function SettingsPage() {
             email: account?.email ?? "",
           }}
         />
+
+        <MfaForm enabled={!!account?.totpEnabledAt} />
 
         <HouseholdForm
           household={{
@@ -176,7 +180,7 @@ export default async function SettingsPage() {
           </div>
         </div>
 
-        <Card>
+        <div>
           <h2 className="mb-1 text-lg font-semibold">Backups</h2>
           <p className="mb-4 text-sm text-ink-400">
             A consistent snapshot is written nightly at{" "}
@@ -185,19 +189,26 @@ export default async function SettingsPage() {
             copy one anywhere and it opens.
           </p>
 
-          {backups.length === 0 ? (
-            <Alert tone="info">No snapshots yet. The first one runs tonight.</Alert>
-          ) : (
-            <ul className="space-y-1.5 text-sm">
-              {backups.slice(0, 10).map((b) => (
-                <li key={b.name} className="flex justify-between">
-                  <span className="tnum text-ink-500 dark:text-ink-300">{b.name}</span>
-                  <span className="tnum text-ink-400">{formatBytes(b.sizeBytes)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
+          <div className="space-y-4">
+            <BackupControls />
+
+            <Card>
+              <h3 className="mb-3 font-semibold">Existing snapshots</h3>
+              {backups.length === 0 ? (
+                <Alert tone="info">No snapshots yet. The first one runs tonight.</Alert>
+              ) : (
+                <ul className="space-y-1.5 text-sm">
+                  {backups.slice(0, 10).map((b) => (
+                    <li key={b.name} className="flex justify-between">
+                      <span className="tnum text-ink-500 dark:text-ink-300">{b.name}</span>
+                      <span className="tnum text-ink-400">{formatBytes(b.sizeBytes)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          </div>
+        </div>
       </div>
     </>
   );

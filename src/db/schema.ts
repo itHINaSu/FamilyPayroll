@@ -71,6 +71,11 @@ export const user = sqliteTable(
     householdId: text("household_id")
       .notNull()
       .references(() => household.id, { onDelete: "cascade" }),
+    /**
+     * The login identifier. Column name is a holdover from an earlier design —
+     * it is validated and shown to the user as a plain username (see
+     * lib/auth/username.ts), never actually used as an email address.
+     */
     email: text("email").notNull(),
     passwordHash: text("password_hash").notNull(),
     displayName: text("display_name").notNull(),
@@ -78,11 +83,38 @@ export const user = sqliteTable(
     /** Set only for role='child'; links a login to its child record. */
     childId: text("child_id"),
     active: integer("active", { mode: "boolean" }).notNull().default(true),
+    /**
+     * TOTP (RFC 6238), authenticator-app second factor. `totpSecret` is written
+     * the moment enrollment starts, before it is confirmed — it is inert until
+     * `totpEnabledAt` is set, which only happens once a real code from it has
+     * been verified, so an abandoned enrollment never locks anyone out.
+     */
+    totpSecret: text("totp_secret"),
+    totpEnabledAt: integer("totp_enabled_at"),
+    /** Hashed single-use recovery codes, shown once at enrollment. */
+    totpRecoveryCodesJson: text("totp_recovery_codes_json", { mode: "json" }).$type<
+      { hash: string; usedAt: number | null }[]
+    >(),
     createdAt: createdAt(),
     lastLoginAt: integer("last_login_at"),
   },
   (t) => [uniqueIndex("user_email_unique").on(t.email)],
 );
+
+/**
+ * The gap between "password verified" and "session issued" when a login has
+ * a second factor. Deliberately its own short-lived, single-use token rather
+ * than a half-authenticated session — nothing about a pending challenge can
+ * be used to skip the code check, and it self-expires in minutes.
+ */
+export const pendingMfaChallenge = sqliteTable("pending_mfa_challenge", {
+  id: id(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  expiresAt: integer("expires_at").notNull(),
+  createdAt: createdAt(),
+});
 
 export const session = sqliteTable(
   "session",

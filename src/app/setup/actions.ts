@@ -8,6 +8,7 @@ import { household, user } from "@/db/schema";
 import { hashPassword, validatePassword } from "@/lib/auth/password";
 import { createSession } from "@/lib/auth/session";
 import { isSetupComplete } from "@/lib/auth/guard";
+import { UsernameSchema } from "@/lib/auth/username";
 import { config } from "@/lib/config";
 import { seedHousehold } from "@/lib/seed";
 
@@ -15,7 +16,7 @@ const SetupSchema = z.object({
   householdName: z.string().trim().min(1, "Give your household a name."),
   timezone: z.string().trim().min(1),
   displayName: z.string().trim().min(1, "Enter your name."),
-  email: z.string().trim().toLowerCase().email("Enter a valid email address."),
+  email: UsernameSchema,
   password: z.string(),
 });
 

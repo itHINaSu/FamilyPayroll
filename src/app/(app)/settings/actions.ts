@@ -7,11 +7,23 @@ import { db } from "@/db";
 import { auditLog, household, user } from "@/db/schema";
 import { requireParent } from "@/lib/auth/guard";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
+import {
+  formatSecretForDisplay,
+  generateRecoveryCodes,
+  generateTotpSecret,
+  totpUri,
+  verifyTotp,
+} from "@/lib/auth/totp";
+import { UsernameSchema } from "@/lib/auth/username";
+import { createBackup, restoreFromUpload } from "@/lib/backup";
 import { getChild } from "@/lib/children";
 import { getOverrides, savePolicyVersion, type PartialPolicy } from "@/lib/policy";
 import { SETTINGS_SECTIONS } from "@/lib/settings-schema";
 
 export type SettingsState = { error?: string; ok?: boolean };
+export type BackupState = { error?: string; ok?: boolean; message?: string };
+
+const MAX_RESTORE_UPLOAD_BYTES = 200 * 1024 * 1024;
 
 /**
  * Save a settings change as a NEW policy version.
@@ -186,13 +198,13 @@ export async function revokeKiosk(formData: FormData): Promise<void> {
 }
 
 /**
- * The parent's own login — name, email, password.
+ * The parent's own login — name, username, password.
  *
- * A current password is required the moment either the email or the password
- * itself is changing; changing just the display name does not need it. The
- * session cookie itself never has to change: it looks up the user row fresh
- * on every request, so a new email or password takes effect immediately
- * without a forced re-login.
+ * A current password is required the moment either the username or the
+ * password itself is changing; changing just the display name does not need
+ * it. The session cookie itself never has to change: it looks up the user
+ * row fresh on every request, so a new username or password takes effect
+ * immediately without a forced re-login.
  */
 export async function updateAccount(
   _prev: SettingsState,
@@ -201,15 +213,16 @@ export async function updateAccount(
   const parent = await requireParent();
 
   const displayName = String(formData.get("displayName") ?? "").trim();
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const parsedUsername = UsernameSchema.safeParse(formData.get("email"));
   const currentPassword = String(formData.get("currentPassword") ?? "");
   const newPassword = String(formData.get("newPassword") ?? "");
   const confirmPassword = String(formData.get("confirmPassword") ?? "");
 
   if (!displayName) return { error: "A name is required." };
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return { error: "That doesn't look like a valid email address." };
+  if (!parsedUsername.success) {
+    return { error: parsedUsername.error.issues[0]?.message ?? "Check the username." };
   }
+  const email = parsedUsername.data;
 
   const row = db.select().from(user).where(eq(user.id, parent.id)).get();
   if (!row) return { error: "Your account could not be found." };
@@ -220,7 +233,7 @@ export async function updateAccount(
   if (changingEmail || changingPassword) {
     if (!currentPassword) {
       return {
-        error: "Enter your current password to change your email or password.",
+        error: "Enter your current password to change your username or password.",
       };
     }
     if (!(await verifyPassword(currentPassword, row.passwordHash))) {
@@ -234,7 +247,7 @@ export async function updateAccount(
       .from(user)
       .where(and(eq(user.email, email), ne(user.id, parent.id)))
       .get();
-    if (clash) return { error: "That email is already in use." };
+    if (clash) return { error: "That username is already taken." };
   }
 
   const updates: { displayName: string; email: string; passwordHash?: string } = {
@@ -253,6 +266,193 @@ export async function updateAccount(
   }
 
   db.update(user).set(updates).where(eq(user.id, parent.id)).run();
+
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
+/** An on-demand snapshot, identical to the nightly one, taken right now. */
+export async function backupNow(
+  _prev: BackupState,
+  _formData: FormData,
+): Promise<BackupState> {
+  const parent = await requireParent();
+
+  const target = createBackup();
+
+  db.insert(auditLog)
+    .values({
+      actorUserId: parent.id,
+      action: "backup.created",
+      entityType: "household",
+      entityId: parent.householdId,
+      afterJson: { file: target.split("/").pop() },
+    })
+    .run();
+
+  revalidatePath("/settings");
+  return { ok: true, message: `Saved ${target.split("/").pop()}.` };
+}
+
+/**
+ * Replace the whole database with an uploaded backup.
+ *
+ * The form requires an explicit confirmation checkbox, checked again here
+ * server-side rather than trusted from the client — this is the single most
+ * destructive action available in the app, undoing every paycheck and
+ * completion back to whatever moment the upload was taken. A safety snapshot
+ * of the current database is always written first, so even a mistaken
+ * restore is one more upload away from undone.
+ */
+export async function restoreBackup(
+  _prev: BackupState,
+  formData: FormData,
+): Promise<BackupState> {
+  const parent = await requireParent();
+
+  const confirmed = formData.get("confirmed") === "on";
+  if (!confirmed) {
+    return { error: "Check the confirmation box to proceed." };
+  }
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "Choose a backup file first." };
+  }
+  if (file.size > MAX_RESTORE_UPLOAD_BYTES) {
+    return { error: "That file is larger than this app's databases ever get." };
+  }
+
+  const bytes = Buffer.from(await file.arrayBuffer());
+  const result = restoreFromUpload(bytes);
+
+  if (!result.ok) return { error: result.error };
+
+  db.insert(auditLog)
+    .values({
+      actorUserId: parent.id,
+      action: "backup.restored",
+      entityType: "household",
+      entityId: parent.householdId,
+      afterJson: { safetyBackup: result.safetyBackup.split("/").pop() },
+    })
+    .run();
+
+  return {
+    ok: true,
+    message:
+      "Restored. A safety copy of what was running before is saved. Restart the app for the restored data to take effect.",
+  };
+}
+
+export type MfaEnrollState = {
+  error?: string;
+  secret?: string;
+  secretDisplay?: string;
+  uri?: string;
+};
+
+/**
+ * Step one of enrollment: generate a secret and hold it, unconfirmed.
+ *
+ * Writing it before it is confirmed is deliberate and safe — `totpEnabledAt`
+ * is what the login flow actually checks, and that is only set once a real
+ * code from this secret has been verified. An abandoned enrollment just sits
+ * there inert until overwritten by the next attempt.
+ */
+export async function startMfaEnrollment(
+  _prev: MfaEnrollState,
+  _formData: FormData,
+): Promise<MfaEnrollState> {
+  const parent = await requireParent();
+
+  const secret = generateTotpSecret();
+  db.update(user)
+    .set({ totpSecret: secret, totpEnabledAt: null, totpRecoveryCodesJson: null })
+    .where(eq(user.id, parent.id))
+    .run();
+
+  return {
+    secret,
+    secretDisplay: formatSecretForDisplay(secret),
+    uri: totpUri(secret, parent.email),
+  };
+}
+
+export type MfaConfirmState = { error?: string; recoveryCodes?: string[] };
+
+/** Step two: a real code from the secret turns it on and mints recovery codes. */
+export async function confirmMfaEnrollment(
+  _prev: MfaConfirmState,
+  formData: FormData,
+): Promise<MfaConfirmState> {
+  const parent = await requireParent();
+
+  const row = db.select().from(user).where(eq(user.id, parent.id)).get();
+  if (!row?.totpSecret) {
+    return { error: "Start enrollment again — nothing pending was found." };
+  }
+
+  const code = String(formData.get("code") ?? "").trim();
+  if (!verifyTotp(row.totpSecret, code)) {
+    return { error: "That code didn't match. Check the time on your device." };
+  }
+
+  const recoveryCodes = generateRecoveryCodes();
+  const hashed = await Promise.all(
+    recoveryCodes.map(async (c) => ({ hash: await hashPassword(c), usedAt: null })),
+  );
+
+  db.update(user)
+    .set({ totpEnabledAt: Date.now(), totpRecoveryCodesJson: hashed })
+    .where(eq(user.id, parent.id))
+    .run();
+
+  db.insert(auditLog)
+    .values({
+      actorUserId: parent.id,
+      action: "mfa.enabled",
+      entityType: "user",
+      entityId: parent.id,
+    })
+    .run();
+
+  // No revalidatePath here: it would re-render the settings page mid-flow
+  // with the server's now-true `enabled` prop, unmounting this very form
+  // before the recovery codes it just returned are ever shown. The client
+  // switches views itself once the parent confirms the codes were saved; the
+  // next real navigation picks up the server's fresh state naturally.
+  return { recoveryCodes };
+}
+
+/** Cancels a pending or active enrollment. Requires the current password. */
+export async function disableMfa(
+  _prev: SettingsState,
+  formData: FormData,
+): Promise<SettingsState> {
+  const parent = await requireParent();
+
+  const currentPassword = String(formData.get("currentPassword") ?? "");
+  const row = db.select().from(user).where(eq(user.id, parent.id)).get();
+  if (!row) return { error: "Your account could not be found." };
+
+  if (!currentPassword || !(await verifyPassword(currentPassword, row.passwordHash))) {
+    return { error: "Current password is incorrect." };
+  }
+
+  db.update(user)
+    .set({ totpSecret: null, totpEnabledAt: null, totpRecoveryCodesJson: null })
+    .where(eq(user.id, parent.id))
+    .run();
+
+  db.insert(auditLog)
+    .values({
+      actorUserId: parent.id,
+      action: "mfa.disabled",
+      entityType: "user",
+      entityId: parent.id,
+    })
+    .run();
 
   revalidatePath("/settings");
   return { ok: true };

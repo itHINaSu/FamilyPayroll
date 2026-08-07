@@ -6,20 +6,27 @@ import { usePathname } from "next/navigation";
 /**
  * Daily use first, configuration grouped, account behaviour on its own.
  *
- * Responsibilities, expectations, extra jobs, and bills are all configured
- * occasionally rather than used daily, and every one of them is only
- * meaningful in the context of a specific child — so they live under one
+ * Children, responsibilities, expectations, extra jobs, and bills are all
+ * configured occasionally rather than used daily, and every one of them is
+ * only meaningful in the context of a specific child — so they live under one
  * "Setup" link (→ /config) as a landing page, one click from the top nav and
- * still one click from there to each destination. Settings is different: it
- * is not "what is set up" but "how the app behaves" — pay schedule, the
- * parent's own account, notifications — so it keeps its own tab rather than
- * sharing Setup's shelf.
+ * still one click from there to each destination. A child's own balance and
+ * history is one click from the Dashboard instead of needing its own tab.
+ * Settings is different: it is not "what is set up" but "how the app
+ * behaves" — pay schedule, the parent's own account, notifications — so it
+ * keeps its own tab rather than sharing Setup's shelf.
  */
-const SETUP_PATHS = ["/config", "/responsibilities", "/expectations", "/jobs", "/bills"];
+const SETUP_PATHS = [
+  "/config",
+  "/children",
+  "/responsibilities",
+  "/expectations",
+  "/jobs",
+  "/bills",
+];
 
 const NAV = [
   { href: "/", label: "Dashboard" },
-  { href: "/children", label: "Children" },
   { href: "/config", label: "Setup" },
   { href: "/settings", label: "Settings" },
 ];

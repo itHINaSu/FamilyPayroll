@@ -30,7 +30,7 @@ export function AccountForm({
       <h2 className="mb-1 text-lg font-semibold">Your account</h2>
       <p className="mb-4 text-sm text-ink-400">
         Your own login — not a child&apos;s. A current password is only needed
-        when changing the email or password themselves.
+        when changing the username or password themselves.
       </p>
 
       <form action={formAction} className="space-y-4">
@@ -42,10 +42,11 @@ export function AccountForm({
             <Input name="displayName" defaultValue={account.displayName} required />
           </Field>
 
-          <Field label="Email">
+          <Field label="Username" hint="3-32 characters: letters, numbers, dots, underscores, hyphens.">
             <Input
               name="email"
-              type="email"
+              type="text"
+              autoComplete="username"
               defaultValue={account.email}
               required
             />
@@ -57,7 +58,7 @@ export function AccountForm({
             Change password (optional)
           </p>
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Current password" hint="Required to change email or password.">
+            <Field label="Current password" hint="Required to change username or password.">
               <Input name="currentPassword" type="password" autoComplete="current-password" />
             </Field>
             <Field label="New password" hint="At least 8 characters.">

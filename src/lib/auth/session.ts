@@ -5,11 +5,13 @@ import { cookies } from "next/headers";
 import { and, eq, gt, lt } from "drizzle-orm";
 
 import { db } from "@/db";
-import { session, user } from "@/db/schema";
+import { pendingMfaChallenge, session, user } from "@/db/schema";
 import { config } from "@/lib/config";
 import type { UserRole } from "@/db/schema";
 
 export const SESSION_COOKIE = "fp_session";
+export const MFA_PENDING_COOKIE = "fp_mfa_pending";
+const MFA_CHALLENGE_TTL_MS = 5 * 60_000;
 
 export type SessionUser = {
   id: string;
@@ -101,5 +103,61 @@ export async function destroySession(): Promise<void> {
 
 export function pruneExpiredSessions(): number {
   const result = db.delete(session).where(lt(session.expiresAt, Date.now())).run();
+  return result.changes;
+}
+
+/**
+ * The gap between "password verified" and "session issued" for a login with
+ * a second factor. A random row id (122 bits from crypto.randomUUID) stands
+ * in for a token — short-lived and single-use, so it needs no separate
+ * hashing the way the long-lived session cookie does.
+ */
+export async function createMfaChallenge(userId: string): Promise<void> {
+  const row = db
+    .insert(pendingMfaChallenge)
+    .values({ userId, expiresAt: Date.now() + MFA_CHALLENGE_TTL_MS })
+    .returning({ id: pendingMfaChallenge.id })
+    .get();
+
+  const store = await cookies();
+  store.set(MFA_PENDING_COOKIE, row.id, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: config.isProduction && !!config.appUrl?.startsWith("https://"),
+    path: "/",
+    maxAge: MFA_CHALLENGE_TTL_MS / 1000,
+  });
+}
+
+export async function getMfaChallengeUserId(): Promise<string | null> {
+  const store = await cookies();
+  const token = store.get(MFA_PENDING_COOKIE)?.value;
+  if (!token) return null;
+
+  const row = db
+    .select()
+    .from(pendingMfaChallenge)
+    .where(
+      and(eq(pendingMfaChallenge.id, token), gt(pendingMfaChallenge.expiresAt, Date.now())),
+    )
+    .get();
+
+  return row?.userId ?? null;
+}
+
+export async function clearMfaChallenge(): Promise<void> {
+  const store = await cookies();
+  const token = store.get(MFA_PENDING_COOKIE)?.value;
+  if (token) {
+    db.delete(pendingMfaChallenge).where(eq(pendingMfaChallenge.id, token)).run();
+  }
+  store.delete(MFA_PENDING_COOKIE);
+}
+
+export function pruneExpiredMfaChallenges(): number {
+  const result = db
+    .delete(pendingMfaChallenge)
+    .where(lt(pendingMfaChallenge.expiresAt, Date.now()))
+    .run();
   return result.changes;
 }
