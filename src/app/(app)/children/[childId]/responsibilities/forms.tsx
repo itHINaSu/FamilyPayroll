@@ -25,7 +25,13 @@ const DAYS = [
   { value: 6, label: "Sat" },
 ];
 
-export function AddResponsibilityForm({ childId }: { childId: string }) {
+export function AddResponsibilityForm({
+  childId,
+  hasSiblings,
+}: {
+  childId: string;
+  hasSiblings: boolean;
+}) {
   const [state, formAction] = useActionState<RespState, FormData>(
     addResponsibility,
     {},
@@ -43,6 +49,8 @@ export function AddResponsibilityForm({ childId }: { childId: string }) {
       <p className="mb-4 text-xs text-ink-400">
         State the value per week. The app divides it by how many chances the
         cadence gives, so a perfect week always pays exactly this amount.
+        It also joins the family list, ready to switch on for a sibling
+        later — but starts here, subscribed only to this child.
       </p>
 
       <form ref={formRef} action={formAction} className="space-y-4">
@@ -100,6 +108,19 @@ export function AddResponsibilityForm({ childId }: { childId: string }) {
               defaultValue={3}
             />
           </Field>
+        )}
+
+        {hasSiblings && (
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" name="applyToAllChildren" className="mt-0.5" />
+            <span>
+              Apply to all children
+              <span className="block text-xs text-ink-400">
+                Otherwise it&apos;s added just for this child — turn it on for
+                a sibling later from the family Responsibilities hub.
+              </span>
+            </span>
+          </label>
         )}
 
         <Submit>Add responsibility</Submit>

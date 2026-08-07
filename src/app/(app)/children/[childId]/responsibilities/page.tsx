@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 
 import { Alert, Card } from "@/components/ui";
 import { requireParent } from "@/lib/auth/guard";
-import { getChild } from "@/lib/children";
+import { getChild, listChildren } from "@/lib/children";
 import { eachDate, payPeriodFor, todayInHousehold } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
 import { resolvePolicy } from "@/lib/policy";
@@ -191,7 +191,10 @@ export default async function ResponsibilitiesPage({
       </div>
 
       <div className="space-y-6">
-        <AddResponsibilityForm childId={childId} />
+        <AddResponsibilityForm
+          childId={childId}
+          hasSiblings={listChildren(parent.householdId).length > 1}
+        />
         <RaiseForm
           childId={childId}
           responsibilities={rows.map((r) => ({ id: r.id, name: r.name }))}

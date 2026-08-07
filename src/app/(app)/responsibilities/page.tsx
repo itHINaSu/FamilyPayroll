@@ -1,11 +1,7 @@
 import { Alert, PageHeader } from "@/components/ui";
 import { requireParent } from "@/lib/auth/guard";
 import { listChildren } from "@/lib/children";
-import {
-  describeCadence,
-  listResponsibilityTemplates,
-  templateChildStatus,
-} from "@/lib/responsibilities";
+import { listResponsibilityTemplates, templateChildStatus } from "@/lib/responsibilities";
 import { AddTemplateForm, TemplateCard } from "./forms";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +24,7 @@ export default async function ResponsibilitiesHubPage() {
     <>
       <PageHeader
         title="Responsibilities"
-        subtitle="The paid work. Created once, applied to every child — turn it off or change the rate per child below."
+        subtitle="The paid work. Name, pay, and cadence are editable right here — click into one to turn it off or on for a specific child."
       />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
@@ -38,21 +34,24 @@ export default async function ResponsibilitiesHubPage() {
               Nothing set up yet. Add the first one on the right.
             </Alert>
           ) : (
-            templates.map((t) => (
-              <TemplateCard
-                key={t.id}
-                template={{
-                  id: t.id,
-                  name: t.name,
-                  weeklyValueCents: t.weeklyValueCents,
-                  cadence: t.cadence,
-                  daysOfWeek: t.daysOfWeek,
-                  maxOccurrences: t.maxOccurrences,
-                  cadenceLabel: describeCadence(t),
-                }}
-                statuses={templateChildStatus(parent.householdId, t.id)}
-              />
-            ))
+            templates.map((t) => {
+              const statuses = templateChildStatus(parent.householdId, t.id);
+              return (
+                <TemplateCard
+                  key={t.id}
+                  template={{
+                    id: t.id,
+                    name: t.name,
+                    weeklyValueCents: t.weeklyValueCents,
+                    cadence: t.cadence,
+                    daysOfWeek: t.daysOfWeek,
+                    maxOccurrences: t.maxOccurrences,
+                  }}
+                  activeCount={statuses.filter((s) => s.enabled).length}
+                  totalChildren={statuses.length}
+                />
+              );
+            })
           )}
 
           {children.length === 0 && (

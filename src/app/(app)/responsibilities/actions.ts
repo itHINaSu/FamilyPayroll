@@ -81,6 +81,7 @@ export async function editResponsibilityTemplate(
   updateResponsibilityTemplate(templateId, result.data);
 
   revalidatePath("/responsibilities");
+  revalidatePath(`/responsibilities/${templateId}`);
   return { ok: true };
 }
 
@@ -106,5 +107,6 @@ export async function toggleTemplateForChild(formData: FormData): Promise<void> 
   }
 
   revalidatePath("/responsibilities");
+  revalidatePath(`/responsibilities/${templateId}`);
   revalidatePath(`/children/${childId}/responsibilities`);
 }

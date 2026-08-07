@@ -241,14 +241,13 @@ export function listResponsibilityTemplates(householdId: string, activeOnly = tr
     .all();
 }
 
-/** Creates a family template and instantiates it for every current child. */
-export function createResponsibilityTemplate(
+function insertTemplateRow(
   householdId: string,
   input: TemplateInput,
 ): ResponsibilityTemplateRow {
   const cadenceFields = normalizeCadenceFields(input);
 
-  const template = db
+  return db
     .insert(responsibilityTemplate)
     .values({
       householdId,
@@ -259,14 +258,18 @@ export function createResponsibilityTemplate(
     })
     .returning()
     .get();
+}
 
-  const children = listChildren(householdId);
+function instantiateTemplateFor(
+  template: ResponsibilityTemplateRow,
+  childIds: string[],
+): void {
   const today = todayInHousehold();
 
-  children.forEach((c, index) => {
+  childIds.forEach((childId, index) => {
     db.insert(responsibility)
       .values({
-        childId: c.id,
+        childId,
         templateId: template.id,
         syncedWithTemplate: true,
         name: template.name,
@@ -279,8 +282,54 @@ export function createResponsibilityTemplate(
       })
       .run();
   });
+}
 
+/** Creates a family template and instantiates it for every current child. */
+export function createResponsibilityTemplate(
+  householdId: string,
+  input: TemplateInput,
+): ResponsibilityTemplateRow {
+  const template = insertTemplateRow(householdId, input);
+  instantiateTemplateFor(
+    template,
+    listChildren(householdId).map((c) => c.id),
+  );
   return template;
+}
+
+/**
+ * Creates a family template from within one child's own page. It still
+ * joins the global list — so it can be turned on for a sibling later — but
+ * by default only the child it was created for is subscribed to it.
+ */
+export function createResponsibilityTemplateForChild(
+  householdId: string,
+  childId: string,
+  input: TemplateInput,
+  applyToAllChildren: boolean,
+): ResponsibilityTemplateRow {
+  const template = insertTemplateRow(householdId, input);
+  const childIds = applyToAllChildren
+    ? listChildren(householdId).map((c) => c.id)
+    : [childId];
+  instantiateTemplateFor(template, childIds);
+  return template;
+}
+
+export function getResponsibilityTemplate(
+  householdId: string,
+  templateId: string,
+): ResponsibilityTemplateRow | undefined {
+  return db
+    .select()
+    .from(responsibilityTemplate)
+    .where(
+      and(
+        eq(responsibilityTemplate.id, templateId),
+        eq(responsibilityTemplate.householdId, householdId),
+      ),
+    )
+    .get();
 }
 
 /** Edits the template and propagates the new values to every synced child row. */

@@ -10,6 +10,7 @@ import { requireParent } from "@/lib/auth/guard";
 import { getChild } from "@/lib/children";
 import { parseAmountToCents } from "@/lib/money";
 import { resolvePolicy } from "@/lib/policy";
+import { createResponsibilityTemplateForChild } from "@/lib/responsibilities";
 
 export type RespState = { error?: string; ok?: boolean };
 
@@ -20,8 +21,17 @@ const ResponsibilitySchema = z.object({
   cadence: z.enum(["daily", "daily_selected", "weekly", "up_to_n"]),
   maxOccurrences: z.string().optional(),
   daysOfWeek: z.array(z.string()).optional(),
+  applyToAllChildren: z.string().optional(),
 });
 
+/**
+ * Adding a responsibility from a child's own page still joins the
+ * household's global list — created once, so it is a family template a
+ * sibling can be switched onto later — but by default only this child is
+ * subscribed to it, since that was the point of adding it here rather than
+ * on the family hub. The checkbox opts into the hub's usual "everyone"
+ * default instead.
+ */
 export async function addResponsibility(
   _prev: RespState,
   formData: FormData,
@@ -35,6 +45,7 @@ export async function addResponsibility(
     cadence: formData.get("cadence"),
     maxOccurrences: formData.get("maxOccurrences") ?? undefined,
     daysOfWeek: formData.getAll("daysOfWeek").map(String),
+    applyToAllChildren: formData.get("applyToAllChildren") ?? undefined,
   });
 
   if (!parsed.success) {
@@ -59,19 +70,21 @@ export async function addResponsibility(
       ? Math.max(1, Number(parsed.data.maxOccurrences ?? 1))
       : null;
 
-  db.insert(responsibility)
-    .values({
-      childId: parsed.data.childId,
+  createResponsibilityTemplateForChild(
+    parent.householdId,
+    parsed.data.childId,
+    {
       name: parsed.data.name,
       weeklyValueCents,
       cadence: parsed.data.cadence,
       daysOfWeek: parsed.data.cadence === "daily_selected" ? days : null,
       maxOccurrences,
-      effectiveFrom: new Date().toLocaleDateString("en-CA"),
-    })
-    .run();
+    },
+    parsed.data.applyToAllChildren === "on",
+  );
 
   revalidatePath(`/children/${parsed.data.childId}/responsibilities`);
+  revalidatePath("/responsibilities");
   return { ok: true };
 }
 
