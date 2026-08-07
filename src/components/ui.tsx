@@ -57,7 +57,29 @@ export function Input(props: ComponentProps<"input">) {
 }
 
 export function Select(props: ComponentProps<"select">) {
-  return <select {...props} className={`${inputClass} ${props.className ?? ""}`} />;
+  // A plain <select> keeps the OS's own dropdown chrome no matter how the
+  // element itself is styled — appearance-none turns that off, and this
+  // draws a matching chevron back on so it still reads as a dropdown.
+  return (
+    <div className="relative">
+      <select
+        {...props}
+        className={`${inputClass} appearance-none pr-9 ${props.className ?? ""}`}
+      />
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 20 20"
+        fill="currentColor"
+        className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400"
+      >
+        <path
+          fillRule="evenodd"
+          d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+          clipRule="evenodd"
+        />
+      </svg>
+    </div>
+  );
 }
 
 export function Button({

@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
+import { FileInput } from "@/components/file-input";
 import { Alert, Button, Card, Input } from "@/components/ui";
 import { backupNow, restoreBackup, type BackupState } from "./actions";
 
@@ -84,11 +85,11 @@ export function BackupControls() {
             </Alert>
           )}
 
-          <Input
+          <FileInput
             name="file"
-            type="file"
             accept=".db"
             required
+            label="Choose backup file"
             onChange={(e) => setHasFile(!!e.target.files?.length)}
           />
 

@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
+import { FileInput } from "@/components/file-input";
 import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
 import { AGE_PRESETS, bandForAge } from "@/lib/age-presets";
 import { addChild, type ChildFormState } from "./actions";
@@ -130,7 +131,7 @@ export function AddChildForm({
         </Field>
 
         <Field label="Photo" hint="Any size. It is resized automatically.">
-          <Input name="photo" type="file" accept="image/*" />
+          <FileInput name="photo" accept="image/*" label="Choose photo" />
         </Field>
 
         <Field

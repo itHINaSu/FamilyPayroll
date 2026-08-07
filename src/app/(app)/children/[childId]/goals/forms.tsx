@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
+import { FileInput } from "@/components/file-input";
 import { Alert, Button, Card, Field, Input } from "@/components/ui";
 import { formatCents } from "@/lib/money";
 import type { GoalWithProgress } from "@/lib/goals";
@@ -52,7 +53,7 @@ export function AddGoalForm({ childId }: { childId: string }) {
           label="Picture"
           hint="Any size — it is resized automatically. A picture matters more than the number at this age."
         >
-          <Input name="photo" type="file" accept="image/*" />
+          <FileInput name="photo" accept="image/*" label="Choose photo" />
         </Field>
 
         <Submit>Add goal</Submit>

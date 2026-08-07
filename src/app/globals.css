@@ -50,3 +50,40 @@ body {
     color: var(--color-ink-100);
   }
 }
+
+/*
+ * Native form chrome (spinner arrows, a gray checkbox square, an OS-themed
+ * calendar icon) is the biggest tell that an installed PWA is "just a
+ * website" — none of it can be restyled from the elements themselves, so it
+ * gets normalized globally here rather than per input. The select arrow and
+ * file picker button get their own custom replacements in ui.tsx /
+ * file-input.tsx, since those need markup changes CSS alone can't make.
+ */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--color-ledger-600);
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  border-radius: 4px;
+}
+@media (prefers-color-scheme: dark) {
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    /* Chrome always renders this icon in dark ink; without inverting it, a
+       dark-mode date field shows a near-invisible black-on-near-black icon. */
+    filter: invert(1);
+  }
+}

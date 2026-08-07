@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 
+import { FileInput } from "@/components/file-input";
 import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
 import { updateChild, type ChildFormState } from "../actions";
 import type { ChildStatus } from "@/db/schema";
@@ -72,7 +73,7 @@ export function EditChildForm({
               : "Any size. It is resized automatically."
           }
         >
-          <Input name="photo" type="file" accept="image/*" />
+          <FileInput name="photo" accept="image/*" label="Choose photo" />
         </Field>
 
         <SubmitButton />
