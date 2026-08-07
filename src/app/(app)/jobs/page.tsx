@@ -7,8 +7,9 @@ import { requireParent } from "@/lib/auth/guard";
 import { pendingJobClaims, REPEAT_LABELS } from "@/lib/jobs";
 import { formatCents } from "@/lib/money";
 import { TRUST_LEVELS } from "@/lib/trust";
-import { archiveJob, decideClaim } from "./actions";
+import { decideClaim } from "./actions";
 import { AddJobForm } from "./form";
+import { JobRow } from "./job-row";
 
 export const dynamic = "force-dynamic";
 
@@ -102,46 +103,26 @@ export default async function JobsPage() {
                   const area = areas.find((a) => a.id === j.trustAreaId);
                   const gate = TRUST_LEVELS.find((l) => l.level === j.minTrustLevel);
 
-                  return (
-                    <li
-                      key={j.id}
-                      className="flex items-start justify-between gap-4 border-b border-ink-100 pb-3 last:border-0 last:pb-0 dark:border-ink-700"
-                    >
-                      <div>
-                        <p className="font-medium">
-                          {j.name}{" "}
-                          <span className="tnum ml-1 text-sm text-ledger-600 dark:text-ledger-500">
-                            {formatCents(j.valueCents)}
-                          </span>
-                        </p>
-                        {j.description && (
-                          <p className="text-xs text-ink-400">{j.description}</p>
-                        )}
-                        <p className="mt-0.5 text-xs text-ink-400">
-                          {REPEAT_LABELS[j.repeatRule]}
-                          {j.repeatRule === "every_n_days" && ` (${j.repeatN} days)`} ·{" "}
-                          {j.limitCount}× {j.limitScope === "per_child" ? "per child" : "total"}
-                          {j.eligibleChildIds?.length
-                            ? ` · ${j.eligibleChildIds.map((id) => childName.get(id)).join(", ")}`
-                            : " · anyone"}
-                        </p>
-                        {area && gate && (
-                          <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-300">
-                            Needs {gate.name} in {area.name}
-                          </p>
-                        )}
-                      </div>
+                  const repeatLabel =
+                    REPEAT_LABELS[j.repeatRule] +
+                    (j.repeatRule === "every_n_days" ? ` (${j.repeatN} days)` : "");
+                  const eligibleLabel =
+                    `${j.limitCount}× ${j.limitScope === "per_child" ? "per child" : "total"}` +
+                    (j.eligibleChildIds?.length
+                      ? ` · ${j.eligibleChildIds.map((id) => childName.get(id)).join(", ")}`
+                      : " · anyone");
+                  const gateLabel = area && gate ? `Needs ${gate.name} in ${area.name}` : null;
 
-                      <form action={archiveJob}>
-                        <input type="hidden" name="jobId" value={j.id} />
-                        <button
-                          type="submit"
-                          className="text-xs text-ink-400 hover:text-ink-700 hover:underline"
-                        >
-                          Archive
-                        </button>
-                      </form>
-                    </li>
+                  return (
+                    <JobRow
+                      key={j.id}
+                      job={j}
+                      repeatLabel={repeatLabel}
+                      eligibleLabel={eligibleLabel}
+                      gateLabel={gateLabel}
+                      children={children.map((c) => ({ id: c.id, name: c.displayName }))}
+                      areas={areas.map((a) => ({ id: a.id, name: a.name }))}
+                    />
                   );
                 })}
               </ul>

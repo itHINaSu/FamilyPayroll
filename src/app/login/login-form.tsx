@@ -30,13 +30,18 @@ function MfaStep() {
         </p>
         {state.error && <Alert>{state.error}</Alert>}
 
-        <Field label="Code">
+        <Field label="One-time code">
           <Input
-            name="code"
+            id="otp"
+            name="otp"
             required
             autoComplete="one-time-code"
             autoFocus
             inputMode="text"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            placeholder="123456"
           />
         </Field>
 

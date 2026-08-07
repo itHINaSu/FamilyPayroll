@@ -82,6 +82,64 @@ export async function addJob(_prev: JobState, formData: FormData): Promise<JobSt
   return { ok: true };
 }
 
+export async function editJob(_prev: JobState, formData: FormData): Promise<JobState> {
+  await requireParent();
+  const jobId = String(formData.get("jobId") ?? "");
+
+  const parsed = JobSchema.safeParse({
+    name: formData.get("name"),
+    description: formData.get("description") ?? undefined,
+    value: formData.get("value"),
+    repeatRule: formData.get("repeatRule"),
+    repeatN: formData.get("repeatN") ?? undefined,
+    limitScope: formData.get("limitScope"),
+    limitCount: formData.get("limitCount") ?? undefined,
+    claimExpiryHours: formData.get("claimExpiryHours") ?? undefined,
+    allocationMode: formData.get("allocationMode"),
+    trustAreaId: formData.get("trustAreaId") ?? undefined,
+    minTrustLevel: formData.get("minTrustLevel") ?? undefined,
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Check the details." };
+  }
+
+  const valueCents = parseAmountToCents(parsed.data.value);
+  if (valueCents === null || valueCents <= 0) {
+    return { error: "Enter a positive amount." };
+  }
+
+  const eligible = formData.getAll("eligibleChildIds").map(String);
+
+  db.update(job)
+    .set({
+      name: parsed.data.name,
+      description: parsed.data.description || null,
+      // Existing claims keep valueCentsSnapshot, so a job's pay is never
+      // rewritten under work already claimed or approved.
+      valueCents,
+      eligibleChildIds: eligible.length ? eligible : null,
+      repeatRule: parsed.data.repeatRule,
+      repeatN:
+        parsed.data.repeatRule === "every_n_days"
+          ? Math.max(1, Number(parsed.data.repeatN ?? 1))
+          : null,
+      limitScope: parsed.data.limitScope,
+      limitCount: Math.max(1, Number(parsed.data.limitCount ?? 1)),
+      claimExpiryHours: Math.max(1, Number(parsed.data.claimExpiryHours ?? 48)),
+      allocationMode: parsed.data.allocationMode,
+      trustAreaId: parsed.data.trustAreaId || null,
+      minTrustLevel: parsed.data.trustAreaId
+        ? Number(parsed.data.minTrustLevel ?? 3)
+        : null,
+    })
+    .where(eq(job.id, jobId))
+    .run();
+
+  revalidatePath("/jobs");
+  return { ok: true };
+}
+
 export async function archiveJob(formData: FormData): Promise<void> {
   await requireParent();
   db.update(job)

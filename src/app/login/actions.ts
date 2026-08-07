@@ -83,7 +83,7 @@ export async function verifyMfaLogin(
     return { error: "Sign in again." };
   }
 
-  const code = String(formData.get("code") ?? "").trim();
+  const code = String(formData.get("otp") ?? "").trim();
   if (!code) return { error: "Enter a code." };
 
   let verified = verifyTotp(found.totpSecret, code);
