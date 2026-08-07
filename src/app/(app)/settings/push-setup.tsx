@@ -4,7 +4,7 @@ import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { Alert, Button } from "@/components/ui";
-import { sendTest, subscribeDevice, type NotifyState } from "./actions";
+import { sendTest, subscribeDevice, type NotifyState } from "./notification-actions";
 
 /**
  * iOS Web Push onboarding.

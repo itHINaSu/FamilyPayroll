@@ -5,13 +5,23 @@ import { listBackups } from "@/lib/backup";
 import { heldFundTotal } from "@/lib/bills";
 import { config } from "@/lib/config";
 import { formatCents } from "@/lib/money";
+import {
+  EVENT_LABELS,
+  getVapidKeys,
+  isEventEnabled,
+  subscriptionCount,
+  type NotificationEvent,
+} from "@/lib/notifications";
 import { checkGuardrails, getOverrides, resolveHouseholdPolicy } from "@/lib/policy";
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { device } from "@/db/schema";
+import { device, user } from "@/db/schema";
+import { AccountForm } from "./account-form";
 import { HouseholdForm } from "./household-form";
 import { KioskForm } from "./kiosk-form";
+import { toggleEvent } from "./notification-actions";
+import { PushSetup, TestButton } from "./push-setup";
 
 export const dynamic = "force-dynamic";
 
@@ -30,17 +40,23 @@ export default async function SettingsPage() {
   const backups = listBackups();
   const held = heldFundTotal(parent.householdId);
 
+  const account = db.select().from(user).where(eq(user.id, parent.id)).get();
+
   const devices = db
     .select()
     .from(device)
     .where(and(eq(device.householdId, parent.householdId), eq(device.active, true)))
     .all();
 
+  const vapidKeys = getVapidKeys();
+  const pushDeviceCount = subscriptionCount(parent.id);
+  const notificationsReady = !!home?.appUrl && !!home?.vapidContact;
+
   return (
     <>
       <PageHeader
         title="Settings"
-        subtitle="Household defaults. Every one of these can be overridden per child."
+        subtitle="How the app behaves. Household defaults can be overridden per child."
       />
 
       <div className="space-y-6">
@@ -49,6 +65,13 @@ export default async function SettingsPage() {
             {w.message}
           </Alert>
         ))}
+
+        <AccountForm
+          account={{
+            displayName: account?.displayName ?? "",
+            email: account?.email ?? "",
+          }}
+        />
 
         <HouseholdForm
           household={{
@@ -85,6 +108,73 @@ export default async function SettingsPage() {
           effective={policy}
           overriddenSections={Object.keys(overrides)}
         />
+
+        <div>
+          <h2 className="mb-1 text-lg font-semibold">Notifications</h2>
+          <p className="mb-4 text-sm text-ink-400">
+            Nudges toward follow-through. Nothing in the system depends on you
+            seeing one.
+          </p>
+
+          <div className="space-y-4">
+            {!notificationsReady && (
+              <Alert tone="warning">
+                Set a public HTTPS URL and a push contact above first. Apple
+                validates the contact and rejects anything that is not a{" "}
+                <code>mailto:</code> address or an <code>https://</code> URL.
+              </Alert>
+            )}
+
+            <Card>
+              <h3 className="mb-1 font-semibold">This device</h3>
+              <p className="mb-4 text-sm text-ink-400">
+                You have {pushDeviceCount} device{pushDeviceCount === 1 ? "" : "s"}{" "}
+                subscribed.
+              </p>
+              <PushSetup vapidPublicKey={vapidKeys.publicKey} />
+              <div className="mt-4">
+                <TestButton />
+              </div>
+            </Card>
+
+            <Card>
+              <h3 className="mb-1 font-semibold">What to send</h3>
+              <p className="mb-4 text-xs text-ink-400">
+                The shortfall warning is the one that matters most —
+                &ldquo;rent is due in 3 days, you have $12, you need $15&rdquo;
+                is where planning ahead actually gets learned.
+              </p>
+
+              <ul className="space-y-2">
+                {(Object.keys(EVENT_LABELS) as NotificationEvent[]).map((event) => {
+                  const enabled = isEventEnabled(parent.householdId, event);
+                  return (
+                    <li
+                      key={event}
+                      className="flex items-center justify-between border-b border-ink-100 pb-2 text-sm last:border-0 dark:border-ink-700"
+                    >
+                      <span>{EVENT_LABELS[event]}</span>
+                      <form action={toggleEvent}>
+                        <input type="hidden" name="eventType" value={event} />
+                        <input type="hidden" name="enabled" value={String(!enabled)} />
+                        <button
+                          type="submit"
+                          className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                            enabled
+                              ? "bg-ledger-100 text-ledger-600"
+                              : "bg-ink-100 text-ink-400 dark:bg-ink-700"
+                          }`}
+                        >
+                          {enabled ? "On" : "Off"}
+                        </button>
+                      </form>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Card>
+          </div>
+        </div>
 
         <Card>
           <h2 className="mb-1 text-lg font-semibold">Backups</h2>

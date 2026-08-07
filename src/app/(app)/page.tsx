@@ -33,8 +33,8 @@ export default async function DashboardPage() {
   return (
     <>
       <PageHeader
-        title={friendlyDate}
-        subtitle={home?.name}
+        title="Dashboard"
+        subtitle={home?.name ? `${friendlyDate} · ${home.name}` : friendlyDate}
         action={
           <Link
             href="/children"

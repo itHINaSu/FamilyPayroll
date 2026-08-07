@@ -40,7 +40,7 @@ export default async function JobsPage() {
   return (
     <>
       <PageHeader
-        title="Job board"
+        title="Extra jobs"
         subtitle="Extra work for extra pay. Claimed rather than assigned, and never part of potential pay."
       />
 

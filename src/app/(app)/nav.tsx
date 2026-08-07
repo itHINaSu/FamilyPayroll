@@ -4,21 +4,24 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 /**
- * Daily use first, configuration in one place.
+ * Daily use first, configuration grouped, account behaviour on its own.
  *
- * Jobs, house rules, notifications, and settings were four separate top-level
- * links next to Today — flattening the rare next to the daily, which is a good
- * bit of why the whole app read as more to set up than it is. They now live
- * under one "Setup" link (→ /config), grouped as a landing page rather than a
- * dropdown so each is still one click away, just not sharing a shelf with
- * Today and Children.
+ * Responsibilities, expectations, extra jobs, and bills are all configured
+ * occasionally rather than used daily, and every one of them is only
+ * meaningful in the context of a specific child — so they live under one
+ * "Setup" link (→ /config) as a landing page, one click from the top nav and
+ * still one click from there to each destination. Settings is different: it
+ * is not "what is set up" but "how the app behaves" — pay schedule, the
+ * parent's own account, notifications — so it keeps its own tab rather than
+ * sharing Setup's shelf.
  */
-const SETUP_PATHS = ["/config", "/jobs", "/house-rules", "/notifications", "/settings"];
+const SETUP_PATHS = ["/config", "/responsibilities", "/expectations", "/jobs", "/bills"];
 
 const NAV = [
-  { href: "/", label: "Today" },
+  { href: "/", label: "Dashboard" },
   { href: "/children", label: "Children" },
   { href: "/config", label: "Setup" },
+  { href: "/settings", label: "Settings" },
 ];
 
 export function Nav() {
@@ -39,8 +42,8 @@ export function Nav() {
             key={item.href}
             href={item.href}
             // py-1 widens the tap target vertically without disturbing the
-            // header's height — links are otherwise just inline text, and
-            // "Today" three characters wide is an easy mis-tap on a phone.
+            // header's height — links are otherwise just inline text, and a
+            // short label like "Children" is an easy mis-tap on a phone.
             className={`-my-1 rounded px-0.5 py-1 transition ${
               active
                 ? "font-medium text-ink-900 dark:text-white"

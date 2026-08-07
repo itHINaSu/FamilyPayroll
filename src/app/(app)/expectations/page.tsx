@@ -37,7 +37,7 @@ export default async function HouseRulesPage() {
   return (
     <>
       <PageHeader
-        title="House rules"
+        title="Expectations"
         subtitle="Never scored, never paid. These are what it means to be a member of this family."
       />
 

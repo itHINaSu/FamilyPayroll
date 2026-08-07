@@ -1,11 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 
 import { db } from "@/db";
-import { auditLog, household } from "@/db/schema";
+import { auditLog, household, user } from "@/db/schema";
 import { requireParent } from "@/lib/auth/guard";
+import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { getChild } from "@/lib/children";
 import { getOverrides, savePolicyVersion, type PartialPolicy } from "@/lib/policy";
 import { SETTINGS_SECTIONS } from "@/lib/settings-schema";
@@ -182,4 +183,77 @@ export async function revokeKiosk(formData: FormData): Promise<void> {
     .run();
 
   revalidatePath("/settings");
+}
+
+/**
+ * The parent's own login — name, email, password.
+ *
+ * A current password is required the moment either the email or the password
+ * itself is changing; changing just the display name does not need it. The
+ * session cookie itself never has to change: it looks up the user row fresh
+ * on every request, so a new email or password takes effect immediately
+ * without a forced re-login.
+ */
+export async function updateAccount(
+  _prev: SettingsState,
+  formData: FormData,
+): Promise<SettingsState> {
+  const parent = await requireParent();
+
+  const displayName = String(formData.get("displayName") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const currentPassword = String(formData.get("currentPassword") ?? "");
+  const newPassword = String(formData.get("newPassword") ?? "");
+  const confirmPassword = String(formData.get("confirmPassword") ?? "");
+
+  if (!displayName) return { error: "A name is required." };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { error: "That doesn't look like a valid email address." };
+  }
+
+  const row = db.select().from(user).where(eq(user.id, parent.id)).get();
+  if (!row) return { error: "Your account could not be found." };
+
+  const changingEmail = email !== row.email.toLowerCase();
+  const changingPassword = newPassword.length > 0;
+
+  if (changingEmail || changingPassword) {
+    if (!currentPassword) {
+      return {
+        error: "Enter your current password to change your email or password.",
+      };
+    }
+    if (!(await verifyPassword(currentPassword, row.passwordHash))) {
+      return { error: "Current password is incorrect." };
+    }
+  }
+
+  if (changingEmail) {
+    const clash = db
+      .select({ id: user.id })
+      .from(user)
+      .where(and(eq(user.email, email), ne(user.id, parent.id)))
+      .get();
+    if (clash) return { error: "That email is already in use." };
+  }
+
+  const updates: { displayName: string; email: string; passwordHash?: string } = {
+    displayName,
+    email,
+  };
+
+  if (changingPassword) {
+    if (newPassword.length < 8) {
+      return { error: "A new password needs at least 8 characters." };
+    }
+    if (newPassword !== confirmPassword) {
+      return { error: "New passwords do not match." };
+    }
+    updates.passwordHash = await hashPassword(newPassword);
+  }
+
+  db.update(user).set(updates).where(eq(user.id, parent.id)).run();
+
+  revalidatePath("/settings");
+  return { ok: true };
 }

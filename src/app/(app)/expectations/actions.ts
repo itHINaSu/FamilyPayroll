@@ -48,7 +48,7 @@ export async function addArea(_prev: RuleState, formData: FormData): Promise<Rul
     })
     .run();
 
-  revalidatePath("/house-rules");
+  revalidatePath("/expectations");
   return { ok: true };
 }
 
@@ -58,7 +58,7 @@ export async function archiveArea(formData: FormData): Promise<void> {
     .set({ active: false })
     .where(eq(trustArea.id, String(formData.get("areaId") ?? "")))
     .run();
-  revalidatePath("/house-rules");
+  revalidatePath("/expectations");
 }
 
 export async function addRule(_prev: RuleState, formData: FormData): Promise<RuleState> {
@@ -79,7 +79,7 @@ export async function addRule(_prev: RuleState, formData: FormData): Promise<Rul
     })
     .run();
 
-  revalidatePath("/house-rules");
+  revalidatePath("/expectations");
 
   const warning = vaguenessWarning(text);
   return warning ? { ok: true, error: warning } : { ok: true };
@@ -91,7 +91,7 @@ export async function archiveRule(formData: FormData): Promise<void> {
     .set({ active: false })
     .where(eq(houseRule.id, String(formData.get("ruleId") ?? "")))
     .run();
-  revalidatePath("/house-rules");
+  revalidatePath("/expectations");
 }
 
 export async function addPrivilege(
@@ -114,7 +114,7 @@ export async function addPrivilege(
     })
     .run();
 
-  revalidatePath("/house-rules");
+  revalidatePath("/expectations");
   return { ok: true };
 }
 
@@ -124,5 +124,5 @@ export async function archivePrivilege(formData: FormData): Promise<void> {
     .set({ active: false })
     .where(eq(privilege.id, String(formData.get("privilegeId") ?? "")))
     .run();
-  revalidatePath("/house-rules");
+  revalidatePath("/expectations");
 }
