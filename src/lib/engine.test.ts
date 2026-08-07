@@ -624,6 +624,68 @@ describe("trust — invariant I10", () => {
     expect(trust.trustLevelFor(childId, friendships.id).level.level).toBeLessThan(3);
     expect(trust.trustLevelFor(childId, screens.id).level.name).toBe("Trusted");
   });
+
+  it("scopes trustSummary and privilegesFor to area membership", () => {
+    // createChild (the bare primitive used throughout this file) does not
+    // join any area on its own — that instantiate-for-everyone step lives in
+    // the addChild action, mirrored here explicitly.
+    expect(trust.trustSummary(childId)).toEqual([]);
+
+    trust.joinAllAreasForChild(householdId, childId);
+    const afterJoin = trust.trustSummary(childId);
+    expect(afterJoin.length).toBeGreaterThan(0);
+
+    const areas = db
+      .select()
+      .from(schema.trustArea)
+      .where(eq(schema.trustArea.householdId, householdId))
+      .all();
+    const screens = areas.find((a) => a.name === "Screens")!;
+
+    trust.leaveArea(screens.id, childId);
+    const afterLeave = trust.trustSummary(childId);
+    expect(afterLeave.some((a) => a.areaName === "Screens")).toBe(false);
+    expect(afterLeave.length).toBe(afterJoin.length - 1);
+
+    // A privilege tied to an area the child isn't a member of should not
+    // appear on either side of privilegesFor.
+    const screenPriv = db
+      .select()
+      .from(schema.privilege)
+      .where(eq(schema.privilege.trustAreaId, screens.id))
+      .get();
+    if (screenPriv) {
+      const { ready, notYet } = trust.privilegesFor(childId);
+      expect(ready.some((p) => p.name === screenPriv.name)).toBe(false);
+      expect(notYet.some((p) => p.name === screenPriv.name)).toBe(false);
+    }
+
+    trust.joinArea(screens.id, childId);
+    expect(trust.trustSummary(childId).some((a) => a.areaName === "Screens")).toBe(true);
+  });
+
+  it("applies a new area to every existing child by default", () => {
+    const sibling = createChild({
+      householdId,
+      displayName: "Membership Sibling",
+      birthdate: "2014-01-01",
+      status: "active",
+    });
+    trust.joinAllAreasForChild(householdId, childId);
+    trust.joinAllAreasForChild(householdId, sibling);
+
+    const newAreaId = db
+      .insert(schema.trustArea)
+      .values({ householdId, name: "Chores" })
+      .returning({ id: schema.trustArea.id })
+      .get().id;
+
+    // Mirrors what the addArea action does after inserting the row.
+    trust.joinAreaForAllChildren(householdId, newAreaId);
+
+    expect(trust.trustSummary(childId).some((a) => a.areaName === "Chores")).toBe(true);
+    expect(trust.trustSummary(sibling).some((a) => a.areaName === "Chores")).toBe(true);
+  });
 });
 
 describe("policy", () => {

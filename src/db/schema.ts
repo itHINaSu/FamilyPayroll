@@ -958,6 +958,28 @@ export const trustAreaOverride = sqliteTable(
 );
 
 /**
+ * Which children an area applies to. A row's presence is the whole signal —
+ * every area applies to every child by default (a row per pairing, created
+ * when the area or the child is created), and removing a child from an area
+ * is exactly deleting their row. A younger sibling with no device yet does
+ * not need "Screens" following them around.
+ */
+export const trustAreaChild = sqliteTable(
+  "trust_area_child",
+  {
+    id: id(),
+    trustAreaId: text("trust_area_id")
+      .notNull()
+      .references(() => trustArea.id, { onDelete: "cascade" }),
+    childId: text("child_id")
+      .notNull()
+      .references(() => child.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("trust_area_child_unique").on(t.trustAreaId, t.childId)],
+);
+
+/**
  * Tier 1. Never scored, never paid — displayed as standing expectations.
  * Wording must be observable: "follow directions the first time", not
  * "have a good attitude".

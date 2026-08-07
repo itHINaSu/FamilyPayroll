@@ -9,10 +9,12 @@ import {
   houseRule,
   privilege,
   trustArea,
+  trustAreaChild,
   trustAreaOverride,
   trustMark,
   trustState,
 } from "@/db/schema";
+import { listChildren } from "@/lib/children";
 import { resolvePolicy } from "@/lib/policy";
 
 /**
@@ -193,13 +195,17 @@ export function trustSummary(childId: string): AreaStatus[] {
   if (!c) return [];
 
   const areas = db
-    .select()
+    .select({ area: trustArea })
     .from(trustArea)
+    .innerJoin(
+      trustAreaChild,
+      and(eq(trustAreaChild.trustAreaId, trustArea.id), eq(trustAreaChild.childId, childId)),
+    )
     .where(and(eq(trustArea.householdId, c.householdId), eq(trustArea.active, true)))
     .orderBy(trustArea.sortOrder)
     .all();
 
-  return areas.map((a) => trustLevelFor(childId, a.id));
+  return areas.map(({ area: a }) => trustLevelFor(childId, a.id));
 }
 
 /**
@@ -344,6 +350,10 @@ export function privilegesFor(childId: string): {
     .select({ priv: privilege, area: trustArea })
     .from(privilege)
     .innerJoin(trustArea, eq(privilege.trustAreaId, trustArea.id))
+    .innerJoin(
+      trustAreaChild,
+      and(eq(trustAreaChild.trustAreaId, trustArea.id), eq(trustAreaChild.childId, childId)),
+    )
     .where(and(eq(privilege.householdId, c.householdId), eq(privilege.active, true)))
     .orderBy(trustArea.sortOrder, privilege.sortOrder)
     .all();
@@ -365,6 +375,47 @@ export function privilegesFor(childId: string): {
   }
 
   return { ready, notYet };
+}
+
+// ---------------------------------------------------------------------------
+// Area membership — which children an area applies to.
+// ---------------------------------------------------------------------------
+
+export function areaMembers(areaId: string): Set<string> {
+  const rows = db
+    .select({ childId: trustAreaChild.childId })
+    .from(trustAreaChild)
+    .where(eq(trustAreaChild.trustAreaId, areaId))
+    .all();
+  return new Set(rows.map((r) => r.childId));
+}
+
+export function joinArea(areaId: string, childId: string): void {
+  db.insert(trustAreaChild)
+    .values({ trustAreaId: areaId, childId })
+    .onConflictDoNothing()
+    .run();
+}
+
+export function leaveArea(areaId: string, childId: string): void {
+  db.delete(trustAreaChild)
+    .where(and(eq(trustAreaChild.trustAreaId, areaId), eq(trustAreaChild.childId, childId)))
+    .run();
+}
+
+/** A newly created area applies to every current child by default. */
+export function joinAreaForAllChildren(householdId: string, areaId: string): void {
+  for (const c of listChildren(householdId)) joinArea(areaId, c.id);
+}
+
+/** A newly created child is a member of every active area by default. */
+export function joinAllAreasForChild(householdId: string, childId: string): void {
+  const areas = db
+    .select({ id: trustArea.id })
+    .from(trustArea)
+    .where(and(eq(trustArea.householdId, householdId), eq(trustArea.active, true)))
+    .all();
+  for (const a of areas) joinArea(a.id, childId);
 }
 
 export function currentFocusNote(childId: string) {

@@ -1,16 +1,23 @@
 import { and, eq } from "drizzle-orm";
 
-import { Alert, Card, PageHeader } from "@/components/ui";
+import { Alert, PageHeader } from "@/components/ui";
 import { db } from "@/db";
 import { houseRule, privilege, trustArea } from "@/db/schema";
 import { requireParent } from "@/lib/auth/guard";
-import { TRUST_LEVELS } from "@/lib/trust";
-import { archiveArea, archivePrivilege, archiveRule } from "./actions";
-import { AddAreaForm, AddPrivilegeForm, AddRuleForm } from "./forms";
+import { listChildren } from "@/lib/children";
+import { areaMembers } from "@/lib/trust";
+import { AddAreaLink, AreaCard } from "./forms";
 
 export const dynamic = "force-dynamic";
 
-export default async function HouseRulesPage() {
+/**
+ * Directly editable, area by area — no separate "add" panel to lose track
+ * of. Each area owns its own rules and privileges, so the add/edit controls
+ * for both live right where the list already is; "Edit area" is the one
+ * control that reaches outside the area itself, to decide which children it
+ * applies to.
+ */
+export default async function ExpectationsPage() {
   const parent = await requireParent();
 
   const areas = db
@@ -34,6 +41,11 @@ export default async function HouseRulesPage() {
     .orderBy(privilege.sortOrder)
     .all();
 
+  const children = listChildren(parent.householdId).map((c) => ({
+    id: c.id,
+    displayName: c.displayName,
+  }));
+
   return (
     <>
       <PageHeader
@@ -47,100 +59,27 @@ export default async function HouseRulesPage() {
         affect what a child is <em>trusted</em> with, never what they earn.
       </Alert>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_360px]">
-        <div className="space-y-6">
-          {areas.map((area) => {
-            const areaRules = rules.filter((r) => r.trustAreaId === area.id);
-            const areaPrivileges = privileges.filter((p) => p.trustAreaId === area.id);
+      <div className="mt-6 space-y-6">
+        {areas.map((area) => (
+          <AreaCard
+            key={area.id}
+            area={{ id: area.id, name: area.name, icon: area.icon }}
+            rules={rules
+              .filter((r) => r.trustAreaId === area.id)
+              .map((r) => ({ id: r.id, text: r.text, defaultWeight: r.defaultWeight }))}
+            privileges={privileges
+              .filter((p) => p.trustAreaId === area.id)
+              .map((p) => ({ id: p.id, name: p.name, minLevel: p.minLevel }))}
+            childList={children}
+            members={areaMembers(area.id)}
+          />
+        ))}
 
-            return (
-              <Card key={area.id}>
-                <div className="mb-4 flex items-center justify-between">
-                  <h2 className="text-lg font-semibold">
-                    {area.icon && <span className="mr-2">{area.icon}</span>}
-                    {area.name}
-                  </h2>
-                  <form action={archiveArea}>
-                    <input type="hidden" name="areaId" value={area.id} />
-                    <button
-                      type="submit"
-                      className="text-xs text-ink-400 hover:text-ink-700 hover:underline"
-                    >
-                      Remove area
-                    </button>
-                  </form>
-                </div>
+        {areas.length === 0 && (
+          <Alert tone="info">No areas yet. Add the first one below.</Alert>
+        )}
 
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-400">
-                  Rules
-                </p>
-                <ul className="mb-5 space-y-1.5 text-sm">
-                  {areaRules.map((r) => (
-                    <li key={r.id} className="flex items-center justify-between gap-3">
-                      <span>{r.text}</span>
-                      <span className="flex items-center gap-3">
-                        <span className="tnum text-xs text-ink-400">
-                          {r.defaultWeight} pt{r.defaultWeight === 1 ? "" : "s"}
-                        </span>
-                        <form action={archiveRule}>
-                          <input type="hidden" name="ruleId" value={r.id} />
-                          <button
-                            type="submit"
-                            className="text-xs text-ink-400 hover:text-ink-700"
-                          >
-                            ✕
-                          </button>
-                        </form>
-                      </span>
-                    </li>
-                  ))}
-                  {areaRules.length === 0 && (
-                    <li className="text-ink-400">No rules in this area yet.</li>
-                  )}
-                </ul>
-
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-400">
-                  Privileges
-                </p>
-                <ul className="space-y-1.5 text-sm">
-                  {areaPrivileges.map((p) => (
-                    <li key={p.id} className="flex items-center justify-between gap-3">
-                      <span>{p.name}</span>
-                      <span className="flex items-center gap-3">
-                        <span className="text-xs text-ink-400">
-                          needs{" "}
-                          {TRUST_LEVELS.find((l) => l.level === p.minLevel)?.name}
-                        </span>
-                        <form action={archivePrivilege}>
-                          <input type="hidden" name="privilegeId" value={p.id} />
-                          <button
-                            type="submit"
-                            className="text-xs text-ink-400 hover:text-ink-700"
-                          >
-                            ✕
-                          </button>
-                        </form>
-                      </span>
-                    </li>
-                  ))}
-                  {areaPrivileges.length === 0 && (
-                    <li className="text-ink-400">Nothing tied to this area yet.</li>
-                  )}
-                </ul>
-              </Card>
-            );
-          })}
-
-          {areas.length === 0 && (
-            <Alert tone="info">No areas yet. Add the first one on the right.</Alert>
-          )}
-        </div>
-
-        <div className="space-y-6">
-          <AddRuleForm areas={areas.map((a) => ({ id: a.id, name: a.name }))} />
-          <AddPrivilegeForm areas={areas.map((a) => ({ id: a.id, name: a.name }))} />
-          <AddAreaForm />
-        </div>
+        <AddAreaLink />
       </div>
     </>
   );
