@@ -17,9 +17,10 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  // Parents run this one-handed at a checkout counter; the kiosk is a wall
-  // tablet. Both want a stable viewport rather than pinch-zoom.
-  maximumScale: 1,
+  // Locking maximumScale to 1 was wrong: it disables pinch-zoom entirely,
+  // which is a real accessibility regression (WCAG 1.4.4) once this is a
+  // phone app parents use daily, not just a one-off checkout tool. Zoom stays
+  // available; only the initial layout is fixed.
   themeColor: "#23272f",
 };
 

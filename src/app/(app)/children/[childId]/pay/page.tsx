@@ -129,6 +129,7 @@ export default async function PayPage({
                     </span>
                   </div>
 
+                  <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <tbody>
                       {lines.map((line) => (
@@ -187,6 +188,7 @@ export default async function PayPage({
                       </tr>
                     </tbody>
                   </table>
+                  </div>
 
                   <div className="mt-3 border-t border-ink-100 pt-3 dark:border-ink-700">
                     <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-ink-400">

@@ -23,8 +23,15 @@ export default async function AppLayout({
   return (
     <div className="min-h-screen">
       <header className="border-b border-ink-200 bg-white dark:border-ink-700 dark:bg-ink-800">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-6 px-6 py-3">
-          <div className="flex items-center gap-6">
+        {/*
+          flex-wrap rather than a fixed single row: logo+nav and name+sign-out
+          are each one flex item, so on a phone narrow enough that both do not
+          fit on one line, the second group drops to its own line instead of
+          overflowing the screen or clipping. On anything past a small phone
+          they still sit on one row exactly as before.
+        */}
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:gap-x-6 sm:px-6">
+          <div className="flex items-center gap-4 sm:gap-6">
             <Link href="/" className="font-semibold tracking-tight">
               Family Payroll
             </Link>
@@ -32,7 +39,7 @@ export default async function AppLayout({
           </div>
 
           <div className="flex items-center gap-3 text-sm">
-            <span className="hidden text-ink-400 sm:inline">
+            <span className="hidden text-ink-400 md:inline">
               {sessionUser.displayName} · {home?.name}
             </span>
             <form action={logout}>
@@ -47,7 +54,7 @@ export default async function AppLayout({
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-6 py-8">{children}</main>
+      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">{children}</main>
     </div>
   );
 }

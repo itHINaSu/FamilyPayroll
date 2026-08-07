@@ -25,7 +25,7 @@ export function Nav() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex gap-4 text-sm">
+    <nav className="flex gap-3 text-sm sm:gap-4">
       {NAV.map((item) => {
         const active =
           item.href === "/"
@@ -38,7 +38,10 @@ export function Nav() {
           <Link
             key={item.href}
             href={item.href}
-            className={`transition ${
+            // py-1 widens the tap target vertically without disturbing the
+            // header's height — links are otherwise just inline text, and
+            // "Today" three characters wide is an easy mis-tap on a phone.
+            className={`-my-1 rounded px-0.5 py-1 transition ${
               active
                 ? "font-medium text-ink-900 dark:text-white"
                 : "text-ink-500 hover:text-ink-900 dark:text-ink-300 dark:hover:text-white"

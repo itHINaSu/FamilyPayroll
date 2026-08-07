@@ -41,41 +41,54 @@ export default async function ChildrenPage() {
 
           {activeChildren.map((c) => (
             <Card key={c.id}>
-              <div className="flex items-center gap-4">
-                {c.photoBlobId ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={`/api/blobs/${c.photoBlobId}`}
-                    alt=""
-                    className="h-14 w-14 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-ink-100 text-lg font-semibold text-ink-400 dark:bg-ink-700">
-                    {c.displayName.charAt(0).toUpperCase()}
+              {/*
+                Two explicit rows below sm, one row from sm up — deterministic
+                rather than left to flex-wrap's shrink-first behaviour, which
+                truncated the name down to three or four letters before ever
+                giving up the line to the balance and Archive button. The
+                second row is indented to line up under the name (avatar width
+                + gap), and min-w-0 on the name block is what lets `truncate`
+                actually clip instead of forcing the row wider.
+              */}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                <div className="flex min-w-0 items-center gap-4">
+                  {c.photoBlobId ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={`/api/blobs/${c.photoBlobId}`}
+                      alt=""
+                      className="h-14 w-14 flex-shrink-0 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-ink-100 text-lg font-semibold text-ink-400 dark:bg-ink-700">
+                      {c.displayName.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+
+                  <div className="min-w-0">
+                    <Link
+                      href={`/children/${c.id}`}
+                      className="block truncate font-medium hover:underline"
+                    >
+                      {c.displayName}
+                    </Link>
+                    <p className="truncate text-sm text-ink-400">
+                      {ageFromBirthdate(c.birthdate)} years old ·{" "}
+                      {CHILD_STATUS_LABELS[c.status]}
+                    </p>
                   </div>
-                )}
-
-                <div className="flex-1">
-                  <Link
-                    href={`/children/${c.id}`}
-                    className="font-medium hover:underline"
-                  >
-                    {c.displayName}
-                  </Link>
-                  <p className="text-sm text-ink-400">
-                    {ageFromBirthdate(c.birthdate)} years old ·{" "}
-                    {CHILD_STATUS_LABELS[c.status]}
-                  </p>
                 </div>
 
-                <div className="text-right">
-                  <p className="tnum text-lg">
-                    {formatCents(getBalances(c.id).visibleTotal)}
-                  </p>
-                  <p className="text-xs text-ink-400">total</p>
-                </div>
+                <div className="flex items-center justify-between gap-3 pl-[72px] sm:pl-0">
+                  <div className="text-right">
+                    <p className="tnum text-lg">
+                      {formatCents(getBalances(c.id).visibleTotal)}
+                    </p>
+                    <p className="text-xs text-ink-400">total</p>
+                  </div>
 
-                <ArchiveButton childId={c.id} name={c.displayName} />
+                  <ArchiveButton childId={c.id} name={c.displayName} />
+                </div>
               </div>
             </Card>
           ))}

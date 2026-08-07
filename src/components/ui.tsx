@@ -9,7 +9,9 @@ export function Card({
 }) {
   return (
     <div
-      className={`rounded-xl border border-ink-200 bg-white p-6 shadow-sm dark:border-ink-700 dark:bg-ink-800 ${className}`}
+      // Less padding on a phone: 24px on each side of every card was real
+      // width lost on a 320-375px screen, on top of the page's own padding.
+      className={`rounded-xl border border-ink-200 bg-white p-4 shadow-sm sm:p-6 dark:border-ink-700 dark:bg-ink-800 ${className}`}
     >
       {children}
     </div>
@@ -114,9 +116,12 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="mb-6 flex items-end justify-between gap-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+    // flex-wrap plus min-w-0 on the title block: a long title/subtitle and an
+    // action (a link, a form) no longer fight for the same line on a phone —
+    // the action drops below instead of clipping or squeezing the title.
+    <div className="mb-6 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-semibold tracking-tight text-balance">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-ink-400">{subtitle}</p>}
       </div>
       {action}

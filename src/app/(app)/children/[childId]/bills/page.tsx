@@ -53,6 +53,10 @@ export default async function BillsPage({
           {upcoming.length === 0 ? (
             <Alert tone="info">Nothing due in the next 45 days.</Alert>
           ) : (
+            // Five columns is more than a phone can show at once without
+            // truncating the bill name into nothing useful; scroll rather
+            // than squeeze.
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-ink-200 text-left text-xs uppercase tracking-wide text-ink-400 dark:border-ink-700">
@@ -94,6 +98,7 @@ export default async function BillsPage({
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </Card>
 
