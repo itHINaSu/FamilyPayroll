@@ -11,11 +11,13 @@ import {
   evaluatePeriod,
   excusedDates,
   listResponsibilities,
+  listResponsibilityTemplates,
   occurrenceDates,
 } from "@/lib/responsibilities";
 import { db } from "@/db";
 import { completion } from "@/db/schema";
 import { and, eq, gte, lte } from "drizzle-orm";
+import { addTemplateForThisChild } from "./actions";
 import { AddResponsibilityForm, ExcusalForm, RaiseForm } from "./forms";
 import { CompletionGrid } from "./completion-grid";
 
@@ -28,7 +30,8 @@ export default async function ResponsibilitiesPage({
 }) {
   const { childId } = await params;
   const parent = await requireParent();
-  if (!getChild(parent.householdId, childId)) notFound();
+  const record = getChild(parent.householdId, childId);
+  if (!record) notFound();
 
   const today = todayInHousehold();
   const policy = resolvePolicy(parent.householdId, childId, today);
@@ -70,6 +73,10 @@ export default async function ResponsibilitiesPage({
       cadence: r.cadence,
       cadenceLabel: describeCadence(r),
       weeklyValueCents: r.weeklyValueCents,
+      daysOfWeek: r.daysOfWeek,
+      maxOccurrences: r.maxOccurrences,
+      fromTemplate: !!r.templateId,
+      customized: !!r.templateId && !r.syncedWithTemplate,
       potentialCents: result.potentialCents,
       earnedCents: result.earnedCents,
       completed: result.completed,
@@ -84,6 +91,15 @@ export default async function ResponsibilitiesPage({
 
   const totalPotential = rows.reduce((s, r) => s + r.potentialCents, 0);
   const totalEarned = rows.reduce((s, r) => s + r.earnedCents, 0);
+
+  // Family responsibilities this child has been turned off from — a quick
+  // way back on, right where the rest of their list already lives.
+  const enabledTemplateIds = new Set(
+    responsibilities.filter((r) => r.templateId).map((r) => r.templateId),
+  );
+  const availableTemplates = listResponsibilityTemplates(parent.householdId).filter(
+    (t) => !enabledTemplateIds.has(t.id),
+  );
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
@@ -137,6 +153,38 @@ export default async function ResponsibilitiesPage({
               {rows.every((r) => r.earnedCents >= r.potentialCents) && (
                 <li className="text-ink-400">Everything earned. Nothing left on the table.</li>
               )}
+            </ul>
+          </Card>
+        )}
+
+        {availableTemplates.length > 0 && (
+          <Card>
+            <h2 className="mb-1 text-lg font-semibold">Family responsibilities not included</h2>
+            <p className="mb-4 text-xs text-ink-400">
+              Turned off for {record.displayName}. Add one back at the family
+              rate, then customize it here if needed.
+            </p>
+            <ul className="space-y-2 text-sm">
+              {availableTemplates.map((t) => (
+                <li key={t.id} className="flex items-center justify-between gap-3">
+                  <span>
+                    {t.name}
+                    <span className="ml-2 text-xs text-ink-400">
+                      {formatCents(t.weeklyValueCents)}/week
+                    </span>
+                  </span>
+                  <form action={addTemplateForThisChild}>
+                    <input type="hidden" name="childId" value={childId} />
+                    <input type="hidden" name="templateId" value={t.id} />
+                    <button
+                      type="submit"
+                      className="text-xs text-ledger-600 hover:underline"
+                    >
+                      Add for {record.displayName}
+                    </button>
+                  </form>
+                </li>
+              ))}
             </ul>
           </Card>
         )}

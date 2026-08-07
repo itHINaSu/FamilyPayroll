@@ -7,10 +7,12 @@ import {
   completion,
   excusal,
   responsibility,
+  responsibilityTemplate,
   type Cadence,
   type CompletionStatus,
 } from "@/db/schema";
-import { dayOfWeek, eachDate, type IsoDate } from "@/lib/dates";
+import { listChildren } from "@/lib/children";
+import { dayOfWeek, eachDate, todayInHousehold, type IsoDate } from "@/lib/dates";
 import { earnedForResponsibility, scaleWeeklyValue } from "@/lib/money";
 
 /**
@@ -179,7 +181,11 @@ export const CADENCE_LABELS: Record<Cadence, string> = {
   up_to_n: "Up to N times",
 };
 
-export function describeCadence(r: ResponsibilityRow): string {
+export function describeCadence(r: {
+  cadence: Cadence;
+  daysOfWeek: number[] | null;
+  maxOccurrences: number | null;
+}): string {
   switch (r.cadence) {
     case "daily":
       return "Every day";
@@ -192,4 +198,255 @@ export function describeCadence(r: ResponsibilityRow): string {
     case "up_to_n":
       return `Up to ${r.maxOccurrences ?? 1}× a week`;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Family-level templates
+//
+// Created once, applied to every child. Each child's own `responsibility`
+// row is what payroll and completions actually read — a template never
+// appears in a pay stub or an invariant check, only the per-child rows it
+// produced. "syncedWithTemplate" is what lets a template-wide edit reach
+// every child who hasn't customized their own copy without ever touching
+// the ones who have.
+// ---------------------------------------------------------------------------
+
+export type ResponsibilityTemplateRow = typeof responsibilityTemplate.$inferSelect;
+
+export type TemplateInput = {
+  name: string;
+  weeklyValueCents: number;
+  cadence: Cadence;
+  daysOfWeek?: number[] | null;
+  maxOccurrences?: number | null;
+};
+
+function normalizeCadenceFields(input: TemplateInput) {
+  return {
+    daysOfWeek: input.cadence === "daily_selected" ? (input.daysOfWeek ?? null) : null,
+    maxOccurrences: input.cadence === "up_to_n" ? (input.maxOccurrences ?? 1) : null,
+  };
+}
+
+export function listResponsibilityTemplates(householdId: string, activeOnly = true) {
+  const where = activeOnly
+    ? and(eq(responsibilityTemplate.householdId, householdId), eq(responsibilityTemplate.active, true))
+    : eq(responsibilityTemplate.householdId, householdId);
+
+  return db
+    .select()
+    .from(responsibilityTemplate)
+    .where(where)
+    .orderBy(responsibilityTemplate.sortOrder, responsibilityTemplate.name)
+    .all();
+}
+
+/** Creates a family template and instantiates it for every current child. */
+export function createResponsibilityTemplate(
+  householdId: string,
+  input: TemplateInput,
+): ResponsibilityTemplateRow {
+  const cadenceFields = normalizeCadenceFields(input);
+
+  const template = db
+    .insert(responsibilityTemplate)
+    .values({
+      householdId,
+      name: input.name,
+      weeklyValueCents: input.weeklyValueCents,
+      cadence: input.cadence,
+      ...cadenceFields,
+    })
+    .returning()
+    .get();
+
+  const children = listChildren(householdId);
+  const today = todayInHousehold();
+
+  children.forEach((c, index) => {
+    db.insert(responsibility)
+      .values({
+        childId: c.id,
+        templateId: template.id,
+        syncedWithTemplate: true,
+        name: template.name,
+        weeklyValueCents: template.weeklyValueCents,
+        cadence: template.cadence,
+        daysOfWeek: template.daysOfWeek,
+        maxOccurrences: template.maxOccurrences,
+        effectiveFrom: today,
+        sortOrder: index,
+      })
+      .run();
+  });
+
+  return template;
+}
+
+/** Edits the template and propagates the new values to every synced child row. */
+export function updateResponsibilityTemplate(templateId: string, input: TemplateInput): void {
+  const cadenceFields = normalizeCadenceFields(input);
+
+  db.update(responsibilityTemplate)
+    .set({ name: input.name, weeklyValueCents: input.weeklyValueCents, cadence: input.cadence, ...cadenceFields })
+    .where(eq(responsibilityTemplate.id, templateId))
+    .run();
+
+  const synced = db
+    .select({ id: responsibility.id })
+    .from(responsibility)
+    .where(
+      and(
+        eq(responsibility.templateId, templateId),
+        eq(responsibility.syncedWithTemplate, true),
+        eq(responsibility.active, true),
+      ),
+    )
+    .all();
+
+  for (const r of synced) {
+    db.update(responsibility)
+      .set({
+        name: input.name,
+        weeklyValueCents: input.weeklyValueCents,
+        cadence: input.cadence,
+        ...cadenceFields,
+      })
+      .where(eq(responsibility.id, r.id))
+      .run();
+  }
+}
+
+/** Retires a template entirely, archiving every child row it produced. */
+export function archiveResponsibilityTemplate(templateId: string): void {
+  const now = Date.now();
+
+  db.update(responsibilityTemplate)
+    .set({ active: false, archivedAt: now })
+    .where(eq(responsibilityTemplate.id, templateId))
+    .run();
+
+  const rows = db
+    .select({ id: responsibility.id })
+    .from(responsibility)
+    .where(and(eq(responsibility.templateId, templateId), eq(responsibility.active, true)))
+    .all();
+
+  for (const r of rows) {
+    db.update(responsibility).set({ active: false, archivedAt: now }).where(eq(responsibility.id, r.id)).run();
+  }
+}
+
+/** Turns a template off for one child — "disable per child." */
+export function disableTemplateForChild(childId: string, templateId: string): void {
+  db.update(responsibility)
+    .set({ active: false, archivedAt: Date.now() })
+    .where(
+      and(
+        eq(responsibility.childId, childId),
+        eq(responsibility.templateId, templateId),
+        eq(responsibility.active, true),
+      ),
+    )
+    .run();
+}
+
+/** Turns a template back on for one child, mirroring its current values. */
+export function enableTemplateForChild(childId: string, templateId: string): void {
+  const template = db
+    .select()
+    .from(responsibilityTemplate)
+    .where(eq(responsibilityTemplate.id, templateId))
+    .get();
+  if (!template) return;
+
+  const existing = db
+    .select()
+    .from(responsibility)
+    .where(and(eq(responsibility.childId, childId), eq(responsibility.templateId, templateId)))
+    .all();
+
+  if (existing.some((r) => r.active)) return; // already on
+
+  // Re-activate and resync the previous row rather than creating a duplicate,
+  // so old completions under that id stay attached to the same responsibility.
+  const disabledRow = existing.find((r) => !r.active);
+  if (disabledRow) {
+    db.update(responsibility)
+      .set({
+        active: true,
+        archivedAt: null,
+        syncedWithTemplate: true,
+        name: template.name,
+        weeklyValueCents: template.weeklyValueCents,
+        cadence: template.cadence,
+        daysOfWeek: template.daysOfWeek,
+        maxOccurrences: template.maxOccurrences,
+      })
+      .where(eq(responsibility.id, disabledRow.id))
+      .run();
+    return;
+  }
+
+  db.insert(responsibility)
+    .values({
+      childId,
+      templateId,
+      syncedWithTemplate: true,
+      name: template.name,
+      weeklyValueCents: template.weeklyValueCents,
+      cadence: template.cadence,
+      daysOfWeek: template.daysOfWeek,
+      maxOccurrences: template.maxOccurrences,
+      effectiveFrom: todayInHousehold(),
+    })
+    .run();
+}
+
+/** Instantiates every active family template for a newly created child. */
+export function instantiateTemplatesForChild(householdId: string, childId: string): void {
+  const templates = listResponsibilityTemplates(householdId);
+  const today = todayInHousehold();
+
+  templates.forEach((t, index) => {
+    db.insert(responsibility)
+      .values({
+        childId,
+        templateId: t.id,
+        syncedWithTemplate: true,
+        name: t.name,
+        weeklyValueCents: t.weeklyValueCents,
+        cadence: t.cadence,
+        daysOfWeek: t.daysOfWeek,
+        maxOccurrences: t.maxOccurrences,
+        effectiveFrom: today,
+        sortOrder: index,
+      })
+      .run();
+  });
+}
+
+/**
+ * Which children currently have this template enabled, disabled, or
+ * customized — the per-child breakdown the family hub shows for each
+ * template.
+ */
+export function templateChildStatus(householdId: string, templateId: string) {
+  const children = listChildren(householdId);
+  const rows = db
+    .select()
+    .from(responsibility)
+    .where(eq(responsibility.templateId, templateId))
+    .all();
+
+  return children.map((c) => {
+    const row = rows.find((r) => r.childId === c.id && r.active);
+    return {
+      childId: c.id,
+      childName: c.displayName,
+      enabled: !!row,
+      customized: row ? !row.syncedWithTemplate : false,
+      weeklyValueCents: row?.weeklyValueCents ?? null,
+    };
+  });
 }

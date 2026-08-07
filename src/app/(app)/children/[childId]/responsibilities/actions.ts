@@ -83,12 +83,95 @@ export async function archiveResponsibility(formData: FormData): Promise<void> {
   if (!getChild(parent.householdId, childId)) return;
 
   // Archived rather than deleted: past pay stubs reference it by name and id.
+  // For a row that came from a family template, this is "off for this child"
+  // — the template hub's per-child toggle does the exact same update.
   db.update(responsibility)
     .set({ active: false, archivedAt: Date.now() })
     .where(eq(responsibility.id, id))
     .run();
 
   revalidatePath(`/children/${childId}/responsibilities`);
+  revalidatePath("/responsibilities");
+}
+
+const EditSchema = z.object({
+  responsibilityId: z.string().min(1),
+  childId: z.string().min(1),
+  weeklyValue: z.string().min(1, "Enter a weekly amount."),
+  cadence: z.enum(["daily", "daily_selected", "weekly", "up_to_n"]),
+  maxOccurrences: z.string().optional(),
+  daysOfWeek: z.array(z.string()).optional(),
+});
+
+/**
+ * A direct edit to one child's own copy — the "modify per child" half of a
+ * family responsibility. If this row came from a template, editing it here
+ * flips it out of sync, so a later template-wide edit leaves this one alone.
+ */
+export async function editResponsibility(
+  _prev: RespState,
+  formData: FormData,
+): Promise<RespState> {
+  const parent = await requireParent();
+
+  const parsed = EditSchema.safeParse({
+    responsibilityId: formData.get("responsibilityId"),
+    childId: formData.get("childId"),
+    weeklyValue: formData.get("weeklyValue"),
+    cadence: formData.get("cadence"),
+    maxOccurrences: formData.get("maxOccurrences") ?? undefined,
+    daysOfWeek: formData.getAll("daysOfWeek").map(String),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Check the details." };
+  }
+  if (!getChild(parent.householdId, parsed.data.childId)) {
+    return { error: "That child could not be found." };
+  }
+
+  const weeklyValueCents = parseAmountToCents(parsed.data.weeklyValue);
+  if (weeklyValueCents === null || weeklyValueCents <= 0) {
+    return { error: "Enter a positive weekly amount." };
+  }
+
+  const days = (parsed.data.daysOfWeek ?? []).map(Number).filter((n) => !Number.isNaN(n));
+  if (parsed.data.cadence === "daily_selected" && days.length === 0) {
+    return { error: "Choose at least one day." };
+  }
+
+  db.update(responsibility)
+    .set({
+      weeklyValueCents,
+      cadence: parsed.data.cadence,
+      daysOfWeek: parsed.data.cadence === "daily_selected" ? days : null,
+      maxOccurrences:
+        parsed.data.cadence === "up_to_n"
+          ? Math.max(1, Number(parsed.data.maxOccurrences ?? 1))
+          : null,
+      syncedWithTemplate: false,
+    })
+    .where(eq(responsibility.id, parsed.data.responsibilityId))
+    .run();
+
+  revalidatePath(`/children/${parsed.data.childId}/responsibilities`);
+  revalidatePath("/responsibilities");
+  return { ok: true };
+}
+
+/** Adds a family template back for this one child, mirroring its current values. */
+export async function addTemplateForThisChild(formData: FormData): Promise<void> {
+  const parent = await requireParent();
+  const childId = String(formData.get("childId") ?? "");
+  const templateId = String(formData.get("templateId") ?? "");
+
+  if (!getChild(parent.householdId, childId)) return;
+
+  const { enableTemplateForChild } = await import("@/lib/responsibilities");
+  enableTemplateForChild(childId, templateId);
+
+  revalidatePath(`/children/${childId}/responsibilities`);
+  revalidatePath("/responsibilities");
 }
 
 /**

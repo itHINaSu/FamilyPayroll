@@ -822,3 +822,187 @@ describe("starter setup — age preset and copy-from-sibling", () => {
     expect(listResponsibilities(kidId)).toEqual([]);
   });
 });
+
+const {
+  createResponsibilityTemplate,
+  updateResponsibilityTemplate,
+  archiveResponsibilityTemplate,
+  disableTemplateForChild,
+  enableTemplateForChild,
+  instantiateTemplatesForChild,
+  templateChildStatus,
+} = await import("@/lib/responsibilities");
+
+describe("family-level responsibility templates", () => {
+  it("applies a new template to every existing child", () => {
+    const a = createChild({
+      householdId,
+      displayName: "Template Kid A",
+      birthdate: "2015-01-01",
+      status: "active",
+    });
+    const b = createChild({
+      householdId,
+      displayName: "Template Kid B",
+      birthdate: "2013-01-01",
+      status: "active",
+    });
+
+    const template = createResponsibilityTemplate(householdId, {
+      name: "Feed the dog",
+      weeklyValueCents: 700,
+      cadence: "daily",
+    });
+
+    for (const id of [a, b]) {
+      const rows = listResponsibilities(id);
+      const row = rows.find((r) => r.templateId === template.id);
+      expect(row).toBeDefined();
+      expect(row!.weeklyValueCents).toBe(700);
+      expect(row!.syncedWithTemplate).toBe(true);
+    }
+  });
+
+  it("propagates a template edit only to children still in sync", () => {
+    const a = createChild({
+      householdId,
+      displayName: "Sync Kid",
+      birthdate: "2015-01-01",
+      status: "active",
+    });
+    const b = createChild({
+      householdId,
+      displayName: "Diverged Kid",
+      birthdate: "2013-01-01",
+      status: "active",
+    });
+
+    const template = createResponsibilityTemplate(householdId, {
+      name: "Take out trash",
+      weeklyValueCents: 500,
+      cadence: "weekly",
+    });
+
+    // b customizes their own copy — this is the "modify per child" half.
+    const bRow = listResponsibilities(b).find((r) => r.templateId === template.id)!;
+    db.update(schema.responsibility)
+      .set({ weeklyValueCents: 900, syncedWithTemplate: false })
+      .where(eq(schema.responsibility.id, bRow.id))
+      .run();
+
+    updateResponsibilityTemplate(template.id, {
+      name: "Take out trash",
+      weeklyValueCents: 600,
+      cadence: "weekly",
+    });
+
+    const aRow = listResponsibilities(a).find((r) => r.templateId === template.id)!;
+    const bRowAfter = listResponsibilities(b).find((r) => r.templateId === template.id)!;
+
+    expect(aRow.weeklyValueCents).toBe(600); // followed the template
+    expect(bRowAfter.weeklyValueCents).toBe(900); // stayed customized
+  });
+
+  it("disables and re-enables a template for one child without touching others", () => {
+    const a = createChild({
+      householdId,
+      displayName: "Toggle Kid A",
+      birthdate: "2015-01-01",
+      status: "active",
+    });
+    const b = createChild({
+      householdId,
+      displayName: "Toggle Kid B",
+      birthdate: "2013-01-01",
+      status: "active",
+    });
+
+    const template = createResponsibilityTemplate(householdId, {
+      name: "Water the plants",
+      weeklyValueCents: 300,
+      cadence: "weekly",
+    });
+
+    disableTemplateForChild(b, template.id);
+
+    expect(listResponsibilities(a).some((r) => r.templateId === template.id)).toBe(true);
+    expect(listResponsibilities(b).some((r) => r.templateId === template.id)).toBe(false);
+
+    enableTemplateForChild(b, template.id);
+    const restored = listResponsibilities(b).find((r) => r.templateId === template.id);
+    expect(restored).toBeDefined();
+    expect(restored!.weeklyValueCents).toBe(300);
+    expect(restored!.syncedWithTemplate).toBe(true);
+  });
+
+  it("archives every child's row when the template itself is removed", () => {
+    const a = createChild({
+      householdId,
+      displayName: "Archive Kid",
+      birthdate: "2015-01-01",
+      status: "active",
+    });
+
+    const template = createResponsibilityTemplate(householdId, {
+      name: "Sweep the porch",
+      weeklyValueCents: 250,
+      cadence: "weekly",
+    });
+
+    archiveResponsibilityTemplate(template.id);
+
+    expect(listResponsibilities(a).some((r) => r.templateId === template.id)).toBe(false);
+  });
+
+  it("instantiates every active template for a newly created child", () => {
+    createResponsibilityTemplate(householdId, {
+      name: "Set the table",
+      weeklyValueCents: 400,
+      cadence: "daily",
+    });
+
+    const lateChild = createChild({
+      householdId,
+      displayName: "Late Joiner",
+      birthdate: "2016-01-01",
+      status: "active",
+    });
+    // The addChild action calls this right after createChild; exercised
+    // directly here since createChild itself stays a bare primitive.
+    instantiateTemplatesForChild(householdId, lateChild);
+
+    expect(listResponsibilities(lateChild).some((r) => r.name === "Set the table")).toBe(true);
+  });
+
+  it("reports enabled/customized/off status per child", () => {
+    const a = createChild({
+      householdId,
+      displayName: "Status Kid A",
+      birthdate: "2015-01-01",
+      status: "active",
+    });
+    const b = createChild({
+      householdId,
+      displayName: "Status Kid B",
+      birthdate: "2013-01-01",
+      status: "active",
+    });
+
+    const template = createResponsibilityTemplate(householdId, {
+      name: "Fold laundry",
+      weeklyValueCents: 350,
+      cadence: "weekly",
+    });
+
+    disableTemplateForChild(b, template.id);
+    instantiateTemplatesForChild(householdId, a); // idempotent-ish no-op check: a already has it
+
+    const status = templateChildStatus(householdId, template.id);
+    const aStatus = status.find((s) => s.childId === a)!;
+    const bStatus = status.find((s) => s.childId === b)!;
+
+    expect(aStatus.enabled).toBe(true);
+    expect(aStatus.customized).toBe(false);
+    expect(bStatus.enabled).toBe(false);
+  });
+});

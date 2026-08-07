@@ -9,6 +9,7 @@ import { auditLog, child } from "@/db/schema";
 import { requireParent } from "@/lib/auth/guard";
 import { ageFromBirthdate, createChild, getChild } from "@/lib/children";
 import { storeImage, ACCEPTED_UPLOAD_TYPES } from "@/lib/images";
+import { instantiateTemplatesForChild } from "@/lib/responsibilities";
 import { applyAgePreset, bandForAge, copyFromSibling } from "@/lib/seed";
 
 const ChildSchema = z.object({
@@ -73,6 +74,11 @@ export async function addChild(
     status: parsed.data.status,
     photoBlobId,
   });
+
+  // Every family-level responsibility applies to a new child by default,
+  // independent of the starter-setup choice below — that choice only
+  // affects the child-specific extras layered on top.
+  instantiateTemplatesForChild(parent.householdId, childId);
 
   // Fill the blank-page moment: a preset by default, or a sibling's existing
   // setup if the parent asked for that instead. Everything written here is a

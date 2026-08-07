@@ -1,63 +1,70 @@
-import Link from "next/link";
-
-import { Alert, Card, PageHeader } from "@/components/ui";
+import { Alert, PageHeader } from "@/components/ui";
 import { requireParent } from "@/lib/auth/guard";
 import { listChildren } from "@/lib/children";
-import { formatCents } from "@/lib/money";
-import { resolveHouseholdPolicy } from "@/lib/policy";
-import { listResponsibilities } from "@/lib/responsibilities";
+import {
+  describeCadence,
+  listResponsibilityTemplates,
+  templateChildStatus,
+} from "@/lib/responsibilities";
+import { AddTemplateForm, TemplateCard } from "./forms";
 
 export const dynamic = "force-dynamic";
 
 /**
- * The setup-hub entry point for responsibilities.
+ * The family-level editor.
  *
- * The paid work itself is still edited per child — a weekly ceiling only means
- * something in the context of one child's pay — so this is an index rather
- * than a form: one card per child, showing what is already set up, linking
- * into the same editor the child's own page uses.
+ * A responsibility is created once here and applies to every child by
+ * default — a per-child copy still exists underneath (payroll and
+ * completions need something concrete to read), but this is the surface a
+ * parent uses day to day: add it once, turn it off for one kid, or give one
+ * kid a different rate, all without touching anyone else's.
  */
 export default async function ResponsibilitiesHubPage() {
   const parent = await requireParent();
-  const policy = resolveHouseholdPolicy(parent.householdId);
-  const children = listChildren(parent.householdId, { order: policy.display.childOrder });
+  const templates = listResponsibilityTemplates(parent.householdId);
+  const children = listChildren(parent.householdId);
 
   return (
     <>
       <PageHeader
         title="Responsibilities"
-        subtitle="The paid work — a fixed weekly ceiling per child, set once and adjusted as they grow."
+        subtitle="The paid work. Created once, applied to every child — turn it off or change the rate per child below."
       />
 
-      {children.length === 0 ? (
-        <Alert tone="info">
-          No children yet.{" "}
-          <Link href="/children" className="font-medium underline">
-            Add one
-          </Link>{" "}
-          to start assigning responsibilities.
-        </Alert>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {children.map((c) => {
-            const list = listResponsibilities(c.id);
-            const weeklyTotal = list.reduce((sum, r) => sum + r.weeklyValueCents, 0);
+      <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+        <div className="space-y-4">
+          {templates.length === 0 ? (
+            <Alert tone="info">
+              Nothing set up yet. Add the first one on the right.
+            </Alert>
+          ) : (
+            templates.map((t) => (
+              <TemplateCard
+                key={t.id}
+                template={{
+                  id: t.id,
+                  name: t.name,
+                  weeklyValueCents: t.weeklyValueCents,
+                  cadence: t.cadence,
+                  daysOfWeek: t.daysOfWeek,
+                  maxOccurrences: t.maxOccurrences,
+                  cadenceLabel: describeCadence(t),
+                }}
+                statuses={templateChildStatus(parent.householdId, t.id)}
+              />
+            ))
+          )}
 
-            return (
-              <Link key={c.id} href={`/children/${c.id}/responsibilities`} className="block">
-                <Card className="h-full transition hover:border-ledger-500">
-                  <h2 className="font-semibold">{c.displayName}</h2>
-                  <p className="mt-1 text-sm text-ink-400">
-                    {list.length === 0
-                      ? "Nothing set up yet"
-                      : `${list.length} responsibilit${list.length === 1 ? "y" : "ies"} · up to ${formatCents(weeklyTotal)}/week`}
-                  </p>
-                </Card>
-              </Link>
-            );
-          })}
+          {children.length === 0 && (
+            <Alert tone="warning">
+              No children yet — a template will apply automatically the
+              moment one is added.
+            </Alert>
+          )}
         </div>
-      )}
+
+        <AddTemplateForm />
+      </div>
     </>
   );
 }

@@ -358,6 +358,33 @@ export const ledgerEntry = sqliteTable(
 
 export type Cadence = "daily" | "daily_selected" | "weekly" | "up_to_n";
 
+/**
+ * The family-level definition — created once, applied to every child by
+ * default. A child's own `responsibility` row is what payroll and
+ * completions actually read; this is the thing that keeps their values in
+ * sync until a parent deliberately customizes one child's copy.
+ */
+export const responsibilityTemplate = sqliteTable(
+  "responsibility_template",
+  {
+    id: id(),
+    householdId: text("household_id")
+      .notNull()
+      .references(() => household.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    icon: text("icon"),
+    weeklyValueCents: integer("weekly_value_cents").notNull(),
+    cadence: text("cadence").$type<Cadence>().notNull(),
+    daysOfWeek: text("days_of_week", { mode: "json" }).$type<number[]>(),
+    maxOccurrences: integer("max_occurrences"),
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    archivedAt: integer("archived_at"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: createdAt(),
+  },
+  (t) => [index("responsibility_template_household_idx").on(t.householdId, t.active)],
+);
+
 export const responsibility = sqliteTable(
   "responsibility",
   {
@@ -365,6 +392,23 @@ export const responsibility = sqliteTable(
     childId: text("child_id")
       .notNull()
       .references(() => child.id, { onDelete: "cascade" }),
+    /**
+     * Set when this row was instantiated from a family template. Null for a
+     * one-off added directly on a child's own page (an age preset, or a
+     * chore that only applies to one kid).
+     */
+    templateId: text("template_id").references(() => responsibilityTemplate.id, {
+      onDelete: "set null",
+    }),
+    /**
+     * True while this row still mirrors its template. A direct edit here
+     * flips it false, so a later template-wide edit does not clobber a
+     * deliberate per-child customization (a different rate for an older
+     * sibling doing the same chore, say).
+     */
+    syncedWithTemplate: integer("synced_with_template", { mode: "boolean" })
+      .notNull()
+      .default(true),
     name: text("name").notNull(),
     icon: text("icon"),
     /** The weekly ceiling. Earned pay can never exceed it (invariant I9). */
@@ -380,7 +424,10 @@ export const responsibility = sqliteTable(
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: createdAt(),
   },
-  (t) => [index("responsibility_child_idx").on(t.childId, t.active)],
+  (t) => [
+    index("responsibility_child_idx").on(t.childId, t.active),
+    index("responsibility_template_idx").on(t.templateId),
+  ],
 );
 
 export type CompletionStatus = "claimed" | "approved" | "rejected" | "excused";

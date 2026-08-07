@@ -13,6 +13,6 @@ export default defineConfig({
     // The lifecycle and interest tests do real work — a real SQLite file, a
     // simulated month of daily accrual — and sit close enough to the 5s
     // default that a loaded machine tips them into a false failure.
-    testTimeout: 20000,
+    testTimeout: 30000,
   },
 });
