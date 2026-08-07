@@ -2,12 +2,12 @@ import { notFound } from "next/navigation";
 
 import { Alert, Card } from "@/components/ui";
 import { requireParent } from "@/lib/auth/guard";
-import { DISPOSITION_LABELS, listBills, upcomingBills } from "@/lib/bills";
+import { DISPOSITION_LABELS, listBillTemplates, listBills, upcomingBills } from "@/lib/bills";
 import { getChild } from "@/lib/children";
 import { getBalances } from "@/lib/ledger";
 import { formatCents } from "@/lib/money";
-import { archiveBill } from "./actions";
-import { AddBillForm, CollectButton } from "./forms";
+import { addTemplateForThisChild, archiveBill } from "./actions";
+import { AddBillForm, CollectButton, EditableBillRow } from "./forms";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +26,11 @@ export default async function BillsPage({
   const balances = getBalances(childId);
 
   const short = upcoming.filter((b) => b.shortfallCents > 0);
+
+  const enabledTemplateIds = new Set(bills.filter((b) => b.templateId).map((b) => b.templateId));
+  const availableTemplates = listBillTemplates(parent.householdId).filter(
+    (t) => !enabledTemplateIds.has(t.id),
+  );
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
@@ -112,38 +117,67 @@ export default async function BillsPage({
           ) : (
             <ul className="space-y-3">
               {bills.map((b) => (
-                <li
+                <EditableBillRow
                   key={b.id}
-                  className="flex items-start justify-between border-b border-ink-100 pb-3 last:border-0 last:pb-0 dark:border-ink-700"
-                >
-                  <div>
-                    <p className="font-medium">{b.name}</p>
-                    <p className="text-xs text-ink-400">
-                      {formatCents(b.amountCents)} ·{" "}
-                      {b.cadence === "monthly"
-                        ? `day ${b.dueDay} of the month`
-                        : "weekly"}{" "}
-                      · from {(b.sourceAccountOrder as string[]).join(", ")}
-                    </p>
-                    <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-300">
-                      {DISPOSITION_LABELS[b.disposition]} — parents only
-                    </p>
-                  </div>
-                  <form action={archiveBill}>
-                    <input type="hidden" name="billId" value={b.id} />
+                  bill={{
+                    id: b.id,
+                    name: b.name,
+                    amountCents: b.amountCents,
+                    cadence: b.cadence,
+                    dueDay: b.dueDay,
+                    disposition: b.disposition,
+                    sourceAccountOrder: b.sourceAccountOrder as string[],
+                  }}
+                  childId={childId}
+                  fromTemplate={!!b.templateId}
+                  customized={!!b.templateId && !b.syncedWithTemplate}
+                  dispositionLabel={DISPOSITION_LABELS[b.disposition]}
+                  onArchive={
+                    <form action={archiveBill}>
+                      <input type="hidden" name="billId" value={b.id} />
+                      <input type="hidden" name="childId" value={childId} />
+                      <button
+                        type="submit"
+                        className="text-xs text-ink-400 hover:text-ink-700 hover:underline"
+                      >
+                        {b.templateId ? "Turn off" : "Archive"}
+                      </button>
+                    </form>
+                  }
+                />
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        {availableTemplates.length > 0 && (
+          <Card>
+            <h2 className="mb-1 text-lg font-semibold">Family bills not included</h2>
+            <p className="mb-4 text-xs text-ink-400">
+              Turned off for {record.displayName}. Add one back at the family
+              rate, then customize it here if needed.
+            </p>
+            <ul className="space-y-2 text-sm">
+              {availableTemplates.map((t) => (
+                <li key={t.id} className="flex items-center justify-between gap-3">
+                  <span>
+                    {t.name}
+                    <span className="ml-2 text-xs text-ink-400">
+                      {formatCents(t.amountCents)}
+                    </span>
+                  </span>
+                  <form action={addTemplateForThisChild}>
                     <input type="hidden" name="childId" value={childId} />
-                    <button
-                      type="submit"
-                      className="text-xs text-ink-400 hover:text-ink-700 hover:underline"
-                    >
-                      Archive
+                    <input type="hidden" name="templateId" value={t.id} />
+                    <button type="submit" className="text-xs text-ledger-600 hover:underline">
+                      Add for {record.displayName}
                     </button>
                   </form>
                 </li>
               ))}
             </ul>
-          )}
-        </Card>
+          </Card>
+        )}
       </div>
 
       <AddBillForm childId={childId} />

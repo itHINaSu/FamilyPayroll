@@ -31,7 +31,9 @@ const schema = await import("@/db/schema");
 const { createChild } = await import("@/lib/children");
 const { getBalances, recordTransaction } = await import("@/lib/ledger");
 const { computeDraft, draftPaystub, postPaystub } = await import("@/lib/payroll");
-const { collectBill, generateInstances, upcomingBills } = await import("@/lib/bills");
+const { collectBill, generateInstances, listBills, runBillCycle, upcomingBills } = await import(
+  "@/lib/bills"
+);
 const { accrueDaily, postMonthlyInterest, lifetimeInterestCents } = await import(
   "@/lib/interest"
 );
@@ -359,6 +361,36 @@ describe("bills", () => {
 
     expect(rent).toBeDefined();
     expect(rent!.shortfallCents).toBe(300); // "you have $12, you need $15"
+  });
+
+  it("stops showing and stops collecting a bill once it is turned off", () => {
+    const billId = addBill();
+    recordTransaction({
+      childId,
+      accountType: "checking",
+      amountCents: 5000,
+      type: "cash_deposit",
+      description: "seed",
+    });
+
+    generateInstances(60, "2026-03-01");
+    expect(upcomingBills(childId, 400).some((b) => b.billName === "Rent")).toBe(true);
+
+    // Turning it off is exactly what archiveBill/disableBillTemplateForChild do.
+    db.update(schema.bill)
+      .set({ active: false, archivedAt: Date.now() })
+      .where(eq(schema.bill.id, billId))
+      .run();
+
+    // A stale scheduled instance from before the bill was disabled must not
+    // still show up or still be collectible — this was a real bug: an
+    // already-generated future instance ignored the parent bill's active
+    // flag entirely.
+    expect(upcomingBills(childId, 400).some((b) => b.billName === "Rent")).toBe(false);
+
+    const before = getBalances(childId).checking;
+    runBillCycle("2026-03-28");
+    expect(getBalances(childId).checking).toBe(before); // nothing collected
   });
 });
 
@@ -1066,5 +1098,136 @@ describe("family-level responsibility templates", () => {
     expect(aStatus.enabled).toBe(true);
     expect(aStatus.customized).toBe(false);
     expect(bStatus.enabled).toBe(false);
+  });
+});
+
+const {
+  createBillTemplate,
+  updateBillTemplate,
+  disableBillTemplateForChild,
+  enableBillTemplateForChild,
+  billTemplateChildStatus,
+} = await import("@/lib/bills");
+
+describe("family-level bill templates", () => {
+  it("applies a new bill to every existing child", () => {
+    const a = createChild({
+      householdId,
+      displayName: "Bill Kid A",
+      birthdate: "2015-01-01",
+      status: "active",
+    });
+    const b = createChild({
+      householdId,
+      displayName: "Bill Kid B",
+      birthdate: "2013-01-01",
+      status: "active",
+    });
+
+    const template = createBillTemplate(householdId, {
+      name: "Rent",
+      amountCents: 1500,
+      cadence: "monthly",
+      dueDay: 1,
+      disposition: "held_for_child",
+      sourceAccountOrder: ["checking"],
+      mayUseEarmarked: false,
+      autopay: true,
+    });
+
+    for (const id of [a, b]) {
+      const row = listBills(id).find((r) => r.templateId === template.id);
+      expect(row).toBeDefined();
+      expect(row!.amountCents).toBe(1500);
+      expect(row!.syncedWithTemplate).toBe(true);
+    }
+  });
+
+  it("propagates a bill template edit only to children still in sync", () => {
+    const a = createChild({
+      householdId,
+      displayName: "Bill Sync Kid",
+      birthdate: "2015-01-01",
+      status: "active",
+    });
+    const b = createChild({
+      householdId,
+      displayName: "Bill Diverged Kid",
+      birthdate: "2013-01-01",
+      status: "active",
+    });
+
+    const template = createBillTemplate(householdId, {
+      name: "Phone plan",
+      amountCents: 1000,
+      cadence: "monthly",
+      dueDay: 15,
+      disposition: "disappears",
+      sourceAccountOrder: ["checking"],
+      mayUseEarmarked: false,
+      autopay: true,
+    });
+
+    const bRow = listBills(b).find((r) => r.templateId === template.id)!;
+    db.update(schema.bill)
+      .set({ amountCents: 2000, syncedWithTemplate: false })
+      .where(eq(schema.bill.id, bRow.id))
+      .run();
+
+    updateBillTemplate(template.id, {
+      name: "Phone plan",
+      amountCents: 1200,
+      cadence: "monthly",
+      dueDay: 15,
+      disposition: "disappears",
+      sourceAccountOrder: ["checking"],
+      mayUseEarmarked: false,
+      autopay: true,
+    });
+
+    const aRow = listBills(a).find((r) => r.templateId === template.id)!;
+    const bRowAfter = listBills(b).find((r) => r.templateId === template.id)!;
+
+    expect(aRow.amountCents).toBe(1200);
+    expect(bRowAfter.amountCents).toBe(2000);
+  });
+
+  it("disables and re-enables a bill for one child without touching others", () => {
+    const a = createChild({
+      householdId,
+      displayName: "Bill Toggle A",
+      birthdate: "2015-01-01",
+      status: "active",
+    });
+    const b = createChild({
+      householdId,
+      displayName: "Bill Toggle B",
+      birthdate: "2013-01-01",
+      status: "active",
+    });
+
+    const template = createBillTemplate(householdId, {
+      name: "Streaming",
+      amountCents: 500,
+      cadence: "monthly",
+      dueDay: 5,
+      disposition: "family_fund",
+      sourceAccountOrder: ["checking"],
+      mayUseEarmarked: false,
+      autopay: true,
+    });
+
+    disableBillTemplateForChild(b, template.id);
+    expect(listBills(a).some((r) => r.templateId === template.id)).toBe(true);
+    expect(listBills(b).some((r) => r.templateId === template.id)).toBe(false);
+
+    enableBillTemplateForChild(householdId, b, template.id);
+    const restored = listBills(b).find((r) => r.templateId === template.id);
+    expect(restored).toBeDefined();
+    expect(restored!.amountCents).toBe(500);
+
+    const status = billTemplateChildStatus(householdId, template.id);
+    expect(status.find((s) => s.childId === a)!.enabled).toBe(true);
+    expect(status.find((s) => s.childId === b)!.enabled).toBe(true);
   });
 });

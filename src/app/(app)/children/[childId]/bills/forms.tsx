@@ -4,7 +4,8 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
-import { addBill, collectNow, type BillState } from "./actions";
+import { formatCents } from "@/lib/money";
+import { addBill, collectNow, editBill, type BillState } from "./actions";
 
 function Submit({ children }: { children: string }) {
   const { pending } = useFormStatus();
@@ -132,5 +133,120 @@ export function AddBillForm({ childId }: { childId: string }) {
         <Submit>Add bill</Submit>
       </form>
     </Card>
+  );
+}
+
+export function EditableBillRow({
+  bill,
+  childId,
+  fromTemplate,
+  customized,
+  dispositionLabel,
+  onArchive,
+}: {
+  bill: {
+    id: string;
+    name: string;
+    amountCents: number;
+    cadence: string;
+    dueDay: number;
+    disposition: string;
+    sourceAccountOrder: string[];
+  };
+  childId: string;
+  fromTemplate: boolean;
+  customized: boolean;
+  dispositionLabel: string;
+  onArchive: React.ReactNode;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [cadence, setCadence] = useState(bill.cadence);
+  const [state, formAction] = useActionState<BillState, FormData>(editBill, {});
+
+  return (
+    <li className="border-b border-ink-100 pb-3 last:border-0 last:pb-0 dark:border-ink-700">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="font-medium">
+            {bill.name}
+            {fromTemplate && (
+              <span
+                className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+                  customized
+                    ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200"
+                    : "bg-ink-100 text-ink-400 dark:bg-ink-700"
+                }`}
+              >
+                {customized ? "Customized" : "Family"}
+              </span>
+            )}
+          </p>
+          <p className="text-xs text-ink-400">
+            {formatCents(bill.amountCents)} ·{" "}
+            {bill.cadence === "monthly" ? `day ${bill.dueDay} of the month` : "weekly"} · from{" "}
+            {bill.sourceAccountOrder.join(", ")}
+          </p>
+          <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-300">
+            {dispositionLabel} — parents only
+          </p>
+        </div>
+        <span className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setEditing((v) => !v)}
+            className="text-xs text-ink-400 hover:text-ink-700 hover:underline"
+          >
+            {editing ? "Cancel" : "Edit"}
+          </button>
+          {onArchive}
+        </span>
+      </div>
+
+      {editing && (
+        <form action={formAction} className="mt-3 space-y-3 rounded-lg bg-ink-50 p-3 dark:bg-ink-900">
+          <input type="hidden" name="billId" value={bill.id} />
+          <input type="hidden" name="childId" value={childId} />
+          {state.error && <Alert>{state.error}</Alert>}
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Amount">
+              <Input
+                name="amount"
+                inputMode="decimal"
+                defaultValue={(bill.amountCents / 100).toFixed(2)}
+                required
+              />
+            </Field>
+            <Field label="How often">
+              <Select name="cadence" value={cadence} onChange={(e) => setCadence(e.target.value)}>
+                <option value="monthly">Monthly</option>
+                <option value="weekly">Weekly</option>
+              </Select>
+            </Field>
+          </div>
+          <Field label={cadence === "monthly" ? "Day of month" : "Weekday"}>
+            {cadence === "monthly" ? (
+              <Input name="dueDay" type="number" min={1} max={31} defaultValue={bill.dueDay} />
+            ) : (
+              <Select name="dueDay" defaultValue={String(bill.dueDay)}>
+                <option value="0">Sunday</option>
+                <option value="1">Monday</option>
+                <option value="2">Tuesday</option>
+                <option value="3">Wednesday</option>
+                <option value="4">Thursday</option>
+                <option value="5">Friday</option>
+                <option value="6">Saturday</option>
+              </Select>
+            )}
+          </Field>
+          {fromTemplate && (
+            <p className="text-xs text-ink-400">
+              This is a family bill. Saving here changes only {bill.name.toLowerCase()}{" "}
+              for this child — everyone else keeps the family amount.
+            </p>
+          )}
+          <Button type="submit">Save</Button>
+        </form>
+      )}
+    </li>
   );
 }

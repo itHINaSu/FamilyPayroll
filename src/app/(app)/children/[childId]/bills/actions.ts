@@ -94,12 +94,80 @@ export async function archiveBill(formData: FormData): Promise<void> {
 
   if (!getChild(parent.householdId, childId)) return;
 
+  // For a bill that came from a family template, this is "off for this
+  // child" — the template hub's per-child toggle does the same update.
   db.update(bill)
     .set({ active: false, archivedAt: Date.now() })
     .where(eq(bill.id, billId))
     .run();
 
+  const { cancelScheduledInstances } = await import("@/lib/bills");
+  cancelScheduledInstances(billId);
+
   revalidatePath(`/children/${childId}/bills`);
+  revalidatePath("/bills");
+}
+
+const EditBillSchema = z.object({
+  billId: z.string().min(1),
+  childId: z.string().min(1),
+  amount: z.string().min(1, "Enter an amount."),
+  cadence: z.enum(["weekly", "monthly"]),
+  dueDay: z.string().min(1),
+});
+
+/** A direct edit to one child's own copy — "modify per child." */
+export async function editBill(_prev: BillState, formData: FormData): Promise<BillState> {
+  const parent = await requireParent();
+
+  const parsed = EditBillSchema.safeParse({
+    billId: formData.get("billId"),
+    childId: formData.get("childId"),
+    amount: formData.get("amount"),
+    cadence: formData.get("cadence"),
+    dueDay: formData.get("dueDay"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Check the details." };
+  }
+  if (!getChild(parent.householdId, parsed.data.childId)) {
+    return { error: "That child could not be found." };
+  }
+
+  const amountCents = parseAmountToCents(parsed.data.amount);
+  if (amountCents === null || amountCents <= 0) {
+    return { error: "Enter a positive amount." };
+  }
+
+  db.update(bill)
+    .set({
+      amountCents,
+      cadence: parsed.data.cadence,
+      dueDay: Number(parsed.data.dueDay),
+      syncedWithTemplate: false,
+    })
+    .where(eq(bill.id, parsed.data.billId))
+    .run();
+
+  generateInstances();
+
+  revalidatePath(`/children/${parsed.data.childId}/bills`);
+  revalidatePath("/bills");
+  return { ok: true };
+}
+
+export async function addTemplateForThisChild(formData: FormData): Promise<void> {
+  const parent = await requireParent();
+  const childId = String(formData.get("childId") ?? "");
+  const templateId = String(formData.get("templateId") ?? "");
+
+  if (!getChild(parent.householdId, childId)) return;
+
+  const { enableBillTemplateForChild } = await import("@/lib/bills");
+  enableBillTemplateForChild(parent.householdId, childId, templateId);
+
+  revalidatePath(`/children/${childId}/bills`);
+  revalidatePath("/bills");
 }
 
 /** Collect now rather than waiting for the nightly cycle. */

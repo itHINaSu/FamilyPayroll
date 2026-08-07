@@ -7,11 +7,15 @@ import {
   account,
   bill,
   billInstance,
+  billTemplate,
   child,
   ledgerEntry,
   type AccountType,
+  type BillCadence,
+  type BillDisposition,
   type BillInstanceStatus,
 } from "@/db/schema";
+import { listChildren } from "@/lib/children";
 import {
   addDays,
   fromIsoDate,
@@ -22,6 +26,7 @@ import {
 import { recordTransaction } from "@/lib/ledger";
 import { formatCents } from "@/lib/money";
 import { getBalances } from "@/lib/ledger";
+import { resolvePolicy } from "@/lib/policy";
 
 /**
  * Bills (SPEC §6.3).
@@ -204,10 +209,12 @@ export function runBillCycle(now: IsoDate = todayInHousehold()) {
   generateInstances(60, now);
 
   const due = db
-    .select()
+    .select({ instance: billInstance })
     .from(billInstance)
+    .innerJoin(bill, eq(billInstance.billId, bill.id))
     .where(
       and(
+        eq(bill.active, true),
         lte(billInstance.dueDate, now),
         inArray(billInstance.status, ["scheduled", "due", "partially_paid", "past_due"]),
       ),
@@ -217,7 +224,7 @@ export function runBillCycle(now: IsoDate = todayInHousehold()) {
 
   const results: { instanceId: string; collected: number; shortfall: number }[] = [];
 
-  for (const instance of due) {
+  for (const { instance } of due) {
     const result = collectBill(instance.id);
     results.push({ instanceId: instance.id, ...result });
   }
@@ -256,6 +263,7 @@ export function upcomingBills(childId: string, withinDays = 14): UpcomingBill[] 
     .where(
       and(
         eq(billInstance.childId, childId),
+        eq(bill.active, true),
         lte(billInstance.dueDate, horizon),
         inArray(billInstance.status, ["scheduled", "due", "partially_paid", "past_due"]),
       ),
@@ -294,6 +302,240 @@ export function listBills(childId: string) {
     .where(and(eq(bill.childId, childId), eq(bill.active, true)))
     .orderBy(asc(bill.name))
     .all();
+}
+
+// ---------------------------------------------------------------------------
+// Family-level templates — the exact same pattern as responsibility
+// templates: created once, instantiated per child, edits propagate to
+// whoever hasn't customized their own copy.
+// ---------------------------------------------------------------------------
+
+export type BillTemplateRow = typeof billTemplate.$inferSelect;
+
+export type BillTemplateInput = {
+  name: string;
+  amountCents: number;
+  cadence: BillCadence;
+  dueDay: number;
+  disposition: BillDisposition;
+  sourceAccountOrder: AccountType[];
+  mayUseEarmarked: boolean;
+  autopay: boolean;
+};
+
+/** Past-due handling stays policy-derived per child, not part of the template. */
+function policyDerivedBillFields(householdId: string, childId: string, amountCents: number) {
+  const policy = resolvePolicy(householdId, childId);
+  return {
+    shortfallPolicy: policy.bills.shortfallPolicy,
+    pastDueRecovery: policy.bills.pastDueRecovery,
+    pastDueMaxRecoveryPct: policy.bills.pastDueMaxRecoveryPct,
+    pastDueCapCents: Math.round(amountCents * policy.bills.pastDueCapMultiple),
+    nonexistentDateRule: policy.bills.nonexistentDateRule,
+  };
+}
+
+export function listBillTemplates(householdId: string, activeOnly = true) {
+  const where = activeOnly
+    ? and(eq(billTemplate.householdId, householdId), eq(billTemplate.active, true))
+    : eq(billTemplate.householdId, householdId);
+
+  return db
+    .select()
+    .from(billTemplate)
+    .where(where)
+    .orderBy(asc(billTemplate.name))
+    .all();
+}
+
+export function createBillTemplate(householdId: string, input: BillTemplateInput): BillTemplateRow {
+  const template = db
+    .insert(billTemplate)
+    .values({ householdId, ...input })
+    .returning()
+    .get();
+
+  const today = todayInHousehold();
+  for (const c of listChildren(householdId)) {
+    db.insert(bill)
+      .values({
+        childId: c.id,
+        templateId: template.id,
+        syncedWithTemplate: true,
+        name: template.name,
+        amountCents: template.amountCents,
+        cadence: template.cadence,
+        dueDay: template.dueDay,
+        disposition: template.disposition,
+        sourceAccountOrder: template.sourceAccountOrder,
+        mayUseEarmarked: template.mayUseEarmarked,
+        autopay: template.autopay,
+        ...policyDerivedBillFields(householdId, c.id, template.amountCents),
+        effectiveFrom: today,
+      })
+      .run();
+  }
+
+  generateInstances();
+  return template;
+}
+
+export function updateBillTemplate(templateId: string, input: BillTemplateInput): void {
+  db.update(billTemplate).set(input).where(eq(billTemplate.id, templateId)).run();
+
+  const synced = db
+    .select({ id: bill.id })
+    .from(bill)
+    .where(and(eq(bill.templateId, templateId), eq(bill.syncedWithTemplate, true), eq(bill.active, true)))
+    .all();
+
+  for (const b of synced) {
+    db.update(bill).set(input).where(eq(bill.id, b.id)).run();
+  }
+
+  generateInstances();
+}
+
+export function archiveBillTemplate(templateId: string): void {
+  const now = Date.now();
+  db.update(billTemplate).set({ active: false, archivedAt: now }).where(eq(billTemplate.id, templateId)).run();
+
+  const rows = db
+    .select({ id: bill.id })
+    .from(bill)
+    .where(and(eq(bill.templateId, templateId), eq(bill.active, true)))
+    .all();
+  for (const b of rows) {
+    db.update(bill).set({ active: false, archivedAt: now }).where(eq(bill.id, b.id)).run();
+    cancelScheduledInstances(b.id);
+  }
+}
+
+/**
+ * Removes a bill's not-yet-touched future instances. Called whenever a bill
+ * goes inactive — the `bill.active` filter on upcomingBills/runBillCycle
+ * already stops one from being collected or shown, but a dangling
+ * `scheduled` row with nothing paid against it is otherwise pointless
+ * leftover data, not history worth keeping.
+ */
+export function cancelScheduledInstances(billId: string): void {
+  db.delete(billInstance)
+    .where(and(eq(billInstance.billId, billId), eq(billInstance.status, "scheduled")))
+    .run();
+}
+
+export function disableBillTemplateForChild(childId: string, templateId: string): void {
+  const row = db
+    .select({ id: bill.id })
+    .from(bill)
+    .where(and(eq(bill.childId, childId), eq(bill.templateId, templateId), eq(bill.active, true)))
+    .get();
+  if (!row) return;
+
+  db.update(bill)
+    .set({ active: false, archivedAt: Date.now() })
+    .where(eq(bill.id, row.id))
+    .run();
+
+  cancelScheduledInstances(row.id);
+}
+
+export function enableBillTemplateForChild(householdId: string, childId: string, templateId: string): void {
+  const template = db.select().from(billTemplate).where(eq(billTemplate.id, templateId)).get();
+  if (!template) return;
+
+  const existing = db
+    .select()
+    .from(bill)
+    .where(and(eq(bill.childId, childId), eq(bill.templateId, templateId)))
+    .all();
+  if (existing.some((b) => b.active)) return;
+
+  const derived = policyDerivedBillFields(householdId, childId, template.amountCents);
+  const disabledRow = existing.find((b) => !b.active);
+
+  if (disabledRow) {
+    db.update(bill)
+      .set({
+        active: true,
+        archivedAt: null,
+        syncedWithTemplate: true,
+        name: template.name,
+        amountCents: template.amountCents,
+        cadence: template.cadence,
+        dueDay: template.dueDay,
+        disposition: template.disposition,
+        sourceAccountOrder: template.sourceAccountOrder,
+        mayUseEarmarked: template.mayUseEarmarked,
+        autopay: template.autopay,
+        ...derived,
+      })
+      .where(eq(bill.id, disabledRow.id))
+      .run();
+  } else {
+    db.insert(bill)
+      .values({
+        childId,
+        templateId,
+        syncedWithTemplate: true,
+        name: template.name,
+        amountCents: template.amountCents,
+        cadence: template.cadence,
+        dueDay: template.dueDay,
+        disposition: template.disposition,
+        sourceAccountOrder: template.sourceAccountOrder,
+        mayUseEarmarked: template.mayUseEarmarked,
+        autopay: template.autopay,
+        ...derived,
+        effectiveFrom: todayInHousehold(),
+      })
+      .run();
+  }
+
+  generateInstances();
+}
+
+export function instantiateBillTemplatesForChild(householdId: string, childId: string): void {
+  const templates = listBillTemplates(householdId);
+  const today = todayInHousehold();
+
+  for (const t of templates) {
+    db.insert(bill)
+      .values({
+        childId,
+        templateId: t.id,
+        syncedWithTemplate: true,
+        name: t.name,
+        amountCents: t.amountCents,
+        cadence: t.cadence,
+        dueDay: t.dueDay,
+        disposition: t.disposition,
+        sourceAccountOrder: t.sourceAccountOrder,
+        mayUseEarmarked: t.mayUseEarmarked,
+        autopay: t.autopay,
+        ...policyDerivedBillFields(householdId, childId, t.amountCents),
+        effectiveFrom: today,
+      })
+      .run();
+  }
+
+  if (templates.length > 0) generateInstances();
+}
+
+export function billTemplateChildStatus(householdId: string, templateId: string) {
+  const children = listChildren(householdId);
+  const rows = db.select().from(bill).where(eq(bill.templateId, templateId)).all();
+
+  return children.map((c) => {
+    const row = rows.find((r) => r.childId === c.id && r.active);
+    return {
+      childId: c.id,
+      childName: c.displayName,
+      enabled: !!row,
+      customized: row ? !row.syncedWithTemplate : false,
+      amountCents: row?.amountCents ?? null,
+    };
+  });
 }
 
 /**

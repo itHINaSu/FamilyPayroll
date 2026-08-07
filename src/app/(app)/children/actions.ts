@@ -9,6 +9,7 @@ import { auditLog, child } from "@/db/schema";
 import { requireParent } from "@/lib/auth/guard";
 import { ageFromBirthdate, createChild, getChild } from "@/lib/children";
 import { storeImage, ACCEPTED_UPLOAD_TYPES } from "@/lib/images";
+import { instantiateBillTemplatesForChild } from "@/lib/bills";
 import { instantiateTemplatesForChild } from "@/lib/responsibilities";
 import { applyAgePreset, bandForAge, copyFromSibling } from "@/lib/seed";
 import { joinAllAreasForChild } from "@/lib/trust";
@@ -80,6 +81,7 @@ export async function addChild(
   // to a new child by default — independent of the starter-setup choice
   // below, which only affects the child-specific extras layered on top.
   instantiateTemplatesForChild(parent.householdId, childId);
+  instantiateBillTemplatesForChild(parent.householdId, childId);
   joinAllAreasForChild(parent.householdId, childId);
 
   // Fill the blank-page moment: a preset by default, or a sibling's existing

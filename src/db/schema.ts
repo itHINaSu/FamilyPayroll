@@ -588,6 +588,39 @@ export type PastDueRecovery =
   | "from_checking_after_allocation"
   | "manual";
 
+/**
+ * The family-level definition — created once, applied to every child by
+ * default, same as a responsibility template. Only the fields that make
+ * sense to share are here; past-due handling and the nonexistent-date rule
+ * stay policy-derived per child at instantiation time, since those already
+ * have a household/child-override resolution path of their own.
+ */
+export const billTemplate = sqliteTable(
+  "bill_template",
+  {
+    id: id(),
+    householdId: text("household_id")
+      .notNull()
+      .references(() => household.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    cadence: text("cadence").$type<BillCadence>().notNull(),
+    dueDay: integer("due_day").notNull(),
+    disposition: text("disposition").$type<BillDisposition>().notNull(),
+    sourceAccountOrder: text("source_account_order", { mode: "json" })
+      .$type<AccountType[]>()
+      .notNull(),
+    mayUseEarmarked: integer("may_use_earmarked", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    autopay: integer("autopay", { mode: "boolean" }).notNull().default(true),
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    archivedAt: integer("archived_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("bill_template_household_idx").on(t.householdId, t.active)],
+);
+
 export const bill = sqliteTable(
   "bill",
   {
@@ -595,6 +628,13 @@ export const bill = sqliteTable(
     childId: text("child_id")
       .notNull()
       .references(() => child.id, { onDelete: "cascade" }),
+    templateId: text("template_id").references(() => billTemplate.id, {
+      onDelete: "set null",
+    }),
+    /** True while this bill still mirrors its family template. */
+    syncedWithTemplate: integer("synced_with_template", { mode: "boolean" })
+      .notNull()
+      .default(true),
     name: text("name").notNull(),
     amountCents: integer("amount_cents").notNull(),
     cadence: text("cadence").$type<BillCadence>().notNull(),
@@ -632,7 +672,10 @@ export const bill = sqliteTable(
     archivedAt: integer("archived_at"),
     createdAt: createdAt(),
   },
-  (t) => [index("bill_child_idx").on(t.childId, t.active)],
+  (t) => [
+    index("bill_child_idx").on(t.childId, t.active),
+    index("bill_template_idx").on(t.templateId),
+  ],
 );
 
 export type BillInstanceStatus =
