@@ -12,6 +12,7 @@ import {
   subscriptionCount,
   type NotificationEvent,
 } from "@/lib/notifications";
+import { listPendingInvites } from "@/lib/invites";
 import { checkGuardrails, getOverrides, resolveHouseholdPolicy } from "@/lib/policy";
 import { and, eq } from "drizzle-orm";
 
@@ -23,6 +24,7 @@ import { HouseholdForm } from "./household-form";
 import { KioskForm } from "./kiosk-form";
 import { MfaForm } from "./mfa-form";
 import { toggleEvent } from "./notification-actions";
+import { ParentsForm } from "./parents-form";
 import { PushSetup, TestButton } from "./push-setup";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +45,13 @@ export default async function SettingsPage() {
   const held = heldFundTotal(parent.householdId);
 
   const account = db.select().from(user).where(eq(user.id, parent.id)).get();
+
+  const parents = db
+    .select()
+    .from(user)
+    .where(and(eq(user.householdId, parent.householdId), eq(user.role, "parent")))
+    .all();
+  const pendingInvites = listPendingInvites(parent.householdId, "parent");
 
   const devices = db
     .select()
@@ -76,6 +85,21 @@ export default async function SettingsPage() {
         />
 
         <MfaForm enabled={!!account?.totpEnabledAt} />
+
+        <ParentsForm
+          parents={parents.map((p) => ({
+            id: p.id,
+            displayName: p.displayName,
+            email: p.email,
+            active: p.active,
+          }))}
+          invites={pendingInvites.map((i) => ({
+            id: i.id,
+            createdAt: i.createdAt,
+            expiresAt: i.expiresAt,
+          }))}
+          selfId={parent.id}
+        />
 
         <HouseholdForm
           household={{

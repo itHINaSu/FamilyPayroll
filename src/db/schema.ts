@@ -116,6 +116,35 @@ export const pendingMfaChallenge = sqliteTable("pending_mfa_challenge", {
   createdAt: createdAt(),
 });
 
+/**
+ * A one-time link for creating a login — a second parent, or a child old
+ * enough for their own — since the app has no email sending capability to
+ * mail one instead. Handed over directly (text message, AirDrop, whatever).
+ * Only the hash is stored, matching the kiosk device token; the plaintext
+ * token is shown exactly once, in the URL, right after creation.
+ *
+ * `childId` is set only for role='child' invites, and is what the redeemed
+ * login gets linked to — the same column `user.childId` already uses.
+ */
+export const invite = sqliteTable(
+  "invite",
+  {
+    id: id(),
+    householdId: text("household_id")
+      .notNull()
+      .references(() => household.id, { onDelete: "cascade" }),
+    role: text("role").$type<UserRole>().notNull(),
+    childId: text("child_id"),
+    tokenHash: text("token_hash").notNull(),
+    createdByUserId: text("created_by_user_id").notNull(),
+    expiresAt: integer("expires_at").notNull(),
+    usedAt: integer("used_at"),
+    usedByUserId: text("used_by_user_id"),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("invite_token_unique").on(t.tokenHash)],
+);
+
 export const session = sqliteTable(
   "session",
   {

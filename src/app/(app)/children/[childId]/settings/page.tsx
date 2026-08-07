@@ -1,11 +1,16 @@
 import { notFound } from "next/navigation";
+import { and, eq } from "drizzle-orm";
 
 import { Alert, Button, Card } from "@/components/ui";
 import { SettingsEditor } from "@/components/settings-editor";
+import { db } from "@/db";
+import { user } from "@/db/schema";
 import { requireParent } from "@/lib/auth/guard";
 import { ageFromBirthdate, getChild } from "@/lib/children";
+import { pendingInviteForChild } from "@/lib/invites";
 import { checkGuardrails, getOverrides, resolvePolicy } from "@/lib/policy";
 import { clearChildOverrides } from "@/app/(app)/settings/actions";
+import { ChildLoginForm } from "./child-login-form";
 import { EditChildForm } from "../edit-child-form";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +29,13 @@ export default async function ChildSettingsPage({
   const overrides = getOverrides("child", childId);
   const overriddenSections = Object.keys(overrides);
   const warnings = checkGuardrails(policy, ageFromBirthdate(record.birthdate));
+
+  const existingLogin = db
+    .select()
+    .from(user)
+    .where(and(eq(user.childId, childId), eq(user.role, "child")))
+    .get();
+  const hasPendingInvite = !!pendingInviteForChild(childId);
 
   return (
     <div className="space-y-6">
@@ -61,6 +73,17 @@ export default async function ChildSettingsPage({
             scopeId={childId}
             effective={policy}
             overriddenSections={overriddenSections}
+          />
+
+          <ChildLoginForm
+            childId={childId}
+            childName={record.displayName}
+            existingLogin={
+              existingLogin
+                ? { id: existingLogin.id, email: existingLogin.email, active: existingLogin.active }
+                : null
+            }
+            hasPendingInvite={hasPendingInvite}
           />
         </div>
 

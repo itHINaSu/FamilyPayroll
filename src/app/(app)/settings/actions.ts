@@ -197,6 +197,87 @@ export async function revokeKiosk(formData: FormData): Promise<void> {
   revalidatePath("/settings");
 }
 
+/** Mint a one-time link that turns into a second parent login. */
+export async function inviteParent(
+  _prev: SettingsState,
+  _formData: FormData,
+): Promise<SettingsState & { url?: string }> {
+  const parent = await requireParent();
+  const { createInvite } = await import("@/lib/invites");
+
+  const token = createInvite(parent.householdId, parent.id, { role: "parent" });
+
+  const home = db
+    .select()
+    .from(household)
+    .where(eq(household.id, parent.householdId))
+    .get();
+  const base = home?.appUrl?.replace(/\/$/, "") ?? "";
+
+  revalidatePath("/settings");
+  return { ok: true, url: `${base}/invite/${token}` };
+}
+
+export async function cancelInvite(formData: FormData): Promise<void> {
+  const parent = await requireParent();
+  const { revokeInvite } = await import("@/lib/invites");
+
+  revokeInvite(parent.householdId, String(formData.get("inviteId") ?? ""));
+  revalidatePath("/settings");
+}
+
+/**
+ * Deactivates a parent login (their history stays; they just can no longer
+ * sign in). Guarded on the server, not just hidden in the UI: nobody can
+ * deactivate themselves this way, and the household can never be left with
+ * zero active parents — both would be a lockout with no email-based recovery
+ * to fall back on.
+ */
+export async function deactivateParent(
+  _prev: SettingsState,
+  formData: FormData,
+): Promise<SettingsState> {
+  const parent = await requireParent();
+  const targetId = String(formData.get("userId") ?? "");
+
+  if (targetId === parent.id) {
+    return { error: "You cannot deactivate your own login." };
+  }
+
+  const target = db
+    .select()
+    .from(user)
+    .where(and(eq(user.id, targetId), eq(user.householdId, parent.householdId), eq(user.role, "parent")))
+    .get();
+  if (!target) return { error: "That parent could not be found." };
+
+  const activeParents = db
+    .select({ id: user.id })
+    .from(user)
+    .where(and(eq(user.householdId, parent.householdId), eq(user.role, "parent"), eq(user.active, true)))
+    .all();
+  if (activeParents.length <= 1) {
+    return { error: "A household needs at least one active parent login." };
+  }
+
+  db.update(user).set({ active: false }).where(eq(user.id, targetId)).run();
+
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
+export async function reactivateParent(formData: FormData): Promise<void> {
+  const parent = await requireParent();
+  const targetId = String(formData.get("userId") ?? "");
+
+  db.update(user)
+    .set({ active: true })
+    .where(and(eq(user.id, targetId), eq(user.householdId, parent.householdId), eq(user.role, "parent")))
+    .run();
+
+  revalidatePath("/settings");
+}
+
 /**
  * The parent's own login — name, username, password.
  *
