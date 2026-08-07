@@ -28,11 +28,40 @@ function ageFromBirthdate(birthdate: string): number | null {
   return age;
 }
 
+/**
+ * Collapsed behind a plain link once the family already has a child on
+ * file — after initial setup this gets used rarely (a new baby, at
+ * most), so it shouldn't keep claiming a permanent slot of the page next
+ * to every child's balance.
+ */
+export function AddChildToggle(props: {
+  siblings?: { id: string; name: string }[];
+}) {
+  const [open, setOpen] = useState(false);
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-sm font-medium text-ledger-600 hover:underline"
+      >
+        + Add a child
+      </button>
+    );
+  }
+
+  return <AddChildForm {...props} onDone={() => setOpen(false)} />;
+}
+
 export function AddChildForm({
   siblings = [],
+  onDone,
 }: {
   /** Existing children, for the "copy from" option. Omitted for the first child. */
   siblings?: { id: string; name: string }[];
+  /** Called after a successful add, only present when opened from the toggle. */
+  onDone?: () => void;
 }) {
   const [state, formAction] = useActionState<ChildFormState, FormData>(
     addChild,
@@ -53,12 +82,25 @@ export function AddChildForm({
       formRef.current?.reset();
       setBirthdate("");
       setStarterSetup("preset");
+      onDone?.();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.ok]);
 
   return (
     <Card className="h-fit">
-      <h2 className="mb-4 text-lg font-semibold">Add a child</h2>
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Add a child</h2>
+        {onDone && (
+          <button
+            type="button"
+            onClick={onDone}
+            className="text-xs text-ink-400 hover:text-ink-700"
+          >
+            Cancel
+          </button>
+        )}
+      </div>
 
       <form ref={formRef} action={formAction} className="space-y-4">
         {state.error && <Alert>{state.error}</Alert>}

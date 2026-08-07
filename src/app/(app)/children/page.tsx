@@ -10,7 +10,7 @@ import {
 import { getBalances } from "@/lib/ledger";
 import { formatCents } from "@/lib/money";
 import { resolveHouseholdPolicy } from "@/lib/policy";
-import { AddChildForm } from "./add-child-form";
+import { AddChildForm, AddChildToggle } from "./add-child-form";
 import { ArchiveButton, RestoreButton } from "./row-actions";
 
 export default async function ChildrenPage() {
@@ -31,7 +31,7 @@ export default async function ChildrenPage() {
         subtitle="Balances, history, and settings for each child. Add one as they are born; archive them as they grow out. Nothing is ever deleted."
       />
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+      <div className="mx-auto max-w-2xl space-y-6">
         <div className="space-y-4">
           {activeChildren.length === 0 && (
             <Alert tone="info">
@@ -92,32 +92,40 @@ export default async function ChildrenPage() {
               </div>
             </Card>
           ))}
+        </div>
 
-          {archivedChildren.length > 0 && (
-            <div className="pt-4">
-              <h2 className="mb-3 text-sm font-medium text-ink-400">Archived</h2>
-              <div className="space-y-2">
-                {archivedChildren.map((c) => (
-                  <Card key={c.id} className="!p-4">
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <span className="text-sm font-medium">{c.displayName}</span>
-                        <span className="ml-2 text-xs text-ink-400">
-                          history retained
-                        </span>
-                      </div>
-                      <RestoreButton childId={c.id} />
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            </div>
+        <div>
+          {activeChildren.length === 0 ? (
+            // First-run: nothing to de-emphasize against yet, so the form
+            // is shown outright rather than behind a link.
+            <AddChildForm siblings={[]} />
+          ) : (
+            <AddChildToggle
+              siblings={activeChildren.map((c) => ({ id: c.id, name: c.displayName }))}
+            />
           )}
         </div>
 
-        <AddChildForm
-          siblings={activeChildren.map((c) => ({ id: c.id, name: c.displayName }))}
-        />
+        {archivedChildren.length > 0 && (
+          <div className="pt-2">
+            <h2 className="mb-3 text-sm font-medium text-ink-400">Archived</h2>
+            <div className="space-y-2">
+              {archivedChildren.map((c) => (
+                <Card key={c.id} className="!p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <span className="text-sm font-medium">{c.displayName}</span>
+                      <span className="ml-2 text-xs text-ink-400">
+                        history retained
+                      </span>
+                    </div>
+                    <RestoreButton childId={c.id} />
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </>
   );

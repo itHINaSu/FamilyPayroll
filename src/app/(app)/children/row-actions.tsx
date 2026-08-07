@@ -26,9 +26,17 @@ export function ArchiveButton({
       }}
     >
       <input type="hidden" name="childId" value={childId} />
-      <Button type="submit" variant="secondary">
+      {/*
+        A once-in-a-while action (mainly useful during initial setup)
+        stays a plain text link rather than a full button, so it doesn't
+        compete with the balance for attention on every visit.
+      */}
+      <button
+        type="submit"
+        className="text-xs text-ink-400 hover:text-ink-700 hover:underline dark:hover:text-ink-200"
+      >
         Archive
-      </Button>
+      </button>
     </form>
   );
 }
