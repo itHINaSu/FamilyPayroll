@@ -130,22 +130,22 @@ export function Alert({
 
 export function PageHeader({
   title,
-  subtitle,
   action,
 }: {
   title: string;
+  /** No longer rendered — active-tab highlighting and the header wordmark
+   * already say where you are, and a paragraph of description repeated on
+   * every page cost more scroll than it was worth. Callers that still pass
+   * one aren't broken; it's just ignored. */
   subtitle?: string;
   action?: ReactNode;
 }) {
   return (
-    // flex-wrap plus min-w-0 on the title block: a long title/subtitle and an
-    // action (a link, a form) no longer fight for the same line on a phone —
-    // the action drops below instead of clipping or squeezing the title.
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
-      <div className="min-w-0">
-        <h1 className="text-2xl font-semibold tracking-tight text-balance">{title}</h1>
-        {subtitle && <p className="mt-1 text-sm text-ink-400">{subtitle}</p>}
-      </div>
+    // flex-wrap: a long title and an action (a link, a form) don't fight
+    // for the same line on a phone — the action drops below instead of
+    // clipping or squeezing the title.
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+      <h1 className="min-w-0 text-lg font-semibold tracking-tight text-balance">{title}</h1>
       {action}
     </div>
   );

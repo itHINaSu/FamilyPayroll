@@ -16,6 +16,7 @@ import {
   UserIcon,
   WalletIcon,
 } from "./icons";
+import { ThemeToggle } from "./theme-toggle";
 
 const SETUP_LINKS = [
   { href: "/children", label: "Children", icon: WalletIcon },
@@ -174,6 +175,10 @@ export function AppMenu({
                 </div>
               )}
             </nav>
+
+            <div className="border-t border-ink-100 dark:border-ink-700">
+              <ThemeToggle />
+            </div>
 
             <div className="border-t border-ink-100 p-2 dark:border-ink-700">
               <form action={logout}>

@@ -6,6 +6,16 @@
  * kiosk in phase 5 and deliberately do not share this palette.
  */
 
+/*
+ * Every `dark:` utility used throughout the app responds to this attribute
+ * instead of the OS's own prefers-color-scheme. The attribute itself is
+ * resolved once, before paint, by the inline script in the root layout —
+ * from a stored choice if the theme toggle (in the hamburger menu) has ever
+ * been used, otherwise from the system preference — so "follow the system"
+ * is still the default; this just adds a manual override on top of it.
+ */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 @theme {
   --color-ink-50: #f6f7f9;
   --color-ink-100: #eceef2;
@@ -44,11 +54,9 @@ body {
   font-family: var(--font-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  body {
-    background-color: var(--color-ink-900);
-    color: var(--color-ink-100);
-  }
+[data-theme="dark"] body {
+  background-color: var(--color-ink-900);
+  color: var(--color-ink-100);
 }
 
 /*
@@ -79,13 +87,11 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
   border-radius: 4px;
 }
-@media (prefers-color-scheme: dark) {
-  input[type="date"]::-webkit-calendar-picker-indicator,
-  input[type="time"]::-webkit-calendar-picker-indicator {
-    /* Chrome always renders this icon in dark ink; without inverting it, a
-       dark-mode date field shows a near-invisible black-on-near-black icon. */
-    filter: invert(1);
-  }
+[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+[data-theme="dark"] input[type="time"]::-webkit-calendar-picker-indicator {
+  /* Chrome always renders this icon in dark ink; without inverting it, a
+     dark-mode date field shows a near-invisible black-on-near-black icon. */
+  filter: invert(1);
 }
 
 /*

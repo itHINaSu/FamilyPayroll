@@ -1,6 +1,14 @@
 import type { Metadata, Viewport } from "next";
 
 import "./globals.css";
+import { THEME_COLORS, THEME_STORAGE_KEY } from "./theme";
+
+// Runs before paint (a plain inline <script>, first thing in <body>, is
+// render-blocking) so the page never flashes light-then-dark or vice versa.
+// Resolves, in order: a stored explicit choice from the theme toggle, then
+// falls back to the OS preference — "follow the system" is still the
+// default until someone actually uses the toggle.
+const themeInitScript = `(function(){try{var k=${JSON.stringify(THEME_STORAGE_KEY)};var s=localStorage.getItem(k);var t=(s==="light"||s==="dark")?s:(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");document.documentElement.setAttribute("data-theme",t);var c=${JSON.stringify(THEME_COLORS)};var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",c[t]);}catch(e){}})();`;
 
 export const metadata: Metadata = {
   title: "Family Payroll",
@@ -37,7 +45,10 @@ export const viewport: Viewport = {
   // which is a real accessibility regression (WCAG 1.4.4) once this is a
   // phone app parents use daily, not just a one-off checkout tool. Zoom stays
   // available; only the initial layout is fixed.
-  themeColor: "#23272f",
+  // Overwritten immediately by the init script below to match whichever
+  // theme actually resolves — this is only what shows for the instant
+  // before that script runs (or if it can't, e.g. JS disabled).
+  themeColor: THEME_COLORS.light,
 };
 
 export default function RootLayout({
@@ -45,7 +56,10 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className="min-h-screen antialiased">{children}</body>
+      <body className="min-h-screen antialiased">
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        {children}
+      </body>
     </html>
   );
 }
