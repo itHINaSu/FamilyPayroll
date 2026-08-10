@@ -4,23 +4,29 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { logout } from "@/app/login/actions";
-import { ChevronRightIcon, CloseIcon, GearIcon, MenuIcon, SignOutIcon } from "./icons";
+import { ChevronRightIcon, CloseIcon, MenuIcon, SignOutIcon } from "./icons";
 
 /**
- * Everything configured occasionally rather than used daily — Setup and
- * Settings — plus the account itself, one tap away from a hamburger button
- * instead of sitting in the primary tab bar. Opens as a right-side panel
- * over the current screen rather than a full route change, so whatever tab
- * you were on is still there the moment you close it.
+ * Everything configured occasionally rather than used daily — reached one
+ * tap from a hamburger button instead of sitting in the primary tab bar.
+ * Opens as a right-side panel over the current screen rather than a full
+ * route change, so whatever tab you were on is still there the moment you
+ * close it. Settings has its own bottom tab now, so the only thing left
+ * here is Setup (children, extra jobs, bills — the parts that don't have a
+ * tab of their own) and the account itself.
  */
 export function AppMenu({
   displayName,
   username,
   householdName,
+  pendingJobs = 0,
 }: {
   displayName: string;
   username: string;
   householdName?: string;
+  /** Extra-job claims waiting on approval — buried under Setup now that
+   * Jobs isn't a bottom tab, so a badge here is the only hint left. */
+  pendingJobs?: number;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -52,10 +58,19 @@ export function AppMenu({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label="Open menu"
-        className="flex h-9 w-9 items-center justify-center rounded-full text-ink-600 transition
-          hover:bg-ink-100 dark:text-ink-200 dark:hover:bg-ink-700"
+        className="relative flex h-9 w-9 items-center justify-center rounded-full text-ink-600
+          transition hover:bg-ink-100 dark:text-ink-200 dark:hover:bg-ink-700"
       >
         <MenuIcon className="h-6 w-6" />
+        {pendingJobs > 0 && (
+          <span
+            aria-label={`${pendingJobs} waiting on you`}
+            className="absolute right-0 top-0 flex h-4 min-w-4 items-center justify-center
+              rounded-full bg-red-600 px-1 text-[10px] font-semibold leading-none text-white"
+          >
+            {pendingJobs > 9 ? "9+" : pendingJobs}
+          </span>
+        )}
       </button>
 
       {open && (
@@ -96,10 +111,11 @@ export function AppMenu({
               <MenuLink href="/config" onNavigate={() => setOpen(false)}>
                 <SetupIcon />
                 Setup
-              </MenuLink>
-              <MenuLink href="/settings" onNavigate={() => setOpen(false)}>
-                <GearIcon className="h-5 w-5" />
-                Settings
+                {pendingJobs > 0 && (
+                  <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-950 dark:text-red-300">
+                    {pendingJobs} waiting
+                  </span>
+                )}
               </MenuLink>
             </nav>
 

@@ -39,13 +39,16 @@ export default async function AppLayout({
 
           {/*
             Daily-use screens live one tap away in the bottom tab bar now, so
-            the header only needs a way to reach the rest — Setup, Settings,
-            the account — which is exactly what the hamburger opens.
+            the header only needs a way to reach the rest — Setup and the
+            account — which is exactly what the hamburger opens. Extra jobs
+            isn't a tab of its own, so a pending-claims badge rides on the
+            hamburger instead of disappearing entirely.
           */}
           <AppMenu
             displayName={sessionUser.displayName}
             username={sessionUser.email}
             householdName={home?.name}
+            pendingJobs={pendingJobs}
           />
         </div>
       </header>
@@ -54,7 +57,7 @@ export default async function AppLayout({
           own concern so this stays a plain, constant value. */}
       <main className="mx-auto max-w-5xl px-4 py-8 pb-20 sm:px-6">{children}</main>
 
-      <BottomTabs pendingJobs={pendingJobs} />
+      <BottomTabs />
     </div>
   );
 }

@@ -3,38 +3,39 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { BriefcaseIcon, HomeIcon, PeopleIcon, ReceiptIcon } from "./icons";
+import { ChecklistIcon, GearIcon, HomeIcon, ShieldIcon, WalletIcon } from "./icons";
 
 const TABS = [
-  { href: "/", label: "Dashboard", icon: HomeIcon, match: (p: string) => p === "/" },
-  {
-    href: "/children",
-    label: "Children",
-    icon: PeopleIcon,
-    match: (p: string) => p.startsWith("/children"),
-  },
-  {
-    href: "/jobs",
-    label: "Jobs",
-    icon: BriefcaseIcon,
-    match: (p: string) => p.startsWith("/jobs"),
-  },
-  {
-    href: "/bills",
-    label: "Bills",
-    icon: ReceiptIcon,
-    match: (p: string) => p.startsWith("/bills"),
-  },
-];
+  { href: "/", label: "Dashboard", icon: HomeIcon },
+  { href: "/responsibilities", label: "Responsibilities", icon: ChecklistIcon },
+  { href: "/expectations", label: "Trust", icon: ShieldIcon },
+  { href: "/children", label: "Balances", icon: WalletIcon },
+  { href: "/settings", label: "Settings", icon: GearIcon },
+] as const;
 
 /**
- * The four screens a parent actually opens day to day, one tap away at all
- * times — everything configured occasionally rather than used daily
- * (Responsibilities, Expectations, the Setup overview, Settings) lives
- * behind the hamburger menu instead of competing for a slot down here.
+ * Which tab a given path belongs to, checked in priority order rather than
+ * each tab testing independently — a per-child page can plausibly match more
+ * than one tab's prefix (e.g. /children/[id]/responsibilities is under both
+ * /children and "responsibilities"), and only one tab may ever show active.
  */
-export function BottomTabs({ pendingJobs = 0 }: { pendingJobs?: number }) {
+function activeTab(pathname: string): string | null {
+  if (pathname === "/") return "/";
+  if (pathname.includes("/responsibilities")) return "/responsibilities";
+  if (pathname.startsWith("/expectations") || pathname.includes("/trust")) return "/expectations";
+  if (pathname.startsWith("/settings")) return "/settings";
+  if (pathname.startsWith("/children")) return "/children";
+  return null;
+}
+
+/**
+ * The five screens one tap away at all times. Deliberately not fixed forever
+ * — this set is the current best guess at what a parent reaches for daily,
+ * and it's expected to be revisited.
+ */
+export function BottomTabs() {
   const pathname = usePathname();
+  const active = activeTab(pathname);
 
   return (
     <nav
@@ -45,36 +46,25 @@ export function BottomTabs({ pendingJobs = 0 }: { pendingJobs?: number }) {
     >
       <div className="mx-auto flex max-w-5xl">
         {TABS.map((tab) => {
-          const active = tab.match(pathname);
+          const isActive = tab.href === active;
           const Icon = tab.icon;
 
           return (
             <Link
               key={tab.href}
               href={tab.href}
-              className="relative flex flex-1 flex-col items-center gap-0.5 py-2 text-xs transition"
+              className="flex flex-1 flex-col items-center gap-0.5 py-2 text-xs transition"
             >
-              <span className="relative">
-                <Icon
-                  className={`h-6 w-6 ${
-                    active
-                      ? "text-ledger-600 dark:text-ledger-500"
-                      : "text-ink-400 dark:text-ink-500"
-                  }`}
-                />
-                {tab.href === "/jobs" && pendingJobs > 0 && (
-                  <span
-                    aria-label={`${pendingJobs} waiting on you`}
-                    className="absolute -right-1.5 -top-1 flex h-4 min-w-4 items-center justify-center
-                      rounded-full bg-red-600 px-1 text-[10px] font-semibold leading-none text-white"
-                  >
-                    {pendingJobs > 9 ? "9+" : pendingJobs}
-                  </span>
-                )}
-              </span>
+              <Icon
+                className={`h-6 w-6 ${
+                  isActive
+                    ? "text-ledger-600 dark:text-ledger-500"
+                    : "text-ink-400 dark:text-ink-500"
+                }`}
+              />
               <span
                 className={
-                  active
+                  isActive
                     ? "font-medium text-ink-900 dark:text-white"
                     : "text-ink-400 dark:text-ink-500"
                 }

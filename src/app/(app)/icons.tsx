@@ -46,6 +46,36 @@ export function PeopleIcon(props: IconProps) {
   );
 }
 
+export function ChecklistIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <rect x="4.5" y="3.5" width="15" height="17" rx="2" />
+      <path d="M9 2.5h6a1 1 0 0 1 1 1V5a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1Z" />
+      <path d="m8 11.5 1.5 1.5 3-3M8 16.5l1.5 1.5 3-3" />
+      <path d="M14.5 12.2h3M14.5 17.2h3" />
+    </Base>
+  );
+}
+
+export function ShieldIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <path d="M12 3 4.5 5.7v5.4c0 4.7 3.2 8.3 7.5 9.9 4.3-1.6 7.5-5.2 7.5-9.9V5.7Z" />
+      <path d="m9 12 2.2 2.2L15.5 10" />
+    </Base>
+  );
+}
+
+export function WalletIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18a1.5 1.5 0 0 1 1.5 1.5v.7" />
+      <rect x="3.5" y="7.5" width="17" height="13" rx="2.5" />
+      <path d="M15 14.2a1.3 1.3 0 1 0 0-2.6h4.5v2.6Z" />
+    </Base>
+  );
+}
+
 export function BriefcaseIcon(props: IconProps) {
   return (
     <Base {...props}>
