@@ -6,6 +6,7 @@ import { getHousehold } from "@/lib/auth/guard";
 import { pendingJobClaims } from "@/lib/jobs";
 import { AppMenu } from "./app-menu";
 import { BottomTabs } from "./bottom-tabs";
+import { TopTabs } from "./top-tabs";
 
 /**
  * Never prerendered: this page reads the session cookie and the database, both
@@ -33,16 +34,22 @@ export default async function AppLayout({
     <div className="min-h-screen">
       <header className="border-b border-ink-200 bg-white dark:border-ink-700 dark:bg-ink-800">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <Link href="/" className="font-semibold tracking-tight">
-            Family Payroll
-          </Link>
+          <div className="flex items-center gap-6">
+            <Link href="/" className="font-semibold tracking-tight">
+              Family Payroll
+            </Link>
+            {/* Same five destinations as the phone's bottom bar, laid out as
+                a row instead — a bar fixed to the bottom of a wide window
+                isn't a pattern anyone expects on desktop. */}
+            <TopTabs />
+          </div>
 
           {/*
-            Daily-use screens live one tap away in the bottom tab bar now, so
-            the header only needs a way to reach the rest — Setup and the
-            account — which is exactly what the hamburger opens. Extra jobs
-            isn't a tab of its own, so a pending-claims badge rides on the
-            hamburger instead of disappearing entirely.
+            On a phone, daily-use screens live one tap away in the bottom
+            tab bar, so the hamburger only needs to reach the rest — Setup
+            (expandable to each of its sections) and the account. Extra
+            jobs isn't a tab of its own, so a pending-claims badge rides on
+            the hamburger instead of disappearing entirely.
           */}
           <AppMenu
             displayName={sessionUser.displayName}
@@ -53,9 +60,9 @@ export default async function AppLayout({
         </div>
       </header>
 
-      {/* pb-20 clears the fixed bottom tab bar; safe-area inset is the bar's
-          own concern so this stays a plain, constant value. */}
-      <main className="mx-auto max-w-5xl px-4 py-8 pb-20 sm:px-6">{children}</main>
+      {/* pb-20 clears the fixed bottom tab bar on a phone; desktop has no
+          fixed bar, so it reverts to the normal amount of breathing room. */}
+      <main className="mx-auto max-w-5xl px-4 py-8 pb-20 sm:px-6 md:pb-8">{children}</main>
 
       <BottomTabs />
     </div>

@@ -35,13 +35,11 @@ export function HomeIcon(props: IconProps) {
   );
 }
 
-export function PeopleIcon(props: IconProps) {
+export function UserIcon(props: IconProps) {
   return (
     <Base {...props}>
-      <circle cx="9" cy="8" r="3" />
-      <path d="M3.5 20a5.5 5.5 0 0 1 11 0" />
-      <circle cx="17" cy="9" r="2.5" />
-      <path d="M15.5 12.2a4.5 4.5 0 0 1 5 4.3" />
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M4.5 20a7.5 7.5 0 0 1 15 0" />
     </Base>
   );
 }

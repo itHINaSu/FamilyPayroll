@@ -4,16 +4,33 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { logout } from "@/app/login/actions";
-import { ChevronRightIcon, CloseIcon, MenuIcon, SignOutIcon } from "./icons";
+import {
+  BriefcaseIcon,
+  ChecklistIcon,
+  ChevronRightIcon,
+  CloseIcon,
+  MenuIcon,
+  ReceiptIcon,
+  ShieldIcon,
+  SignOutIcon,
+  UserIcon,
+  WalletIcon,
+} from "./icons";
+
+const SETUP_LINKS = [
+  { href: "/children", label: "Children", icon: WalletIcon },
+  { href: "/responsibilities", label: "Responsibilities", icon: ChecklistIcon },
+  { href: "/expectations", label: "Expectations", icon: ShieldIcon },
+  { href: "/jobs", label: "Extra jobs", icon: BriefcaseIcon },
+  { href: "/bills", label: "Bills", icon: ReceiptIcon },
+];
 
 /**
  * Everything configured occasionally rather than used daily — reached one
  * tap from a hamburger button instead of sitting in the primary tab bar.
  * Opens as a right-side panel over the current screen rather than a full
  * route change, so whatever tab you were on is still there the moment you
- * close it. Settings has its own bottom tab now, so the only thing left
- * here is Setup (children, extra jobs, bills — the parts that don't have a
- * tab of their own) and the account itself.
+ * close it.
  */
 export function AppMenu({
   displayName,
@@ -29,6 +46,7 @@ export function AppMenu({
   pendingJobs?: number;
 }) {
   const [open, setOpen] = useState(false);
+  const [setupOpen, setSetupOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -49,6 +67,7 @@ export function AppMenu({
   }, [open]);
 
   const initial = displayName.charAt(0).toUpperCase() || "?";
+  const close = () => setOpen(false);
 
   return (
     <>
@@ -78,7 +97,7 @@ export function AppMenu({
           <button
             type="button"
             aria-label="Close menu"
-            onClick={() => setOpen(false)}
+            onClick={close}
             className="absolute inset-0 bg-black/30"
           />
 
@@ -89,7 +108,7 @@ export function AppMenu({
             <div className="flex items-center gap-3 bg-ledger-600 px-5 py-5 text-white">
               <button
                 type="button"
-                onClick={() => setOpen(false)}
+                onClick={close}
                 aria-label="Close menu"
                 className="-ml-1.5 flex h-8 w-8 items-center justify-center rounded-full hover:bg-white/10"
               >
@@ -108,7 +127,18 @@ export function AppMenu({
             </div>
 
             <nav className="flex-1 overflow-y-auto py-2">
-              <MenuLink href="/config" onNavigate={() => setOpen(false)}>
+              <MenuLink href="/settings#account" onNavigate={close}>
+                <UserIcon className="h-5 w-5" />
+                Account
+              </MenuLink>
+
+              <button
+                type="button"
+                onClick={() => setSetupOpen((v) => !v)}
+                aria-expanded={setupOpen}
+                className="flex w-full items-center gap-3 px-5 py-3.5 text-sm font-medium text-ink-700
+                  transition hover:bg-ink-50 dark:text-ink-100 dark:hover:bg-ink-700"
+              >
                 <SetupIcon />
                 Setup
                 {pendingJobs > 0 && (
@@ -116,7 +146,28 @@ export function AppMenu({
                     {pendingJobs} waiting
                   </span>
                 )}
-              </MenuLink>
+                <ChevronRightIcon
+                  className={`ml-auto h-4 w-4 text-ink-300 transition-transform dark:text-ink-500 ${
+                    setupOpen ? "rotate-90" : ""
+                  }`}
+                />
+              </button>
+
+              {setupOpen && (
+                <div className="bg-ink-50 dark:bg-ink-900/40">
+                  {SETUP_LINKS.map((link) => (
+                    <MenuLink key={link.href} href={link.href} onNavigate={close} indent>
+                      <link.icon className="h-5 w-5" />
+                      {link.label}
+                      {link.href === "/jobs" && pendingJobs > 0 && (
+                        <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-950 dark:text-red-300">
+                          {pendingJobs}
+                        </span>
+                      )}
+                    </MenuLink>
+                  ))}
+                </div>
+              )}
             </nav>
 
             <div className="border-t border-ink-100 p-2 dark:border-ink-700">
@@ -166,17 +217,22 @@ function MenuLink({
   href,
   children,
   onNavigate,
+  indent = false,
 }: {
   href: string;
   children: React.ReactNode;
   onNavigate: () => void;
+  /** Setup's sub-links sit visually inside the disclosure they belong to. */
+  indent?: boolean;
 }) {
   return (
     <Link
       href={href}
       onClick={onNavigate}
-      className="flex items-center gap-3 px-5 py-3.5 text-sm font-medium text-ink-700 transition
-        hover:bg-ink-50 dark:text-ink-100 dark:hover:bg-ink-700"
+      className={`flex items-center gap-3 py-3 text-sm font-medium text-ink-700 transition
+        hover:bg-ink-100/60 dark:text-ink-100 dark:hover:bg-ink-700 ${
+          indent ? "pl-9 pr-5" : "px-5 py-3.5"
+        }`}
     >
       {children}
       <ChevronRightIcon className="ml-auto h-4 w-4 text-ink-300 dark:text-ink-500" />

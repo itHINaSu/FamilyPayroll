@@ -77,12 +77,14 @@ export default async function SettingsPage() {
           </Alert>
         ))}
 
-        <AccountForm
-          account={{
-            displayName: account?.displayName ?? "",
-            email: account?.email ?? "",
-          }}
-        />
+        <div id="account">
+          <AccountForm
+            account={{
+              displayName: account?.displayName ?? "",
+              email: account?.email ?? "",
+            }}
+          />
+        </div>
 
         <MfaForm enabled={!!account?.totpEnabledAt} />
 
