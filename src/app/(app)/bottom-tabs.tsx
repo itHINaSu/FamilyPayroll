@@ -17,12 +17,12 @@ export function BottomTabs() {
   return (
     <nav
       aria-label="Primary"
-      className="fixed inset-x-0 bottom-0 z-20 border-t border-ink-200 bg-white/95 px-1 backdrop-blur
-        md:hidden dark:border-ink-700 dark:bg-ink-800/95"
-      // The safe-area inset alone clears the home-indicator bar but not the
-      // screen's own rounded bottom corners — the outer two tabs sit right
-      // in that curve without a little extra breathing room on top of it.
-      style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 6px)" }}
+      // Positioning/spacing lives in globals.css (.bottom-tab-bar) rather
+      // than inline styles, since the extra clearance needed on an
+      // installed PWA vs. an ordinary browser tab only differs by a
+      // `@media (display-mode: standalone)` query — not expressible inline.
+      className="bottom-tab-bar fixed inset-x-0 bottom-0 z-20 border-t border-ink-200 bg-white/95
+        backdrop-blur md:hidden dark:border-ink-700 dark:bg-ink-800/95"
     >
       <div className="mx-auto flex max-w-5xl">
         {TABS.map((tab) => {

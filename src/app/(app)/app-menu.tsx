@@ -46,7 +46,9 @@ export function AppMenu({
   pendingJobs?: number;
 }) {
   const [open, setOpen] = useState(false);
-  const [setupOpen, setSetupOpen] = useState(false);
+  // Expanded by default every time the menu opens — collapsing it is a
+  // this-glance preference, not something worth remembering turn to turn.
+  const [setupOpen, setSetupOpen] = useState(true);
 
   useEffect(() => {
     if (!open) return;
@@ -73,7 +75,10 @@ export function AppMenu({
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setOpen(true);
+          setSetupOpen(true);
+        }}
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label="Open menu"
@@ -225,6 +230,8 @@ function MenuLink({
   /** Setup's sub-links sit visually inside the disclosure they belong to. */
   indent?: boolean;
 }) {
+  // No trailing chevron here — that reads as "this expands," which is only
+  // true of the Setup row's own toggle button. A plain link just navigates.
   return (
     <Link
       href={href}
@@ -235,7 +242,6 @@ function MenuLink({
         }`}
     >
       {children}
-      <ChevronRightIcon className="ml-auto h-4 w-4 text-ink-300 dark:text-ink-500" />
     </Link>
   );
 }
