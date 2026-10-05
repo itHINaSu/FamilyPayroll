@@ -25,7 +25,9 @@ import { KioskForm } from "./kiosk-form";
 import { MfaForm } from "./mfa-form";
 import { toggleEvent } from "./notification-actions";
 import { ParentsForm } from "./parents-form";
+import { PayrollControl } from "./payroll-control";
 import { PushSetup, TestButton } from "./push-setup";
+import { ResetControl } from "./reset-control";
 
 export const dynamic = "force-dynamic";
 
@@ -76,6 +78,10 @@ export default async function SettingsPage() {
             {w.message}
           </Alert>
         ))}
+
+        <div id="payroll">
+          <PayrollControl pausedOn={home?.payrollPausedOn ?? null} />
+        </div>
 
         <div id="account">
           <AccountForm
@@ -234,6 +240,10 @@ export default async function SettingsPage() {
               )}
             </Card>
           </div>
+        </div>
+
+        <div className="pt-6">
+          <ResetControl />
         </div>
       </div>
     </>

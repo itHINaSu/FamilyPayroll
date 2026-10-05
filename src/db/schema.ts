@@ -48,6 +48,17 @@ export const household = sqliteTable("household", {
   guardrailsEnabled: integer("guardrails_enabled", { mode: "boolean" })
     .notNull()
     .default(true),
+  /**
+   * The master switch for the money cycle (scheduler.ts: payroll, bills,
+   * interest). Paused iff set — the date it was paused, so resuming can
+   * excuse exactly that stretch. See lib/payroll-pause.ts.
+   */
+  payrollPausedOn: text("payroll_paused_on"),
+  /**
+   * Last resume date. Pay periods that ended before it were entirely paused
+   * and are never drafted, so resuming never back-pays or back-bills.
+   */
+  payrollResumedOn: text("payroll_resumed_on"),
   setupCompletedAt: integer("setup_completed_at"),
   createdAt: createdAt(),
 });

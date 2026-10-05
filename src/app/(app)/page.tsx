@@ -45,6 +45,18 @@ export default async function DashboardPage() {
         }
       />
 
+      {home?.payrollPausedOn && (
+        <div className="mb-6">
+          <Alert tone="warning">
+            <strong>Payroll is paused</strong> (since {home.payrollPausedOn}) — nothing is
+            paid or billed.{" "}
+            <Link href="/settings#payroll" className="font-medium underline">
+              Start payroll
+            </Link>
+          </Alert>
+        </div>
+      )}
+
       {children.length === 0 ? (
         <Alert tone="info">
           Nobody is earning yet.{" "}

@@ -1,5 +1,7 @@
 import "server-only";
 
+import { db } from "@/db";
+import { household } from "@/db/schema";
 import { createBackup } from "@/lib/backup";
 import { config } from "@/lib/config";
 import { reconcileAll } from "@/lib/ledger";
@@ -45,6 +47,14 @@ const tasks: DailyTask[] = [
     name: "money_cycle",
     hour: 1,
     run: () => {
+      // Paused (Settings → Payroll): nothing drafts, posts, collects, or
+      // accrues. Resuming doesn't replay the gap — see lib/payroll-pause.ts.
+      const home = db.select({ pausedOn: household.payrollPausedOn }).from(household).get();
+      if (home?.pausedOn) {
+        console.log("[scheduler] payroll paused — money cycle skipped");
+        return;
+      }
+
       const payroll = runPayrollCycle();
       const bills = runBillCycle();
       const accrued = accrueDaily();

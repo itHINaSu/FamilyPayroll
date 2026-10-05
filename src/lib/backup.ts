@@ -64,6 +64,55 @@ export function listBackups() {
     .sort((a, b) => b.createdAt - a.createdAt);
 }
 
+/**
+ * Erase everything — household, parents, children, every ledger entry —
+ * back to a first-run install, after a safety snapshot like a restore takes.
+ *
+ * Unlike a restore this works in-process, through the live connection: it
+ * empties tables rather than swapping the file, so it takes effect on the
+ * very next request with no restart. Kept: the migration history (the
+ * schema stays current) and app_secret (session signing key, VAPID keys) —
+ * neither is family data, and regenerating them buys nothing.
+ */
+export function resetAllData(): { safetyBackup: string } {
+  const safetyBackup = createBackup();
+
+  const tables = sqlite
+    .prepare(
+      `SELECT name FROM sqlite_master
+       WHERE type = 'table'
+         AND name NOT LIKE 'sqlite_%'
+         AND name NOT IN ('__drizzle_migrations', 'app_secret')`,
+    )
+    .all() as { name: string }[];
+
+  // The append-only ledger and immutable posted pay stubs are enforced by
+  // triggers (migration 0001), which correctly refuse these deletes. Erasing
+  // the whole household is the one legitimate exception, so they're lifted
+  // and recreated from their own stored SQL inside the same transaction —
+  // if anything fails, the rollback restores them along with the data.
+  const triggers = sqlite
+    .prepare(`SELECT name, sql FROM sqlite_master WHERE type = 'trigger'`)
+    .all() as { name: string; sql: string }[];
+
+  // foreign_keys can't change inside a transaction, so it's toggled around
+  // one — with it off, delete order across the schema doesn't matter.
+  sqlite.pragma("foreign_keys = OFF");
+  try {
+    sqlite.transaction(() => {
+      for (const t of triggers) sqlite.prepare(`DROP TRIGGER "${t.name}"`).run();
+      for (const { name } of tables) {
+        sqlite.prepare(`DELETE FROM "${name}"`).run();
+      }
+      for (const t of triggers) sqlite.prepare(t.sql).run();
+    })();
+  } finally {
+    sqlite.pragma("foreign_keys = ON");
+  }
+
+  return { safetyBackup };
+}
+
 export type RestoreResult =
   | { ok: true; safetyBackup: string }
   | { ok: false; error: string };

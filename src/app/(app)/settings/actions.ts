@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { and, eq, ne } from "drizzle-orm";
 
 import { db } from "@/db";
@@ -15,7 +16,8 @@ import {
   verifyTotp,
 } from "@/lib/auth/totp";
 import { UsernameSchema } from "@/lib/auth/username";
-import { createBackup, restoreFromUpload } from "@/lib/backup";
+import { createBackup, resetAllData, restoreFromUpload } from "@/lib/backup";
+import { pausePayroll, resumePayroll } from "@/lib/payroll-pause";
 import { getChild } from "@/lib/children";
 import { getOverrides, savePolicyVersion, type PartialPolicy } from "@/lib/policy";
 import { SETTINGS_SECTIONS } from "@/lib/settings-schema";
@@ -424,6 +426,70 @@ export async function restoreBackup(
     message:
       "Restored. A safety copy of what was running before is saved. Restart the app for the restored data to take effect.",
   };
+}
+
+export type PayrollState = { error?: string; message?: string };
+
+export async function togglePayroll(
+  _prev: PayrollState,
+  formData: FormData,
+): Promise<PayrollState> {
+  const parent = await requireParent();
+  const pause = formData.get("intent") === "pause";
+
+  let message: string;
+  if (pause) {
+    const { discardedDrafts, clearedBills } = pausePayroll(parent.householdId, parent.id);
+    const parts = [
+      discardedDrafts > 0 && `${discardedDrafts} unposted pay stub${discardedDrafts === 1 ? "" : "s"} discarded`,
+      clearedBills > 0 && `${clearedBills} upcoming bill${clearedBills === 1 ? "" : "s"} cleared`,
+    ].filter(Boolean);
+    message = `Payroll paused.${parts.length ? ` ${parts.join(", ")}.` : ""}`;
+  } else {
+    const { excusedDays } = resumePayroll(parent.householdId, parent.id);
+    message = `Payroll started.${
+      excusedDays > 0
+        ? ` The ${excusedDays} paused day${excusedDays === 1 ? " is" : "s are"} excused, not counted as missed.`
+        : ""
+    }`;
+  }
+
+  revalidatePath("/", "layout");
+  return { message };
+}
+
+/**
+ * Erase everything and return to the first-run setup wizard.
+ *
+ * Gated twice, both checked here rather than trusted from the client: the
+ * current password, and typing RESET. A safety snapshot is written first
+ * (with this audit entry in it), so even this is one restore away from
+ * undone. No restart needed — the next request lands on /setup.
+ */
+export async function resetApp(_prev: SettingsState, formData: FormData): Promise<SettingsState> {
+  const parent = await requireParent();
+
+  if (String(formData.get("confirmText") ?? "").trim() !== "RESET") {
+    return { error: "Type RESET (in capitals) to confirm." };
+  }
+
+  const row = db.select().from(user).where(eq(user.id, parent.id)).get();
+  const currentPassword = String(formData.get("currentPassword") ?? "");
+  if (!row || !currentPassword || !(await verifyPassword(currentPassword, row.passwordHash))) {
+    return { error: "Current password is incorrect." };
+  }
+
+  db.insert(auditLog)
+    .values({
+      actorUserId: parent.id,
+      action: "household.reset",
+      entityType: "household",
+      entityId: parent.householdId,
+    })
+    .run();
+
+  resetAllData();
+  redirect("/setup");
 }
 
 export type MfaEnrollState = {

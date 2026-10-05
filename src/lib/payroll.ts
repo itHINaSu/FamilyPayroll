@@ -6,6 +6,7 @@ import { db } from "@/db";
 import {
   billInstance,
   child,
+  household,
   jobClaim,
   job,
   payPeriod,
@@ -431,6 +432,14 @@ export function runPayrollCycle(now: IsoDate = todayInHousehold()): {
     .where(eq(child.status, "active"))
     .all();
 
+  const resumedOn = new Map(
+    db
+      .select({ id: household.id, resumedOn: household.payrollResumedOn })
+      .from(household)
+      .all()
+      .map((h) => [h.id, h.resumedOn]),
+  );
+
   for (const c of children) {
     const policy = resolvePolicy(c.householdId, c.id, now);
 
@@ -440,6 +449,11 @@ export function runPayrollCycle(now: IsoDate = todayInHousehold()): {
       periodStartDay: policy.pay.periodStartDay,
       payDateOffsetDays: policy.pay.payDateOffsetDays,
     });
+
+    // A period that ended before payroll was last resumed happened entirely
+    // while paused — there is nothing to pay for it, so it is never drafted.
+    const resumed = resumedOn.get(c.householdId);
+    if (resumed && previous.endDate < resumed) continue;
 
     if (previous.endDate < now) {
       const existing = db
