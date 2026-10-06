@@ -15,7 +15,7 @@ import {
   verifyTotp,
 } from "@/lib/auth/totp";
 import { UsernameSchema } from "@/lib/auth/username";
-import { createBackup, resetMoney, restoreFromUpload } from "@/lib/backup";
+import { createBackup, resetHistory, restoreFromUpload, type ResetScope } from "@/lib/backup";
 import { pausePayroll, resumePayroll } from "@/lib/payroll-pause";
 import { getChild } from "@/lib/children";
 import { getOverrides, savePolicyVersion, type PartialPolicy } from "@/lib/policy";
@@ -457,18 +457,36 @@ export async function togglePayroll(
   return { message };
 }
 
+const RESET_LABELS: Record<keyof ResetScope, string> = {
+  money: "balances and payroll history",
+  chores: "chore check-offs",
+  jobs: "extra-job claims",
+  trust: "trust marks and levels",
+};
+
 /**
- * Zero every balance and clear payroll history, keeping all setup.
+ * Clear the chosen history, keeping all setup.
  *
  * Gated twice, both checked here rather than trusted from the client: the
  * current password, and typing RESET. A safety snapshot is written first,
  * so even this is one restore away from undone.
  */
-export async function resetBalances(
+export async function resetHistoryAction(
   _prev: PayrollState,
   formData: FormData,
 ): Promise<PayrollState> {
   const parent = await requireParent();
+
+  const scope: ResetScope = {
+    money: formData.get("money") === "on",
+    chores: formData.get("chores") === "on",
+    jobs: formData.get("jobs") === "on",
+    trust: formData.get("trust") === "on",
+  };
+  const chosen = (Object.keys(scope) as (keyof ResetScope)[]).filter((k) => scope[k]);
+  if (chosen.length === 0) {
+    return { error: "Tick at least one thing to clear." };
+  }
 
   if (String(formData.get("confirmText") ?? "").trim() !== "RESET") {
     return { error: "Type RESET (in capitals) to confirm." };
@@ -483,17 +501,21 @@ export async function resetBalances(
   db.insert(auditLog)
     .values({
       actorUserId: parent.id,
-      action: "household.money_reset",
+      action: "household.history_reset",
       entityType: "household",
       entityId: parent.householdId,
+      afterJson: scope,
     })
     .run();
 
-  resetMoney(parent.householdId);
+  resetHistory(parent.householdId, scope);
   revalidatePath("/", "layout");
+
+  const list = chosen.map((k) => RESET_LABELS[k]);
+  const joined =
+    list.length === 1 ? list[0] : `${list.slice(0, -1).join(", ")} and ${list.at(-1)}`;
   return {
-    message:
-      "Balances reset to $0.00 and payroll history cleared. A backup was saved first.",
+    message: `Cleared ${joined}. A backup was saved first.`,
   };
 }
 

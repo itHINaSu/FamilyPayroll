@@ -4,13 +4,37 @@ import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { Alert, Button, Card, Field, Input } from "@/components/ui";
-import { resetBalances, type PayrollState } from "./actions";
+import { resetHistoryAction, type PayrollState } from "./actions";
+
+const OPTIONS = [
+  {
+    name: "money",
+    label: "Balances and payroll history",
+    detail:
+      "Every account to $0.00; all transactions, pay stubs, bill payments, interest, and pending money requests.",
+  },
+  {
+    name: "chores",
+    label: "Chore check-offs",
+    detail: "Every ticked box and excused day — this pay period starts from zero.",
+  },
+  {
+    name: "jobs",
+    label: "Extra-job claims",
+    detail: "Claimed, submitted, and approved jobs. The jobs on offer stay.",
+  },
+  {
+    name: "trust",
+    label: "Trust marks and levels",
+    detail: "Every mark, every level back to the top, and today's focus. Areas and rules stay.",
+  },
+] as const;
 
 function Submit({ disabled }: { disabled: boolean }) {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" variant="danger" disabled={disabled || pending}>
-      {pending ? "Resetting…" : "Reset balances"}
+      {pending ? "Clearing…" : "Clear selected"}
     </Button>
   );
 }
@@ -22,7 +46,8 @@ function Submit({ disabled }: { disabled: boolean }) {
 export function ResetControl() {
   const [open, setOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
-  const [state, formAction] = useActionState<PayrollState, FormData>(resetBalances, {});
+  const [picked, setPicked] = useState<Record<string, boolean>>({ money: true });
+  const [state, formAction] = useActionState<PayrollState, FormData>(resetHistoryAction, {});
 
   if (!open) {
     return (
@@ -31,21 +56,19 @@ export function ResetControl() {
         onClick={() => setOpen(true)}
         className="text-xs text-ink-400 hover:text-red-600 hover:underline"
       >
-        Reset balances and payroll history…
+        Reset history…
       </button>
     );
   }
 
+  const anyPicked = Object.values(picked).some(Boolean);
+
   return (
     <Card className="!border-red-300 dark:!border-red-900">
-      <h2 className="mb-1 text-lg font-semibold text-red-700 dark:text-red-400">
-        Reset balances and payroll history
-      </h2>
+      <h2 className="mb-1 text-lg font-semibold text-red-700 dark:text-red-400">Reset history</h2>
       <p className="mb-4 text-sm text-ink-400">
-        Sets every account to $0.00 and clears all pay stubs, transactions,
-        bill payments, interest, and pending money requests. Parents, children,
-        responsibilities, bills, jobs, goals, trust, and settings are kept.
-        Pay periods that already ended are not paid again. A backup is saved
+        Clears what you tick. Parents, children, responsibilities, bills, jobs,
+        goals, trust areas, and settings are always kept. A backup is saved
         first, so it can be restored from the Backups section.
       </p>
 
@@ -54,6 +77,24 @@ export function ResetControl() {
       ) : (
         <form action={formAction} className="space-y-4">
           {state.error && <Alert>{state.error}</Alert>}
+
+          <fieldset className="space-y-3">
+            {OPTIONS.map((o) => (
+              <label key={o.name} className="flex cursor-pointer items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  name={o.name}
+                  checked={!!picked[o.name]}
+                  onChange={(e) => setPicked({ ...picked, [o.name]: e.target.checked })}
+                  className="mt-0.5"
+                />
+                <span>
+                  {o.label}
+                  <span className="block text-xs text-ink-400">{o.detail}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
 
           <Field label="Type RESET to confirm">
             <Input
@@ -68,7 +109,7 @@ export function ResetControl() {
           </Field>
 
           <div className="flex items-center gap-3">
-            <Submit disabled={confirmText.trim() !== "RESET"} />
+            <Submit disabled={!anyPicked || confirmText.trim() !== "RESET"} />
             <button
               type="button"
               onClick={() => setOpen(false)}

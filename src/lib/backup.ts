@@ -65,18 +65,33 @@ export function listBackups() {
     .sort((a, b) => b.createdAt - a.createdAt);
 }
 
+export type ResetScope = {
+  /** Balances, transactions, pay stubs, bill payments, interest, money requests. */
+  money: boolean;
+  /** Chore check-offs and excused days. */
+  chores: boolean;
+  /** Extra-job claims. */
+  jobs: boolean;
+  /** Trust marks, levels, and today's focus. */
+  trust: boolean;
+};
+
 /**
- * Zero every balance and erase the money history — ledger, pay periods and
- * stubs, bill instances, interest accruals, money requests — while keeping
- * the household's setup: parents, children, responsibilities, bills, jobs,
- * goals, trust, and every setting. A safety snapshot is taken first.
+ * Clear chosen history for one household, keeping all of its setup:
+ * parents, children, responsibilities, bills, jobs, goals, trust areas and
+ * rules, and every setting. A safety snapshot is taken first.
  *
- * Chore check-offs and job claims stay: they're the work record, and each
- * already-paid one carries its pay_period_id, so nothing is paid twice.
- * Setting payroll_resumed_on to today stops payroll from re-drafting any
- * period that ended before the reset; the period in progress pays normally.
+ * Money is one indivisible group: a balance is the sum of its ledger, and
+ * pay stubs are what wrote most of it, so clearing any part alone would
+ * leave numbers that don't add up.
+ *
+ * When money or chores are cleared, payroll_resumed_on is set to today so
+ * no period that already ended is drafted again — from check-offs that no
+ * longer exist, or paid a second time. The period in progress pays
+ * normally. Kept chore check-offs and job claims carry the pay_period_id
+ * of the stub that paid them, so nothing is paid twice.
  */
-export function resetMoney(householdId: string): { safetyBackup: string } {
+export function resetHistory(householdId: string, scope: ResetScope): { safetyBackup: string } {
   const safetyBackup = createBackup();
   const today = todayInHousehold();
 
@@ -90,24 +105,51 @@ export function resetMoney(householdId: string): { safetyBackup: string } {
     .all() as { name: string; sql: string }[];
 
   const kids = `SELECT id FROM child WHERE household_id = ?`;
+  const run = (sql: string, ...params: unknown[]) => sqlite.prepare(sql).run(...params);
 
   sqlite.transaction(() => {
-    for (const t of triggers) sqlite.prepare(`DROP TRIGGER "${t.name}"`).run();
+    for (const t of triggers) run(`DROP TRIGGER "${t.name}"`);
 
-    sqlite.prepare(`DELETE FROM ledger_entry WHERE child_id IN (${kids})`).run(householdId);
-    // Cascades to paystub and paystub_line.
-    sqlite.prepare(`DELETE FROM pay_period WHERE child_id IN (${kids})`).run(householdId);
-    for (const table of ["bill_instance", "interest_accrual", "approval_request"]) {
-      sqlite.prepare(`DELETE FROM ${table} WHERE child_id IN (${kids})`).run(householdId);
+    if (scope.money) {
+      run(`DELETE FROM ledger_entry WHERE child_id IN (${kids})`, householdId);
+      // Cascades to paystub and paystub_line.
+      run(`DELETE FROM pay_period WHERE child_id IN (${kids})`, householdId);
+      for (const table of ["bill_instance", "interest_accrual", "approval_request"]) {
+        run(`DELETE FROM ${table} WHERE child_id IN (${kids})`, householdId);
+      }
+      run(`UPDATE account SET balance_cents = 0 WHERE child_id IN (${kids})`, householdId);
     }
-    sqlite
-      .prepare(`UPDATE account SET balance_cents = 0 WHERE child_id IN (${kids})`)
-      .run(householdId);
-    sqlite
-      .prepare(`UPDATE household SET payroll_resumed_on = ? WHERE id = ?`)
-      .run(today, householdId);
 
-    for (const t of triggers) sqlite.prepare(t.sql).run();
+    if (scope.chores) {
+      run(`DELETE FROM completion WHERE child_id IN (${kids})`, householdId);
+      run(`DELETE FROM excusal WHERE child_id IN (${kids})`, householdId);
+      // A waiting draft was computed from the check-offs just erased.
+      run(
+        `DELETE FROM pay_period WHERE child_id IN (${kids})
+           AND id IN (SELECT pay_period_id FROM paystub WHERE status = 'draft')`,
+        householdId,
+      );
+    }
+
+    if (scope.jobs) {
+      run(`DELETE FROM job_claim WHERE child_id IN (${kids})`, householdId);
+      run(
+        `DELETE FROM approval_request WHERE child_id IN (${kids}) AND kind = 'job_submission'`,
+        householdId,
+      );
+    }
+
+    if (scope.trust) {
+      for (const table of ["trust_mark", "trust_state", "focus_note"]) {
+        run(`DELETE FROM ${table} WHERE child_id IN (${kids})`, householdId);
+      }
+    }
+
+    if (scope.money || scope.chores) {
+      run(`UPDATE household SET payroll_resumed_on = ? WHERE id = ?`, today, householdId);
+    }
+
+    for (const t of triggers) run(t.sql);
   })();
 
   return { safetyBackup };

@@ -33,7 +33,7 @@ const { draftPaystub, postPaystub, runPayrollCycle } = await import("@/lib/payro
 const { generateInstances } = await import("@/lib/bills");
 const { seedHousehold } = await import("@/lib/seed");
 const { pausePayroll, payrollPausedOn, resumePayroll } = await import("@/lib/payroll-pause");
-const { resetMoney } = await import("@/lib/backup");
+const { resetHistory } = await import("@/lib/backup");
 const { recordTransaction } = await import("@/lib/ledger");
 const { setSecret, getSecret } = await import("@/lib/secrets");
 
@@ -196,8 +196,9 @@ describe("resuming", () => {
   });
 });
 
-describe("reset balances", () => {
-  it("zeroes money and clears payroll history but keeps setup", () => {
+describe("reset history", () => {
+  it("money only: zeroes balances and payroll history, keeps setup and check-offs", () => {
+    const checkOff = addCheckOff();
     const posted = draftPaystub(householdId, childId, "2026-01-05", "2026-01-11", "2026-01-16");
     postPaystub(posted);
     recordTransaction({
@@ -215,7 +216,12 @@ describe("reset balances", () => {
     expect(funded.some((a) => a.balanceCents !== 0)).toBe(true);
     setSecret("session_secret", "keep-me");
 
-    const { safetyBackup } = resetMoney(householdId);
+    const { safetyBackup } = resetHistory(householdId, {
+      money: true,
+      chores: false,
+      jobs: false,
+      trust: false,
+    });
 
     expect(fs.existsSync(safetyBackup)).toBe(true);
     const count = (sql: string) =>
@@ -229,6 +235,8 @@ describe("reset balances", () => {
     expect(count(`SELECT count(*) n FROM child WHERE id = ?`)).toBe(1);
     expect(count(`SELECT count(*) n FROM account WHERE child_id = ?`)).toBe(funded.length);
     expect(count(`SELECT count(*) n FROM responsibility WHERE child_id = ?`)).toBe(1);
+    expect(count(`SELECT count(*) n FROM completion WHERE child_id = ?`)).toBe(1);
+    expect(checkOff).toBeTruthy();
     expect(getSecret("session_secret")).toBe("keep-me");
     expect(payrollResumedOn()).toBe(todayInHousehold());
 
@@ -238,7 +246,47 @@ describe("reset balances", () => {
       .get() as { t: number };
     expect(t).toBe(4);
   });
+
+  it("chores and trust only: clears those, leaves money alone", () => {
+    addCheckOff();
+    recordTransaction({
+      childId,
+      accountType: "checking",
+      amountCents: 800,
+      type: "cash_deposit",
+      description: "Allowance",
+    });
+    const area = db
+      .select()
+      .from(schema.trustArea)
+      .where(eq(schema.trustArea.householdId, householdId))
+      .get()!;
+    db.insert(schema.trustMark).values({ childId, trustAreaId: area.id, weight: 2 }).run();
+    db.insert(schema.trustState).values({ childId, trustAreaId: area.id, load: 2, lastDrainedAt: Date.now() }).run();
+
+    resetHistory(householdId, { money: false, chores: true, jobs: false, trust: true });
+
+    const count = (sql: string) => (sqlite.prepare(sql).get(childId) as { n: number }).n;
+    expect(count(`SELECT count(*) n FROM completion WHERE child_id = ?`)).toBe(0);
+    expect(count(`SELECT count(*) n FROM trust_mark WHERE child_id = ?`)).toBe(0);
+    expect(count(`SELECT count(*) n FROM trust_state WHERE child_id = ?`)).toBe(0);
+    expect(count(`SELECT count(*) n FROM ledger_entry WHERE child_id = ?`)).toBe(1);
+    expect(count(`SELECT count(*) n FROM account WHERE child_id = ? AND balance_cents = 800`)).toBe(1);
+  });
 });
+
+function addCheckOff() {
+  const r = db
+    .select()
+    .from(schema.responsibility)
+    .where(eq(schema.responsibility.childId, childId))
+    .get()!;
+  return db
+    .insert(schema.completion)
+    .values({ responsibilityId: r.id, childId, occurrenceDate: todayInHousehold(), status: "approved" })
+    .returning({ id: schema.completion.id })
+    .get().id;
+}
 
 function payrollResumedOn() {
   return db
