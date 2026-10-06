@@ -5,6 +5,7 @@ import { useFormStatus } from "react-dom";
 
 import { Alert, Button, Card } from "@/components/ui";
 import { togglePayroll, type PayrollState } from "./actions";
+import { formatShortDate } from "@/lib/dates";
 
 function Submit({ paused }: { paused: boolean }) {
   const { pending } = useFormStatus();
@@ -30,7 +31,7 @@ export function PayrollControl({ pausedOn }: { pausedOn: string | null }) {
               : "bg-ledger-100 text-ledger-600"
           }`}
         >
-          {paused ? `Paused since ${pausedOn}` : "Running"}
+          {paused ? `Paused since ${formatShortDate(pausedOn!)}` : "Running"}
         </span>
       </div>
       <p className="mb-4 text-sm text-ink-400">

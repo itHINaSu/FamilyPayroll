@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useActionState, useState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { Alert, Button, Field, Input, Select } from "@/components/ui";
@@ -57,8 +57,7 @@ function EditRow({ row, childId, onDone }: { row: GridRow; childId: string; onDo
   const [cadence, setCadence] = useState(row.cadence);
 
   return (
-    <tr className="border-t border-ink-100 bg-ink-50 dark:border-ink-700 dark:bg-ink-900">
-      <td colSpan={20} className="p-3">
+    <div className="mt-3 rounded-lg bg-ink-50 p-3 dark:bg-ink-900">
         <form action={formAction} className="space-y-3">
           <input type="hidden" name="responsibilityId" value={row.id} />
           <input type="hidden" name="childId" value={childId} />
@@ -130,17 +129,21 @@ function EditRow({ row, childId, onDone }: { row: GridRow; childId: string; onDo
             <button
               type="button"
               onClick={onDone}
-              className="text-xs text-ink-400 hover:text-ink-700"
+              className="text-sm text-ink-400 hover:text-ink-700"
             >
               Cancel
             </button>
           </div>
         </form>
-      </td>
-    </tr>
+    </div>
   );
 }
 
+/**
+ * One stacked block per responsibility rather than a table: name and
+ * earnings on top, then a full-width row of seven day boxes. A table with a
+ * name column, seven day columns, earnings and actions can't fit a phone.
+ */
 export function CompletionGrid({
   childId,
   days,
@@ -155,149 +158,142 @@ export function CompletionGrid({
   const [editingId, setEditingId] = useState<string | null>(null);
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-xs text-ink-400">
-            <th className="pb-2 text-left font-medium">Responsibility</th>
-            {days.map((d) => {
-              const weekday = new Date(`${d}T12:00:00`).getDay();
-              return (
-                <th key={d} className="w-9 pb-2 text-center font-medium">
-                  <span className={d === today ? "text-ledger-600" : ""}>
-                    {DAY_INITIALS[weekday]}
-                  </span>
-                </th>
-              );
-            })}
-            <th className="pb-2 pl-3 text-right font-medium">Earned</th>
-            <th className="pb-2" />
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => {
-            const eligible = new Set(row.eligibleDates);
-            const excused = new Set(row.excusedDates);
-            const done = new Set(row.doneDates);
+    <div>
+      <div className="grid grid-cols-7 gap-1.5 pb-2 text-center text-xs font-medium text-ink-400 sm:max-w-sm">
+        {days.map((d) => (
+          <span key={d} className={d === today ? "text-ledger-600 dark:text-ledger-500" : ""}>
+            {DAY_INITIALS[new Date(`${d}T12:00:00`).getDay()]}
+          </span>
+        ))}
+      </div>
 
-            return (
-              <Fragment key={row.id}>
-                <tr className="border-t border-ink-100 dark:border-ink-700">
-                  <td className="py-2.5 pr-3">
-                    <span className="font-medium">{row.name}</span>
-                    {row.fromTemplate && (
-                      <span
-                        className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
-                          row.customized
-                            ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200"
-                            : "bg-ink-100 text-ink-400 dark:bg-ink-700"
-                        }`}
-                      >
-                        {row.customized ? "Customized" : "Family"}
-                      </span>
-                    )}
-                    <span className="block text-xs text-ink-400">
-                      {row.cadenceLabel} · {formatCents(row.weeklyValueCents)}/week
-                    </span>
-                  </td>
+      {rows.map((row) => {
+        const eligible = new Set(row.eligibleDates);
+        const excused = new Set(row.excusedDates);
+        const done = new Set(row.doneDates);
 
-                  {days.map((d) => {
-                    const isExcused = excused.has(d);
-                    const isEligible = eligible.has(d) && !isExcused;
-                    const isDone = done.has(d);
-
-                    if (isExcused) {
-                      return (
-                        <td key={d} className="text-center">
-                          <span
-                            className="inline-block h-7 w-7 rounded-md bg-ink-100 text-xs leading-7 text-ink-400 dark:bg-ink-700"
-                            title="Excused — this lowers potential pay, not earnings"
-                          >
-                            –
-                          </span>
-                        </td>
-                      );
-                    }
-
-                    if (!isEligible) {
-                      return (
-                        <td key={d} className="text-center text-ink-200 dark:text-ink-700">
-                          ·
-                        </td>
-                      );
-                    }
-
-                    return (
-                      <td key={d} className="text-center">
-                        <form action={toggleCompletion} className="inline">
-                          <input type="hidden" name="responsibilityId" value={row.id} />
-                          <input type="hidden" name="childId" value={childId} />
-                          <input type="hidden" name="date" value={d} />
-                          <button
-                            type="submit"
-                            aria-label={`${row.name} on ${d}`}
-                            className={`h-7 w-7 rounded-md border text-xs transition ${
-                              isDone
-                                ? "border-ledger-600 bg-ledger-600 text-white"
-                                : "border-ink-300 hover:border-ledger-500 dark:border-ink-600"
-                            }`}
-                          >
-                            {isDone ? "✓" : ""}
-                          </button>
-                        </form>
-                      </td>
-                    );
-                  })}
-
-                  <td className="tnum py-2.5 pl-3 text-right">
-                    {formatCents(row.earnedCents)}
-                    <span className="block text-xs text-ink-400">
-                      of {formatCents(row.potentialCents)}
-                    </span>
-                  </td>
-
-                  <td className="py-2.5 pl-2 text-right whitespace-nowrap">
-                    {row.cadence === "up_to_n" && (
-                      <form action={addOccurrence} className="inline">
-                        <input type="hidden" name="responsibilityId" value={row.id} />
-                        <input type="hidden" name="childId" value={childId} />
-                        <input type="hidden" name="date" value={today} />
-                        <button
-                          type="submit"
-                          className="mr-2 text-xs text-ledger-600 hover:underline"
-                          title="Record one more today"
-                        >
-                          +1
-                        </button>
-                      </form>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setEditingId(editingId === row.id ? null : row.id)}
-                      className="mr-2 text-xs text-ink-400 hover:text-ink-700 hover:underline"
+        return (
+          <div key={row.id} className="border-t border-ink-100 py-3 dark:border-ink-700">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">
+                  {row.name}
+                  {row.fromTemplate && (
+                    <span
+                      className={`ml-1.5 whitespace-nowrap rounded-full px-1.5 py-0.5 align-middle text-[10px] font-medium ${
+                        row.customized
+                          ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200"
+                          : "bg-ink-100 text-ink-400 dark:bg-ink-700"
+                      }`}
                     >
-                      Edit
+                      {row.customized ? "Customized" : "Family"}
+                    </span>
+                  )}
+                </p>
+                <p className="text-xs text-ink-400">
+                  {row.cadenceLabel} · {formatCents(row.weeklyValueCents)}/week
+                </p>
+              </div>
+              <p className="tnum shrink-0 text-right text-sm">
+                {formatCents(row.earnedCents)}
+                <span className="block text-xs text-ink-400">
+                  of {formatCents(row.potentialCents)}
+                </span>
+              </p>
+            </div>
+
+            <div className="mt-2 grid grid-cols-7 gap-1.5 sm:max-w-sm">
+              {days.map((d) => {
+                const isExcused = excused.has(d);
+                const isEligible = eligible.has(d) && !isExcused;
+                const isDone = done.has(d);
+
+                if (isExcused) {
+                  return (
+                    <span
+                      key={d}
+                      className="flex h-10 items-center justify-center rounded-md bg-ink-100 text-xs text-ink-400 dark:bg-ink-700"
+                      title="Excused — this lowers potential pay, not earnings"
+                    >
+                      –
+                    </span>
+                  );
+                }
+
+                if (!isEligible) {
+                  return (
+                    <span
+                      key={d}
+                      className="flex h-10 items-center justify-center text-ink-200 dark:text-ink-700"
+                    >
+                      ·
+                    </span>
+                  );
+                }
+
+                return (
+                  <form key={d} action={toggleCompletion}>
+                    <input type="hidden" name="responsibilityId" value={row.id} />
+                    <input type="hidden" name="childId" value={childId} />
+                    <input type="hidden" name="date" value={d} />
+                    <button
+                      type="submit"
+                      aria-label={`${row.name} on ${d}`}
+                      className={`h-10 w-full rounded-md border text-sm transition ${
+                        isDone
+                          ? "border-ledger-600 bg-ledger-600 text-white"
+                          : `border-ink-300 hover:border-ledger-500 dark:border-ink-600 ${
+                              d === today ? "border-ledger-500 dark:border-ledger-500" : ""
+                            }`
+                      }`}
+                    >
+                      {isDone ? "✓" : ""}
                     </button>
-                    <form action={archiveResponsibility} className="inline">
-                      <input type="hidden" name="responsibilityId" value={row.id} />
-                      <input type="hidden" name="childId" value={childId} />
-                      <button
-                        type="submit"
-                        className="text-xs text-ink-400 hover:text-ink-700 hover:underline"
-                      >
-                        {row.fromTemplate ? "Turn off" : "Archive"}
-                      </button>
-                    </form>
-                  </td>
-                </tr>
-                {editingId === row.id && (
-                  <EditRow row={row} childId={childId} onDone={() => setEditingId(null)} />
-                )}
-              </Fragment>
-            );
-          })}
-        </tbody>
-      </table>
+                  </form>
+                );
+              })}
+            </div>
+
+            <div className="mt-2 flex items-center gap-4">
+              {row.cadence === "up_to_n" && (
+                <form action={addOccurrence}>
+                  <input type="hidden" name="responsibilityId" value={row.id} />
+                  <input type="hidden" name="childId" value={childId} />
+                  <input type="hidden" name="date" value={today} />
+                  <button
+                    type="submit"
+                    className="text-xs text-ledger-600 hover:underline"
+                    title="Record one more today"
+                  >
+                    +1 today
+                  </button>
+                </form>
+              )}
+              <button
+                type="button"
+                onClick={() => setEditingId(editingId === row.id ? null : row.id)}
+                className="text-xs text-ink-400 hover:text-ink-700 hover:underline"
+              >
+                Edit
+              </button>
+              <form action={archiveResponsibility}>
+                <input type="hidden" name="responsibilityId" value={row.id} />
+                <input type="hidden" name="childId" value={childId} />
+                <button
+                  type="submit"
+                  className="text-xs text-ink-400 hover:text-ink-700 hover:underline"
+                >
+                  {row.fromTemplate ? "Turn off" : "Archive"}
+                </button>
+              </form>
+            </div>
+
+            {editingId === row.id && (
+              <EditRow row={row} childId={childId} onDone={() => setEditingId(null)} />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

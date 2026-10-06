@@ -6,6 +6,7 @@ import { Card } from "@/components/ui";
 import { formatCents } from "@/lib/money";
 import type { TodayChild } from "@/lib/today";
 import { tickToday, untickToday } from "./today-actions";
+import { formatShortDate } from "@/lib/dates";
 
 /**
  * One child's day.
@@ -29,10 +30,10 @@ export function TodayCard({ child, today }: { child: TodayChild; today: string }
           <img
             src={`/api/blobs/${child.photoBlobId}`}
             alt=""
-            className="h-12 w-12 rounded-full object-cover"
+            className="h-12 w-12 flex-shrink-0 rounded-full object-cover"
           />
         ) : (
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-ink-100 font-semibold text-ink-400 dark:bg-ink-700">
+          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-ink-100 font-semibold text-ink-400 dark:bg-ink-700">
             {child.name.charAt(0).toUpperCase()}
           </div>
         )}
@@ -42,20 +43,20 @@ export function TodayCard({ child, today }: { child: TodayChild; today: string }
             {child.name}
           </Link>
           <p className="text-xs text-ink-400">
-            {child.age} · {formatCents(child.balanceCents)} saved up
+            {child.age} yrs · <span className="whitespace-nowrap">{formatCents(child.balanceCents)} saved</span>
             {child.status === "pre_participant" && " · not yet earning"}
           </p>
         </div>
 
-        <div className="text-right">
-          <p className="tnum text-lg">
+        <div className="shrink-0 text-right">
+          <p className="tnum whitespace-nowrap text-lg">
             {formatCents(child.earnedCents)}
             <span className="text-sm text-ink-400">
               {" "}
               / {formatCents(child.potentialCents)}
             </span>
           </p>
-          <p className="text-xs text-ink-400">payday {child.payDate}</p>
+          <p className="text-xs text-ink-400">payday {formatShortDate(child.payDate)}</p>
         </div>
       </div>
 
@@ -114,18 +115,18 @@ export function TodayCard({ child, today }: { child: TodayChild; today: string }
                   </button>
 
                   <span
-                    className={`flex-1 text-sm ${
+                    className={`min-w-0 flex-1 text-sm ${
                       item.doneToday && !item.repeatable ? "text-ink-400" : ""
                     }`}
                   >
                     {item.name}
-                    <span className="ml-2 text-xs text-ink-400">
+                    <span className="block text-xs text-ink-400">
                       {item.weekCompleted}/{item.weekChances} this week
                     </span>
                   </span>
 
                   {item.remainingCents > 0 && (
-                    <span className="tnum text-xs text-ledger-600 dark:text-ledger-500">
+                    <span className="tnum shrink-0 text-xs text-ledger-600 dark:text-ledger-500">
                       {formatCents(item.remainingCents)} left
                     </span>
                   )}

@@ -5,6 +5,7 @@ import { getHousehold, requireUser } from "@/lib/auth/guard";
 import { formatCents } from "@/lib/money";
 import { attentionItems, todayForHousehold } from "@/lib/today";
 import { TodayCard } from "./today-card";
+import { formatShortDate } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -32,23 +33,12 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <PageHeader
-        title="Dashboard"
-        subtitle={home?.name ? `${friendlyDate} · ${home.name}` : friendlyDate}
-        action={
-          <Link
-            href="/balances"
-            className="text-sm text-ink-400 transition hover:underline"
-          >
-            Balances and history →
-          </Link>
-        }
-      />
+      <PageHeader title="Dashboard" />
 
       {home?.payrollPausedOn && (
         <div className="mb-6">
           <Alert tone="warning">
-            <strong>Payroll is paused</strong> (since {home.payrollPausedOn}) — nothing is
+            <strong>Payroll is paused</strong> (since {formatShortDate(home.payrollPausedOn)}) — nothing is
             paid or billed.{" "}
             <Link href="/settings#payroll" className="font-medium underline">
               Start payroll
@@ -71,7 +61,7 @@ export default async function DashboardPage() {
           {shortfalls.map((c) => (
             <Alert key={c.id} tone="warning">
               <strong>{c.name} will be short.</strong>{" "}
-              {c.shortfall!.billName} is due {c.shortfall!.dueDate} and they are{" "}
+              {c.shortfall!.billName} is due {formatShortDate(c.shortfall!.dueDate)} and they are{" "}
               {formatCents(c.shortfall!.shortCents)} short. A pending paycheck does
               not count toward it — that gap is the planning lesson.
             </Alert>

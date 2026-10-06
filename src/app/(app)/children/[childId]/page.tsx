@@ -94,8 +94,8 @@ export default async function ChildDetailPage({
             </dl>
 
             <div className="mt-6 rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950">
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
                   <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
                     Held for the future
                   </p>
@@ -104,7 +104,7 @@ export default async function ChildDetailPage({
                     kiosk, and excluded from the total above.
                   </p>
                 </div>
-                <span className="tnum text-lg text-amber-900 dark:text-amber-200">
+                <span className="tnum shrink-0 text-lg text-amber-900 dark:text-amber-200">
                   {formatCents(balances.held)}
                 </span>
               </div>
@@ -112,12 +112,10 @@ export default async function ChildDetailPage({
           </Card>
 
           <Card>
-            <div className="mb-4 flex items-baseline justify-between">
-              <h2 className="text-lg font-semibold">Ledger</h2>
-              <span className="text-xs text-ink-400">
-                Corrections post a reversing entry; nothing is deleted.
-              </span>
-            </div>
+            <h2 className="text-lg font-semibold">Ledger</h2>
+            <p className="mb-2 text-xs text-ink-400">
+              Corrections post a reversing entry; nothing is deleted.
+            </p>
             <LedgerTable
               rows={rows}
               childId={childId}

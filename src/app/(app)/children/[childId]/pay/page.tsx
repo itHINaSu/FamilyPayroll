@@ -6,7 +6,7 @@ import { db } from "@/db";
 import { payPeriod, paystub, paystubLine } from "@/db/schema";
 import { requireParent } from "@/lib/auth/guard";
 import { getChild } from "@/lib/children";
-import { payPeriodFor, todayInHousehold } from "@/lib/dates";
+import { formatDateRange, formatShortDate, payPeriodFor, todayInHousehold } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
 import { computeDraft } from "@/lib/payroll";
 import { resolvePolicy } from "@/lib/policy";
@@ -55,13 +55,13 @@ export default async function PayPage({
           <div>
             <h2 className="text-lg font-semibold">This period</h2>
             <p className="text-xs text-ink-400">
-              {current.startDate} to {current.endDate}
+              {formatDateRange(current.startDate, current.endDate)}
             </p>
           </div>
           <div className="text-right">
             <p className="tnum text-2xl">{formatCents(pending.earnedCents)}</p>
             <p className="text-xs text-ink-400">
-              earned so far · payday {current.payDate}
+              earned so far · payday {formatShortDate(current.payDate)}
             </p>
           </div>
         </div>
@@ -109,12 +109,12 @@ export default async function PayPage({
                   <div className="mb-3 flex items-center justify-between">
                     <div>
                       <p className="font-medium">
-                        {period.startDate} – {period.endDate}
+                        {formatDateRange(period.startDate, period.endDate)}
                       </p>
                       <p className="text-xs text-ink-400">
                         {stub.status === "posted"
-                          ? `Paid ${period.payDate}`
-                          : `Draft · posts ${period.payDate}`}
+                          ? `Paid ${formatShortDate(period.payDate)}`
+                          : `Draft · posts ${formatShortDate(period.payDate)}`}
                         {stub.revisionCount > 0 && ` · revised ${stub.revisionCount}×`}
                       </p>
                     </div>

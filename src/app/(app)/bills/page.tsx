@@ -30,7 +30,7 @@ export default async function BillsHubPage() {
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
         <div className="space-y-4">
           {templates.length === 0 ? (
-            <Alert tone="info">Nothing set up yet. Add the first one on the right.</Alert>
+            <Alert tone="info">Nothing set up yet. Add the first one below.</Alert>
           ) : (
             templates.map((t) => (
               <TemplateCard

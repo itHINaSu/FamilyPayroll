@@ -246,25 +246,23 @@ export function PerChildStatusList({
   statuses: TemplateChildStatus[];
 }) {
   return (
-    <ul className="space-y-1.5 text-sm">
+    <ul className="space-y-2 text-sm">
       {statuses.map((s) => (
         <li key={s.childId} className="flex items-center justify-between gap-3">
           <span>{s.childName}</span>
           <span className="flex items-center gap-3">
-            <span className="text-xs text-ink-400">
-              {!s.enabled
-                ? "Off"
-                : s.customized
-                  ? `Customized · ${formatCents(s.weeklyValueCents ?? 0)}/week`
-                  : "On"}
-            </span>
+            {s.enabled && s.customized && (
+              <span className="text-xs text-ink-400">
+                Customized · {formatCents(s.weeklyValueCents ?? 0)}/week
+              </span>
+            )}
             <form action={toggleTemplateForChild}>
               <input type="hidden" name="templateId" value={templateId} />
               <input type="hidden" name="childId" value={s.childId} />
               <input type="hidden" name="enabled" value={String(s.enabled)} />
               <button
                 type="submit"
-                className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                className={`min-w-12 rounded-full px-3 py-1.5 text-xs font-medium transition ${
                   s.enabled
                     ? "bg-ledger-100 text-ledger-600"
                     : "bg-ink-100 text-ink-400 dark:bg-ink-700"

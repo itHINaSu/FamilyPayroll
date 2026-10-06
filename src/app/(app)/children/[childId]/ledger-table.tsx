@@ -35,7 +35,7 @@ function ReverseButton({ entryId, childId }: { entryId: string; childId: string 
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="text-xs text-ink-400 underline-offset-2 hover:text-ink-700 hover:underline dark:hover:text-ink-100"
+        className="justify-self-end text-xs text-ink-400 underline-offset-2 hover:text-ink-700 hover:underline dark:hover:text-ink-100"
       >
         Reverse
       </button>
@@ -43,13 +43,13 @@ function ReverseButton({ entryId, childId }: { entryId: string; childId: string 
   }
 
   return (
-    <form action={formAction} className="flex items-center gap-2">
+    <form action={formAction} className="col-span-2 mt-2 flex flex-wrap items-center gap-2">
       <input type="hidden" name="entryId" value={entryId} />
       <input type="hidden" name="childId" value={childId} />
       <input
         name="reason"
         placeholder="Reason (optional)"
-        className="w-36 rounded border border-ink-300 px-2 py-1 text-xs dark:border-ink-600 dark:bg-ink-900"
+        className="min-w-0 flex-1 rounded border border-ink-300 px-2 py-1.5 text-base sm:text-sm dark:border-ink-600 dark:bg-ink-900"
       />
       <ConfirmReverse />
       <button
@@ -59,7 +59,7 @@ function ReverseButton({ entryId, childId }: { entryId: string; childId: string 
       >
         Cancel
       </button>
-      {state.error && <span className="text-xs text-red-600">{state.error}</span>}
+      {state.error && <span className="w-full text-xs text-red-600">{state.error}</span>}
     </form>
   );
 }
@@ -67,7 +67,7 @@ function ReverseButton({ entryId, childId }: { entryId: string; childId: string 
 function ConfirmReverse() {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" variant="danger" disabled={pending} className="!px-2 !py-1 text-xs">
+    <Button type="submit" variant="danger" disabled={pending} className="!px-3 !py-1.5 text-sm">
       {pending ? "…" : "Confirm"}
     </Button>
   );
@@ -82,11 +82,12 @@ export function LedgerTable({
   childId: string;
   timezone: string;
 }) {
+  const thisYear = new Date().getFullYear();
   const formatDate = (ms: number) =>
     new Date(ms).toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
-      year: "numeric",
+      year: new Date(ms).getFullYear() === thisYear ? undefined : "numeric",
       timeZone: timezone,
     });
 
@@ -99,67 +100,44 @@ export function LedgerTable({
     );
   }
 
+  // A stacked list, not a table: five columns can't share a phone's width.
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-ink-200 text-left text-xs uppercase tracking-wide text-ink-400 dark:border-ink-700">
-            <th className="pb-2 pr-3 font-medium">Date</th>
-            <th className="pb-2 pr-3 font-medium">Description</th>
-            <th className="pb-2 pr-3 font-medium">Account</th>
-            <th className="pb-2 pr-3 text-right font-medium">Amount</th>
-            <th className="pb-2" />
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr
-              key={row.id}
-              className={`border-b border-ink-100 last:border-0 dark:border-ink-700 ${
-                row.isReversed ? "opacity-50" : ""
-              }`}
-            >
-              <td className="tnum whitespace-nowrap py-2.5 pr-3 text-ink-400">
-                {formatDate(row.occurredAt)}
-              </td>
-              <td className="py-2.5 pr-3">
-                <span className={row.isReversed ? "line-through" : ""}>
-                  {row.description}
-                </span>
-                <span className="ml-2 text-xs text-ink-400">{row.typeLabel}</span>
-                {row.memo && (
-                  <span className="block text-xs text-ink-400">{row.memo}</span>
-                )}
-                {row.actorName && (
-                  <span className="block text-xs text-ink-400">
-                    by {row.actorName}
-                  </span>
-                )}
-              </td>
-              <td className="py-2.5 pr-3 text-ink-500 dark:text-ink-300">
-                {ACCOUNT_LABELS[row.accountType]}
-              </td>
-              <td
-                className={`tnum whitespace-nowrap py-2.5 pr-3 text-right ${
-                  row.amountCents < 0
-                    ? "text-ink-700 dark:text-ink-200"
-                    : "text-ledger-600 dark:text-ledger-500"
-                }`}
-              >
-                {row.amountCents > 0 ? "+" : ""}
-                {formatCents(row.amountCents)}
-              </td>
-              <td className="py-2.5 text-right">
-                {/* A reversal is itself permanent, and something already
-                    reversed has nothing left to undo. */}
-                {!row.isReversal && !row.isReversed && (
-                  <ReverseButton entryId={row.id} childId={childId} />
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <ul>
+      {rows.map((row) => (
+        <li
+          key={row.id}
+          className={`grid grid-cols-[1fr_auto] items-start gap-x-3 border-b border-ink-100 py-3 last:border-0 dark:border-ink-700 ${
+            row.isReversed ? "opacity-50" : ""
+          }`}
+        >
+          <div className="row-span-2 min-w-0">
+            <p className={`text-sm ${row.isReversed ? "line-through" : ""}`}>
+              {row.description}
+            </p>
+            <p className="text-xs text-ink-400">
+              {formatDate(row.occurredAt)} · {ACCOUNT_LABELS[row.accountType]} ·{" "}
+              {row.typeLabel}
+              {row.actorName && <> · by {row.actorName}</>}
+            </p>
+            {row.memo && <p className="text-xs text-ink-400">{row.memo}</p>}
+          </div>
+          <span
+            className={`tnum text-right text-sm ${
+              row.amountCents < 0
+                ? "text-ink-700 dark:text-ink-200"
+                : "text-ledger-600 dark:text-ledger-500"
+            }`}
+          >
+            {row.amountCents > 0 ? "+" : ""}
+            {formatCents(row.amountCents)}
+          </span>
+          {/* A reversal is itself permanent, and something already reversed
+              has nothing left to undo. */}
+          {!row.isReversal && !row.isReversed && (
+            <ReverseButton entryId={row.id} childId={childId} />
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }

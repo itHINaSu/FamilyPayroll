@@ -8,6 +8,7 @@ import { getBalances } from "@/lib/ledger";
 import { formatCents } from "@/lib/money";
 import { addTemplateForThisChild, archiveBill } from "./actions";
 import { AddBillForm, CollectButton, EditableBillRow } from "./forms";
+import { formatShortDate } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +41,7 @@ export default async function BillsPage({
             <strong>Heads up.</strong>{" "}
             {short.map((b) => (
               <span key={b.instanceId} className="block">
-                {b.billName} is due {b.dueDate}. {record.displayName} has{" "}
+                {b.billName} is due {formatShortDate(b.dueDate)}. {record.displayName} has{" "}
                 {formatCents(balances.checking)} and needs{" "}
                 {formatCents(b.outstandingCents)} — short{" "}
                 {formatCents(b.shortfallCents)}.
@@ -79,7 +80,7 @@ export default async function BillsPage({
                     className="border-b border-ink-100 last:border-0 dark:border-ink-700"
                   >
                     <td className="py-2.5">{b.billName}</td>
-                    <td className="tnum py-2.5 text-ink-400">{b.dueDate}</td>
+                    <td className="tnum py-2.5 text-ink-400">{formatShortDate(b.dueDate)}</td>
                     <td className="tnum py-2.5 text-right">
                       {formatCents(b.outstandingCents)}
                     </td>

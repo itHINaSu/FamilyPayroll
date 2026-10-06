@@ -82,6 +82,40 @@ input[type="radio"] {
   accent-color: var(--color-ledger-600);
 }
 
+@layer base {
+  /* Browser-default checkboxes are 13px — too small to hit with a thumb. */
+  input[type="checkbox"],
+  input[type="radio"] {
+    width: 1.125rem;
+    height: 1.125rem;
+    flex-shrink: 0;
+  }
+
+  /*
+   * Grid items default to min-width: auto, so one wide child (a table, a
+   * long unbroken string) widens the whole column past the screen instead of
+   * scrolling or wrapping inside it — the usual cause of a phone page that
+   * scrolls sideways.
+   */
+  .grid > * {
+    min-width: 0;
+  }
+
+  /*
+   * Small text actions (Edit, Archive, ✕, Reverse…) are ~16px tall. An
+   * invisible ::after grows the hit area toward the 44px touch guideline
+   * without changing the layout. `.tap` opts in anything that isn't text-xs.
+   */
+  main :is(a, button):is(.text-xs, .tap) {
+    position: relative;
+  }
+  main :is(a, button):is(.text-xs, .tap)::after {
+    content: "";
+    position: absolute;
+    inset: -12px -4px;
+  }
+}
+
 input[type="date"]::-webkit-calendar-picker-indicator,
 input[type="time"]::-webkit-calendar-picker-indicator {
   cursor: pointer;

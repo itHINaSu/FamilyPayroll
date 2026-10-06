@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { formatCents } from "@/lib/money";
 import type { KioskChild, KioskChildDetail } from "@/lib/kiosk";
+import { formatShortDate } from "@/lib/dates";
 
 /**
  * The kiosk display.
@@ -185,7 +186,7 @@ function BalanceBoard({ roster }: { roster: KioskChild[] }) {
           {c.pendingCents > 0 && (
             <p className="mt-4 text-center text-sm text-white/60">
               <span className="tnum text-emerald-400">{formatCents(c.pendingCents)}</span>{" "}
-              earned so far · payday {c.payDate}
+              earned so far · payday {formatShortDate(c.payDate)}
             </p>
           )}
         </div>
@@ -296,7 +297,7 @@ function ChildDetail({ detail }: { detail: KioskChildDetail }) {
           {detail.pendingCents > 0 && (
             <p className="mt-1 text-sm text-white/60">
               <span className="tnum">{formatCents(detail.pendingCents)}</span> earned
-              this week · payday {detail.payDate}
+              this week · payday {formatShortDate(detail.payDate)}
             </p>
           )}
         </div>
@@ -316,7 +317,7 @@ function ChildDetail({ detail }: { detail: KioskChildDetail }) {
           }`}
         >
           <p className="text-lg font-semibold">
-            {detail.nextBill.name} is due {detail.nextBill.dueDate}
+            {detail.nextBill.name} is due {formatShortDate(detail.nextBill.dueDate)}
           </p>
           {detail.nextBill.shortfallCents > 0 ? (
             <p className="mt-1 text-amber-200">

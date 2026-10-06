@@ -205,11 +205,13 @@ export function EditableRule({
 
   return (
     <li className="flex items-center justify-between gap-3">
-      <span>{rule.text}</span>
-      <span className="flex items-center gap-3">
-        <span className="tnum text-xs text-ink-400">
+      <span className="min-w-0">
+        {rule.text}
+        <span className="tnum block text-xs text-ink-400">
           {rule.defaultWeight} pt{rule.defaultWeight === 1 ? "" : "s"}
         </span>
+      </span>
+      <span className="flex shrink-0 items-center gap-3">
         <button
           type="button"
           onClick={() => setEditing(true)}
@@ -274,9 +276,11 @@ export function EditablePrivilege({
 
   return (
     <li className="flex items-center justify-between gap-3">
-      <span>{priv.name}</span>
-      <span className="flex items-center gap-3">
-        <span className="text-xs text-ink-400">needs {LEVEL_NAMES[priv.minLevel]}</span>
+      <span className="min-w-0">
+        {priv.name}
+        <span className="block text-xs text-ink-400">needs {LEVEL_NAMES[priv.minLevel]}</span>
+      </span>
+      <span className="flex shrink-0 items-center gap-3">
         <button
           type="button"
           onClick={() => setEditing(true)}
@@ -377,7 +381,7 @@ export function AreaCard({
 
   return (
     <Card>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <h2 className="text-lg font-semibold">
           {area.icon && <span className="mr-2">{area.icon}</span>}
           {area.name}
@@ -412,7 +416,7 @@ export function AreaCard({
       )}
 
       <p className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-400">Rules</p>
-      <ul className="mb-2 space-y-1.5 text-sm">
+      <ul className="mb-2 space-y-3 text-sm">
         {rules.map((r) => (
           <EditableRule
             key={r.id}
@@ -420,7 +424,11 @@ export function AreaCard({
             onArchive={
               <form action={archiveRule} className="inline">
                 <input type="hidden" name="ruleId" value={r.id} />
-                <button type="submit" className="text-xs text-ink-400 hover:text-ink-700">
+                <button
+                  type="submit"
+                  aria-label="Remove"
+                  className="tap px-1 text-sm text-ink-400 hover:text-ink-700"
+                >
                   ✕
                 </button>
               </form>
@@ -436,7 +444,7 @@ export function AreaCard({
       <p className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-400">
         Privileges
       </p>
-      <ul className="mb-2 space-y-1.5 text-sm">
+      <ul className="mb-2 space-y-3 text-sm">
         {privileges.map((p) => (
           <EditablePrivilege
             key={p.id}
@@ -444,7 +452,11 @@ export function AreaCard({
             onArchive={
               <form action={archivePrivilege} className="inline">
                 <input type="hidden" name="privilegeId" value={p.id} />
-                <button type="submit" className="text-xs text-ink-400 hover:text-ink-700">
+                <button
+                  type="submit"
+                  aria-label="Remove"
+                  className="tap px-1 text-sm text-ink-400 hover:text-ink-700"
+                >
                   ✕
                 </button>
               </form>

@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { PageHeader } from "@/components/ui";
 import { requireParent } from "@/lib/auth/guard";
 import { ageFromBirthdate, getChild } from "@/lib/children";
-import { ChildTabs } from "./child-tabs";
+import { ChildBackLink, ChildTabs } from "./child-tabs";
+import { formatShortDate } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -25,11 +25,9 @@ export default async function ChildLayout({
     <>
       <PageHeader
         title={record.displayName}
-        subtitle={`${ageFromBirthdate(record.birthdate)} years old · born ${record.birthdate}`}
+        subtitle={`${ageFromBirthdate(record.birthdate)} years old · born ${formatShortDate(record.birthdate)}`}
         action={
-          <Link href="/balances" className="text-sm text-ink-400 hover:underline">
-            ← Balances
-          </Link>
+          <ChildBackLink childId={childId} />
         }
       />
       <ChildTabs childId={childId} />

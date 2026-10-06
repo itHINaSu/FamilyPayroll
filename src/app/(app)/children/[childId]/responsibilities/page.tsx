@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Alert, Card } from "@/components/ui";
 import { requireParent } from "@/lib/auth/guard";
 import { getChild, listChildren } from "@/lib/children";
-import { eachDate, payPeriodFor, todayInHousehold } from "@/lib/dates";
+import { eachDate, formatDateRange, formatShortDate, payPeriodFor, todayInHousehold } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
 import { resolvePolicy } from "@/lib/policy";
 import {
@@ -105,11 +105,11 @@ export default async function ResponsibilitiesPage({
     <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
       <div className="space-y-6">
         <Card>
-          <div className="mb-4 flex items-baseline justify-between">
-            <div>
+          <div className="mb-4 flex items-baseline justify-between gap-3">
+            <div className="min-w-0">
               <h2 className="text-lg font-semibold">This pay period</h2>
               <p className="text-xs text-ink-400">
-                {period.startDate} to {period.endDate} · paid {period.payDate}
+                {formatDateRange(period.startDate, period.endDate)} · paid {formatShortDate(period.payDate)}
               </p>
             </div>
             <div className="text-right">
@@ -125,7 +125,7 @@ export default async function ResponsibilitiesPage({
 
           {rows.length === 0 ? (
             <Alert tone="info">
-              No responsibilities yet. Add the first one on the right.
+              No responsibilities yet. Add the first one below.
             </Alert>
           ) : (
             <CompletionGrid childId={childId} days={days} rows={rows} today={today} />

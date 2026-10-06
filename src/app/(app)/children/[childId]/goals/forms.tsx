@@ -86,17 +86,17 @@ export function GoalCard({
           <img
             src={`/api/blobs/${goal.photoBlobId}`}
             alt=""
-            className="h-24 w-24 flex-shrink-0 rounded-lg object-cover"
+            className="h-16 w-16 flex-shrink-0 rounded-lg object-cover sm:h-24 sm:w-24"
           />
         ) : (
-          <div className="flex h-24 w-24 flex-shrink-0 items-center justify-center rounded-lg bg-ink-100 text-3xl dark:bg-ink-700">
+          <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg bg-ink-100 text-2xl dark:bg-ink-700 sm:h-24 sm:w-24 sm:text-3xl">
             🎯
           </div>
         )}
 
         <div className="min-w-0 flex-1">
-          <div className="mb-2 flex items-baseline justify-between gap-3">
-            <h3 className="truncate font-medium">{goal.name}</h3>
+          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3">
+            <h3 className="font-medium">{goal.name}</h3>
             <span className="tnum whitespace-nowrap text-sm">
               {formatCents(goal.savedCents)}{" "}
               <span className="text-ink-400">of {formatCents(goal.targetCents)}</span>
@@ -126,15 +126,15 @@ export function GoalCard({
         </div>
       )}
 
-      <div className="mt-4 flex flex-wrap items-end gap-2 border-t border-ink-100 pt-4 dark:border-ink-700">
+      <div className="mt-4 flex flex-col gap-2 border-t border-ink-100 pt-4 dark:border-ink-700 sm:flex-row sm:flex-wrap sm:items-end">
         <form action={moveAction} className="flex items-end gap-2">
           <input type="hidden" name="childId" value={childId} />
           <input type="hidden" name="goalId" value={goal.id} />
           <input type="hidden" name="direction" value="in" />
-          <div className="w-24">
+          <div className="min-w-0 flex-1 sm:w-24 sm:flex-none">
             <Input name="amount" inputMode="decimal" placeholder="0.00" />
           </div>
-          <Button type="submit" variant="secondary" className="!py-2 text-xs">
+          <Button type="submit" variant="secondary" className="w-28 shrink-0 !px-3 !py-2 text-sm sm:w-auto">
             Set aside
           </Button>
         </form>
@@ -143,10 +143,10 @@ export function GoalCard({
           <input type="hidden" name="childId" value={childId} />
           <input type="hidden" name="goalId" value={goal.id} />
           <input type="hidden" name="direction" value="out" />
-          <div className="w-24">
+          <div className="min-w-0 flex-1 sm:w-24 sm:flex-none">
             <Input name="amount" inputMode="decimal" placeholder="0.00" />
           </div>
-          <Button type="submit" variant="secondary" className="!py-2 text-xs">
+          <Button type="submit" variant="secondary" className="w-28 shrink-0 !px-3 !py-2 text-sm sm:w-auto">
             Take back
           </Button>
         </form>
@@ -155,13 +155,13 @@ export function GoalCard({
           <Button
             type="button"
             onClick={() => setShowBuy(true)}
-            className="!py-2 text-xs"
+            className="!py-2 text-sm"
           >
             Buy it
           </Button>
         )}
 
-        <form action={cancelGoal} className="ml-auto">
+        <form action={cancelGoal} className="text-right sm:ml-auto">
           <input type="hidden" name="childId" value={childId} />
           <input type="hidden" name="goalId" value={goal.id} />
           <button
@@ -175,10 +175,10 @@ export function GoalCard({
       </div>
 
       {showBuy && (
-        <form action={buyAction} className="mt-3 flex items-end gap-2">
+        <form action={buyAction} className="mt-3 flex flex-wrap items-end gap-2">
           <input type="hidden" name="childId" value={childId} />
           <input type="hidden" name="goalId" value={goal.id} />
-          <div className="flex-1">
+          <div className="min-w-0 flex-1 basis-40">
             <Input name="description" placeholder="What was bought" defaultValue={goal.name} />
           </div>
           <Button type="submit" className="!py-2 text-xs">

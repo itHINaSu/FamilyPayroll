@@ -157,6 +157,22 @@ export function formatDateLong(iso: IsoDate, timezone: string): string {
   });
 }
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "Oct 16", with the year only when it isn't this year. Display only. */
+export function formatShortDate(iso: IsoDate, thisYear = new Date().getFullYear()): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return `${MONTHS[m - 1]} ${d}${y === thisYear ? "" : `, ${y}`}`;
+}
+
+/** "Oct 5 – 11", "Sep 28 – Oct 4". Display only. */
+export function formatDateRange(start: IsoDate, end: IsoDate): string {
+  const [sy, sm] = start.split("-").map(Number);
+  const [ey, em, ed] = end.split("-").map(Number);
+  const tail = sy === ey && sm === em ? String(ed) : formatShortDate(end);
+  return `${formatShortDate(start)} – ${tail}`;
+}
+
 export const WEEKDAY_NAMES = [
   "Sunday",
   "Monday",

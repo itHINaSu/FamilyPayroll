@@ -143,7 +143,7 @@ export function SettingsEditor({
                 onClick={() =>
                   setExpanded({ ...expanded, [section.key]: !isExpanded })
                 }
-                className="flex flex-1 items-start gap-2 text-left"
+                className="-my-2 flex flex-1 items-start gap-2 py-2 text-left"
                 aria-expanded={isExpanded}
               >
                 <span
@@ -170,7 +170,7 @@ export function SettingsEditor({
               </button>
 
               {scopeType === "child" && (
-                <label className="flex flex-shrink-0 items-center gap-2 text-xs text-ink-400">
+                <label className="-my-2 flex flex-shrink-0 items-center gap-2 py-2 text-xs text-ink-400">
                   <input
                     type="checkbox"
                     checked={isOn}
