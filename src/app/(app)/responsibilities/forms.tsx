@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
+import { PayModeFields } from "@/components/pay-mode-fields";
 import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
 import { formatCents } from "@/lib/money";
 import {
@@ -132,6 +133,8 @@ export function AddTemplateForm() {
 
         <CadenceFields cadence={cadence} setCadence={setCadence} />
 
+        <PayModeFields cadence={cadence} />
+
         <Submit>Add responsibility</Submit>
       </form>
     </Card>
@@ -165,6 +168,8 @@ export function TemplateCard({
     cadence: string;
     daysOfWeek: number[] | null;
     maxOccurrences: number | null;
+    payMode: string;
+    allOrNothing: boolean;
   };
   activeCount: number;
   totalChildren: number;
@@ -208,8 +213,14 @@ export function TemplateCard({
                 defaultMax={template.maxOccurrences}
               />
             </div>
-            <Submit small>Save</Submit>
           </div>
+          <PayModeFields
+            key={cadence === "up_to_n" ? "n" : "d"}
+            cadence={cadence}
+            defaultPayMode={template.payMode}
+            defaultAllOrNothing={template.allOrNothing}
+          />
+          <Submit small>Save</Submit>
         </form>
 
         <div className="flex shrink-0 flex-col items-end gap-2 pt-1">

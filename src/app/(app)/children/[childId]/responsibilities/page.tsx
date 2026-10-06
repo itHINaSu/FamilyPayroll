@@ -8,6 +8,7 @@ import { formatCents } from "@/lib/money";
 import { resolvePolicy } from "@/lib/policy";
 import {
   describeCadence,
+  effectivePayMode,
   evaluatePeriod,
   excusedDates,
   listResponsibilities,
@@ -81,10 +82,18 @@ export default async function ResponsibilitiesPage({
       earnedCents: result.earnedCents,
       completed: result.completed,
       chances: result.chances,
+      missed: result.missed,
+      payMode: effectivePayMode(r),
+      allOrNothing: r.allOrNothing,
+      toEarnCents: result.toEarnCents,
+      lostCents: result.lostCents,
       eligibleDates: days.filter((d) => eligible.has(d)),
       excusedDates: days.filter((d) => excused.has(d)),
       doneDates: completions
-        .filter((c) => c.responsibilityId === r.id)
+        .filter((c) => c.responsibilityId === r.id && c.status !== "missed")
+        .map((c) => c.occurrenceDate),
+      missedDates: completions
+        .filter((c) => c.responsibilityId === r.id && c.status === "missed")
         .map((c) => c.occurrenceDate),
     };
   });
@@ -132,25 +141,51 @@ export default async function ResponsibilitiesPage({
           )}
         </Card>
 
-        {rows.length > 0 && (
+        {rows.some((r) => r.lostCents > 0) && (
           <Card>
-            <h2 className="mb-1 text-lg font-semibold">Still available to earn</h2>
+            <h2 className="mb-1 text-lg font-semibold">Docked this period</h2>
             <p className="mb-4 text-xs text-ink-400">
-              Money on the table, not a list of failures — the same data, framed the
-              way it should be shown to a child.
+              Keep-it responsibilities with a miss marked. Undo a miss by tapping
+              the day again.
             </p>
             <ul className="space-y-2 text-sm">
               {rows
-                .filter((r) => r.earnedCents < r.potentialCents)
+                .filter((r) => r.lostCents > 0)
+                .map((r) => (
+                  <li key={r.id} className="flex justify-between gap-3">
+                    <span>
+                      {r.name}
+                      <span className="block text-xs text-ink-400">
+                        {r.missed} missed{r.allOrNothing ? " · all or nothing" : ""}
+                      </span>
+                    </span>
+                    <span className="tnum shrink-0 whitespace-nowrap text-red-600 dark:text-red-400">
+                      −{formatCents(r.lostCents)}
+                    </span>
+                  </li>
+                ))}
+            </ul>
+          </Card>
+        )}
+
+        {rows.some((r) => r.payMode === "optional") && (
+          <Card>
+            <h2 className="mb-1 text-lg font-semibold">Still available to earn</h2>
+            <p className="mb-4 text-xs text-ink-400">
+              Earn-it responsibilities not yet checked off this period.
+            </p>
+            <ul className="space-y-2 text-sm">
+              {rows
+                .filter((r) => r.toEarnCents > 0)
                 .map((r) => (
                   <li key={r.id} className="flex justify-between">
                     <span>{r.name}</span>
                     <span className="tnum text-ledger-600 dark:text-ledger-500">
-                      {formatCents(r.potentialCents - r.earnedCents)} left
+                      {formatCents(r.toEarnCents)} left
                     </span>
                   </li>
                 ))}
-              {rows.every((r) => r.earnedCents >= r.potentialCents) && (
+              {rows.every((r) => r.toEarnCents === 0) && (
                 <li className="text-ink-400">Everything earned. Nothing left on the table.</li>
               )}
             </ul>

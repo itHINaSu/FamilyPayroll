@@ -67,6 +67,7 @@ describe("a month in the life", () => {
         weeklyValueCents: 350,
         cadence: "daily",
         effectiveFrom: "2026-01-01",
+        payMode: "optional",
       })
       .returning({ id: schema.responsibility.id })
       .get().id;
@@ -79,6 +80,7 @@ describe("a month in the life", () => {
         weeklyValueCents: 200,
         cadence: "weekly",
         effectiveFrom: "2026-01-01",
+        payMode: "optional",
       })
       .returning({ id: schema.responsibility.id })
       .get().id;

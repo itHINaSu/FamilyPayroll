@@ -46,6 +46,8 @@ export default async function ResponsibilitiesHubPage() {
                     cadence: t.cadence,
                     daysOfWeek: t.daysOfWeek,
                     maxOccurrences: t.maxOccurrences,
+                    payMode: t.payMode,
+                    allOrNothing: t.allOrNothing,
                   }}
                   activeCount={statuses.filter((s) => s.enabled).length}
                   totalChildren={statuses.length}

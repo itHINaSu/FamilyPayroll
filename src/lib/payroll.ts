@@ -100,6 +100,9 @@ export function computeDraft(
         completed: result.completed,
         chances: result.chances,
         excused: result.excused,
+        missed: result.missed,
+        payMode: r.cadence === "up_to_n" ? "optional" : r.payMode,
+        allOrNothing: r.allOrNothing,
         cadence: r.cadence,
       },
     });

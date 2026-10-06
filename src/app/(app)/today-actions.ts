@@ -8,6 +8,7 @@ import { completion } from "@/db/schema";
 import { requireParent } from "@/lib/auth/guard";
 import { getChild } from "@/lib/children";
 import { resolvePolicy } from "@/lib/policy";
+import { toggleDay } from "@/lib/responsibilities";
 
 /**
  * Tick a responsibility from the daily view.
@@ -37,6 +38,16 @@ export async function tickToday(formData: FormData): Promise<void> {
 
   // "Up to N" counts up rather than toggling, since several a day is the point.
   if (repeatable) {
+    const existing = db
+      .select()
+      .from(completion)
+      .where(
+        and(
+          eq(completion.responsibilityId, responsibilityId),
+          eq(completion.occurrenceDate, date),
+        ),
+      )
+      .all();
     db.insert(completion)
       .values({
         responsibilityId,
@@ -47,21 +58,14 @@ export async function tickToday(formData: FormData): Promise<void> {
         claimedByUserId: parent.id,
       })
       .run();
-  } else if (existing.length > 0) {
-    db.delete(completion).where(eq(completion.id, existing[0].id)).run();
   } else {
-    const policy = resolvePolicy(parent.householdId, childId);
-    db.insert(completion)
-      .values({
-        responsibilityId,
-        childId,
-        occurrenceDate: date,
-        status: policy.completion.mode === "parent_marks_only" ? "approved" : "claimed",
-        claimedByUserId: parent.id,
-        decidedByUserId:
-          policy.completion.mode === "parent_marks_only" ? parent.id : null,
-      })
-      .run();
+    toggleDay({
+      childId,
+      responsibilityId,
+      date,
+      parentId: parent.id,
+      completionMode: resolvePolicy(parent.householdId, childId).completion.mode,
+    });
   }
 
   revalidatePath("/");

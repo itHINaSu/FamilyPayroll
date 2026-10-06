@@ -115,6 +115,7 @@ export function applyAgePreset(childId: string, householdId: string, band: AgeBa
         weeklyValueCents: r.weeklyValueCents,
         cadence: r.cadence,
         maxOccurrences: "maxOccurrences" in r ? r.maxOccurrences : null,
+        payMode: r.cadence === "up_to_n" ? "optional" : "expected",
         effectiveFrom: today,
         sortOrder: index,
       })
@@ -168,6 +169,8 @@ export function copyFromSibling(sourceChildId: string, targetChildId: string): v
         cadence: r.cadence,
         daysOfWeek: r.daysOfWeek,
         maxOccurrences: r.maxOccurrences,
+        payMode: r.payMode,
+        allOrNothing: r.allOrNothing,
         effectiveFrom: today,
         sortOrder: index,
       })

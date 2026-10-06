@@ -120,7 +120,8 @@ export function kioskRoster(householdId: string): KioskChild[] {
         completed: result.completed,
         chances: result.chances,
         // Framed as money still available, never as a list of failures.
-        remainingCents: Math.max(0, result.potentialCents - result.earnedCents),
+        // Earn-it only: keep-it pay is already theirs, nothing to chase.
+        remainingCents: result.toEarnCents,
       };
     });
 

@@ -10,9 +10,10 @@ import {
   responsibilityTemplate,
   type Cadence,
   type CompletionStatus,
+  type PayMode,
 } from "@/db/schema";
 import { listChildren } from "@/lib/children";
-import { dayOfWeek, eachDate, todayInHousehold, type IsoDate } from "@/lib/dates";
+import { dayOfWeek, daysBetween, eachDate, todayInHousehold, type IsoDate } from "@/lib/dates";
 import { earnedForResponsibility, scaleWeeklyValue } from "@/lib/money";
 
 /**
@@ -95,17 +96,32 @@ export type PeriodResult = {
   responsibility: ResponsibilityRow;
   chances: number;
   excused: number;
+  /** Chances credited: done (optional), not missed (expected), or excused. */
   completed: number;
+  /** Explicit misses marked against an expected responsibility. */
+  missed: number;
   potentialCents: number;
   earnedCents: number;
+  /** Optional only: what checking off the rest would still add. */
+  toEarnCents: number;
+  /** Expected only: what misses have docked. */
+  lostCents: number;
 };
+
+/** "up_to_n" has nothing to miss, so it is always optional. */
+export function effectivePayMode(r: Pick<ResponsibilityRow, "payMode" | "cadence">) {
+  return r.cadence === "up_to_n" ? "optional" : r.payMode;
+}
 
 /**
  * What a responsibility is worth over a period, and what was actually earned.
  *
- * Excused occurrences come out of the denominator rather than counting as
- * misses (invariant I8), so a week away at grandparents lowers potential pay and
- * leaves earned pay looking exactly as good as it was.
+ * Potential is always the full value: an excused day (away, sick, the chore
+ * didn't exist that day) is credited as done, so it never costs pay.
+ *
+ * Expected responsibilities start fully earned and only an explicit "missed"
+ * mark docks them; optional ones earn per check-off. All-or-nothing turns
+ * any miss within a week into losing that week's whole value.
  */
 export function evaluatePeriod(
   r: ResponsibilityRow,
@@ -116,21 +132,17 @@ export function evaluatePeriod(
 ): PeriodResult {
   const periodDays = eachDate(start, end).length;
   const scaledValue = scaleWeeklyValue(r.weeklyValueCents, periodDays);
+  const mode = effectivePayMode(r);
 
   const rawChances = chancesInPeriod(r, start, end);
+  const potentialCents = rawChances === 0 ? 0 : scaledValue;
 
+  const dated = r.cadence === "daily" || r.cadence === "daily_selected";
+  const dates = occurrenceDates(r, start, end);
   const excusedSet =
     r.cadence === "up_to_n" ? new Set<IsoDate>() : excusedDates(childId, r.id, start, end);
   const excusedCount =
-    r.cadence === "up_to_n"
-      ? 0
-      : occurrenceDates(r, start, end).filter((d) => excusedSet.has(d)).length;
-
-  const chances = Math.max(0, rawChances - excusedCount);
-
-  // Excusals shrink the opportunity, so potential shrinks with them (I8).
-  const potentialCents =
-    rawChances === 0 ? 0 : Math.round((scaledValue * chances) / rawChances);
+    r.cadence === "up_to_n" ? 0 : dates.filter((d) => excusedSet.has(d)).length;
 
   const rows = db
     .select()
@@ -149,15 +161,64 @@ export function evaluatePeriod(
       ? status === "claimed" || status === "approved"
       : status === "approved";
 
-  const completed = rows.filter((c) => countsAsDone(c.status)).length;
+  const doneRows = rows.filter((c) => countsAsDone(c.status));
+  const missedRows = rows.filter(
+    (c) => c.status === "missed" && !excusedSet.has(c.occurrenceDate),
+  );
+
+  // Per-date credit for daily cadences; counts for weekly and up-to-N.
+  const doneDates = new Set(doneRows.map((c) => c.occurrenceDate));
+  const missedDates = new Set(missedRows.map((c) => c.occurrenceDate));
+  const credited = (d: IsoDate) =>
+    excusedSet.has(d) || (mode === "expected" ? !missedDates.has(d) : doneDates.has(d));
+
+  let completed: number;
+  let missed: number;
+  if (dated) {
+    completed = dates.filter(credited).length;
+    missed = mode === "expected" ? dates.filter((d) => missedDates.has(d)).length : 0;
+  } else if (mode === "expected") {
+    missed = Math.min(missedRows.length, rawChances - excusedCount);
+    completed = rawChances - missed;
+  } else {
+    missed = 0;
+    completed = Math.min(doneRows.length + excusedCount, rawChances);
+  }
+
+  let earnedCents: number;
+  if (!r.allOrNothing) {
+    earnedCents = earnedForResponsibility(potentialCents, completed, rawChances);
+  } else if (dated && dates.length > 0) {
+    // Judged week by week, so one bad week of a biweekly period costs only
+    // that week's share.
+    const blocks = new Map<number, IsoDate[]>();
+    for (const d of dates) {
+      const block = Math.floor(daysBetween(start, d) / 7);
+      blocks.set(block, [...(blocks.get(block) ?? []), d]);
+    }
+    let lost = 0;
+    let failed = 0;
+    for (const blockDates of blocks.values()) {
+      if (!blockDates.every(credited)) {
+        failed++;
+        lost += Math.round((potentialCents * blockDates.length) / dates.length);
+      }
+    }
+    earnedCents = failed === blocks.size ? 0 : Math.max(0, potentialCents - lost);
+  } else {
+    earnedCents = completed >= rawChances ? potentialCents : 0;
+  }
 
   return {
     responsibility: r,
-    chances,
+    chances: rawChances,
     excused: excusedCount,
-    completed: Math.min(completed, chances),
+    completed,
+    missed,
     potentialCents,
-    earnedCents: earnedForResponsibility(potentialCents, completed, chances),
+    earnedCents,
+    toEarnCents: mode === "optional" ? potentialCents - earnedCents : 0,
+    lostCents: mode === "expected" ? potentialCents - earnedCents : 0,
   };
 }
 
@@ -219,12 +280,16 @@ export type TemplateInput = {
   cadence: Cadence;
   daysOfWeek?: number[] | null;
   maxOccurrences?: number | null;
+  payMode?: PayMode;
+  allOrNothing?: boolean;
 };
 
 function normalizeCadenceFields(input: TemplateInput) {
   return {
     daysOfWeek: input.cadence === "daily_selected" ? (input.daysOfWeek ?? null) : null,
     maxOccurrences: input.cadence === "up_to_n" ? (input.maxOccurrences ?? 1) : null,
+    payMode: (input.cadence === "up_to_n" ? "optional" : (input.payMode ?? "expected")) as PayMode,
+    allOrNothing: input.allOrNothing ?? false,
   };
 }
 
@@ -279,6 +344,8 @@ function instantiateTemplateFor(
         cadence: template.cadence,
         daysOfWeek: template.daysOfWeek,
         maxOccurrences: template.maxOccurrences,
+        payMode: template.payMode,
+        allOrNothing: template.allOrNothing,
         effectiveFrom: today,
         sortOrder: index,
       })
@@ -449,6 +516,8 @@ export function enableTemplateForChild(childId: string, templateId: string): voi
         cadence: template.cadence,
         daysOfWeek: template.daysOfWeek,
         maxOccurrences: template.maxOccurrences,
+        payMode: template.payMode,
+        allOrNothing: template.allOrNothing,
       })
       .where(eq(responsibility.id, disabledRow.id))
       .run();
@@ -465,12 +534,13 @@ export function enableTemplateForChild(childId: string, templateId: string): voi
       cadence: template.cadence,
       daysOfWeek: template.daysOfWeek,
       maxOccurrences: template.maxOccurrences,
+      payMode: template.payMode,
+      allOrNothing: template.allOrNothing,
       effectiveFrom: todayInHousehold(),
     })
     .run();
 }
 
-/** Instantiates every active family template for a newly created child. */
 /** Subscribes a newly added child to every family-wide responsibility. */
 export function instantiateTemplatesForChild(householdId: string, childId: string): void {
   const templates = listResponsibilityTemplates(householdId).filter(
@@ -489,6 +559,8 @@ export function instantiateTemplatesForChild(householdId: string, childId: strin
         cadence: t.cadence,
         daysOfWeek: t.daysOfWeek,
         maxOccurrences: t.maxOccurrences,
+        payMode: t.payMode,
+        allOrNothing: t.allOrNothing,
         effectiveFrom: today,
         sortOrder: index,
       })
@@ -519,4 +591,56 @@ export function templateChildStatus(householdId: string, templateId: string) {
       weeklyValueCents: row?.weeklyValueCents ?? null,
     };
   });
+}
+
+/** Reads the shared "how it pays" fields from a responsibility form. */
+export function parsePayFields(formData: FormData): { payMode: PayMode; allOrNothing: boolean } {
+  return {
+    payMode: formData.get("payMode") === "optional" ? "optional" : "expected",
+    allOrNothing: formData.get("allOrNothing") === "on",
+  };
+}
+
+/**
+ * A parent's tap on one day. Expected: toggles a miss. Optional: toggles a
+ * check-off (approved outright if only parents mark things, otherwise a
+ * claim that stands unless vetoed).
+ */
+export function toggleDay(input: {
+  childId: string;
+  responsibilityId: string;
+  date: IsoDate;
+  parentId: string;
+  completionMode: "auto_approve_with_veto" | "claim_then_approve" | "parent_marks_only";
+}): void {
+  const r = db
+    .select()
+    .from(responsibility)
+    .where(and(eq(responsibility.id, input.responsibilityId), eq(responsibility.childId, input.childId)))
+    .get();
+  if (!r) return;
+
+  const existing = db
+    .select()
+    .from(completion)
+    .where(and(eq(completion.responsibilityId, r.id), eq(completion.occurrenceDate, input.date)))
+    .get();
+
+  if (existing) {
+    db.delete(completion).where(eq(completion.id, existing.id)).run();
+    return;
+  }
+
+  const expected = effectivePayMode(r) === "expected";
+  const approved = !expected && input.completionMode === "parent_marks_only";
+  db.insert(completion)
+    .values({
+      responsibilityId: r.id,
+      childId: input.childId,
+      occurrenceDate: input.date,
+      status: expected ? "missed" : approved ? "approved" : "claimed",
+      claimedByUserId: input.parentId,
+      decidedByUserId: expected || approved ? input.parentId : null,
+    })
+    .run();
 }

@@ -139,6 +139,7 @@ export default async function PayPage({
                             {line.kind === "job" && (
                               <span className="ml-1.5 text-xs text-ink-400">bonus</span>
                             )}
+                            {missedNote(line.detailJson)}
                           </td>
                           <td className="tnum py-1 text-right text-ink-400">
                             {line.potentialCents > 0
@@ -212,5 +213,16 @@ export default async function PayPage({
         )}
       </Card>
     </div>
+  );
+}
+
+/** "2 missed · all or nothing" under a docked keep-it line. */
+function missedNote(detail: unknown) {
+  const d = (detail ?? {}) as { missed?: number; allOrNothing?: boolean };
+  if (!d.missed) return null;
+  return (
+    <span className="block text-xs text-ink-400">
+      {d.missed} missed{d.allOrNothing ? " · all or nothing" : ""}
+    </span>
   );
 }

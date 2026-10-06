@@ -19,8 +19,9 @@ export function TodayCard({ child, today }: { child: TodayChild; today: string }
   const dueToday = child.items.filter((i) => i.dueToday && !i.excusedToday);
   const notToday = child.items.filter((i) => !i.dueToday || i.excusedToday);
 
-  const doneCount = dueToday.filter((i) => i.doneToday).length;
-  const allDone = dueToday.length > 0 && doneCount === dueToday.length;
+  // Keep-it items are done by default, so only earn-it items can be "all done".
+  const earnable = dueToday.filter((i) => i.payMode === "optional");
+  const allDone = earnable.length > 0 && earnable.every((i) => i.doneToday);
 
   return (
     <Card>
@@ -96,38 +97,66 @@ export function TodayCard({ child, today }: { child: TodayChild; today: string }
                     value={String(item.repeatable)}
                   />
 
-                  <button
-                    type="submit"
-                    className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border text-sm transition ${
-                      item.doneToday
-                        ? "border-ledger-600 bg-ledger-600 text-white"
-                        : "border-ink-300 hover:border-ledger-500 dark:border-ink-600"
-                    }`}
-                    aria-label={`Mark ${item.name} done`}
-                  >
-                    {item.repeatable
-                      ? item.doneTodayCount > 0
-                        ? item.doneTodayCount
-                        : "+"
-                      : item.doneToday
-                        ? "✓"
-                        : ""}
-                  </button>
+                  {item.payMode === "expected" ? (
+                    <button
+                      type="submit"
+                      className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border text-sm transition ${
+                        item.missedToday
+                          ? "border-red-500 bg-red-500 text-white"
+                          : "border-ledger-100 bg-ledger-100 text-ledger-600 dark:border-ledger-600/40 dark:bg-ledger-600/20 dark:text-ledger-500"
+                      }`}
+                      aria-label={
+                        item.missedToday ? `Undo miss: ${item.name}` : `Mark ${item.name} missed`
+                      }
+                      title={item.missedToday ? "Undo miss" : "Tap to mark a miss"}
+                    >
+                      {item.missedToday ? "✕" : "✓"}
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border text-sm transition ${
+                        item.doneToday
+                          ? "border-ledger-600 bg-ledger-600 text-white"
+                          : "border-ink-300 hover:border-ledger-500 dark:border-ink-600"
+                      }`}
+                      aria-label={`Mark ${item.name} done`}
+                    >
+                      {item.repeatable
+                        ? item.doneTodayCount > 0
+                          ? item.doneTodayCount
+                          : "+"
+                        : item.doneToday
+                          ? "✓"
+                          : ""}
+                    </button>
+                  )}
 
                   <span
                     className={`min-w-0 flex-1 text-sm ${
-                      item.doneToday && !item.repeatable ? "text-ink-400" : ""
+                      item.payMode === "optional" && item.doneToday && !item.repeatable
+                        ? "text-ink-400"
+                        : ""
                     }`}
                   >
                     {item.name}
                     <span className="block text-xs text-ink-400">
-                      {item.weekCompleted}/{item.weekChances} this week
+                      {item.payMode === "expected"
+                        ? item.weekMissed > 0
+                          ? `${item.weekMissed} missed this week${item.allOrNothing ? " · all or nothing" : ""}`
+                          : `On track this week${item.allOrNothing ? " · all or nothing" : ""}`
+                        : `${item.weekCompleted}/${item.weekChances} this week`}
                     </span>
                   </span>
 
-                  {item.remainingCents > 0 && (
+                  {item.lostCents > 0 && (
+                    <span className="tnum shrink-0 whitespace-nowrap text-xs text-red-600 dark:text-red-400">
+                      −{formatCents(item.lostCents)}
+                    </span>
+                  )}
+                  {item.toEarnCents > 0 && (
                     <span className="tnum shrink-0 text-xs text-ledger-600 dark:text-ledger-500">
-                      {formatCents(item.remainingCents)} left
+                      {formatCents(item.toEarnCents)} left
                     </span>
                   )}
                 </form>

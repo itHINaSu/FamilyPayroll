@@ -10,6 +10,7 @@ import {
   createResponsibilityTemplate,
   disableTemplateForChild,
   enableTemplateForChild,
+  parsePayFields,
   setTemplateAppliesToNewChildren,
   updateResponsibilityTemplate,
   type TemplateInput,
@@ -52,6 +53,7 @@ function parseTemplateInput(formData: FormData): { error: string } | { data: Tem
       cadence: parsed.data.cadence,
       daysOfWeek: days,
       maxOccurrences: parsed.data.cadence === "up_to_n" ? Math.max(1, Number(parsed.data.maxOccurrences ?? 1)) : null,
+      ...parsePayFields(formData),
     },
   };
 }

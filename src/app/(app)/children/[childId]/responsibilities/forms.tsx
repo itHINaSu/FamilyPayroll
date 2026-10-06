@@ -5,6 +5,7 @@ import { useFormStatus } from "react-dom";
 
 import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
 import { addExcusal, addResponsibility, applyRaise, type RespState } from "./actions";
+import { PayModeFields } from "@/components/pay-mode-fields";
 
 function Submit({ children }: { children: string }) {
   const { pending } = useFormStatus();
@@ -47,10 +48,8 @@ export function AddResponsibilityForm({
     <Card className="h-fit">
       <h2 className="mb-1 text-lg font-semibold">Add a responsibility</h2>
       <p className="mb-4 text-xs text-ink-400">
-        State the value per week. The app divides it by how many chances the
-        cadence gives, so a perfect week always pays exactly this amount.
-        It also joins the family list, ready to switch on for a sibling
-        later — but starts here, subscribed only to this child.
+        State the value per week — a perfect week always pays exactly this
+        amount, and an excused day never costs anything.
       </p>
 
       <form ref={formRef} action={formAction} className="space-y-4">
@@ -109,6 +108,8 @@ export function AddResponsibilityForm({
             />
           </Field>
         )}
+
+        <PayModeFields cadence={cadence} />
 
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" name="applyToAllChildren" className="mt-0.5" />
@@ -204,9 +205,8 @@ export function ExcusalForm({ childId }: { childId: string }) {
     <Card className="h-fit">
       <h2 className="mb-1 text-lg font-semibold">Excuse some days</h2>
       <p className="mb-4 text-xs text-ink-400">
-        Illness, holidays, a weekend away. Excused days lower potential pay
-        rather than counting as missed, so a sick week never looks like a failed
-        one.
+        Illness, holidays, a weekend away. Excused days count as done — no
+        chore that day means no pay lost for it.
       </p>
 
       <form ref={formRef} action={formAction} className="space-y-4">

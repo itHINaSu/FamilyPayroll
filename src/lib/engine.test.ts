@@ -73,6 +73,7 @@ function addResponsibility(overrides: Partial<typeof schema.responsibility.$infe
       weeklyValueCents: 350,
       cadence: "daily",
       effectiveFrom: "2020-01-01",
+      payMode: "optional",
       ...overrides,
     })
     .returning({ id: schema.responsibility.id })
@@ -88,6 +89,14 @@ function complete(responsibilityId: string, dates: string[]) {
         occurrenceDate: date,
         status: "claimed",
       })
+      .run();
+  }
+}
+
+function miss(responsibilityId: string, dates: string[]) {
+  for (const date of dates) {
+    db.insert(schema.completion)
+      .values({ responsibilityId, childId, occurrenceDate: date, status: "missed" })
       .run();
   }
 }
@@ -136,7 +145,7 @@ describe("payroll draft", () => {
     expect(draft.allocations.checking).toBe(1051); // 60% + the leftover cent
   });
 
-  it("counts an excusal against potential, not against earnings — invariant I8", () => {
+  it("credits an excused day as done, so it never costs pay", () => {
     const r = addResponsibility({});
     complete(r, WEEK_DATES.slice(0, 5)); // Mon–Fri done
 
@@ -152,9 +161,52 @@ describe("payroll draft", () => {
 
     const draft = computeDraft(householdId, childId, WEEK.start, WEEK.end);
 
-    // Two days excused: five chances, five done. Potential drops; earnings do not.
-    expect(draft.potentialCents).toBe(250);
-    expect(draft.earnedCents).toBe(250);
+    // Two days excused, five done: the full week is paid.
+    expect(draft.potentialCents).toBe(350);
+    expect(draft.earnedCents).toBe(350);
+  });
+
+  it("keep it: starts fully paid and only a marked miss docks it", () => {
+    const r = addResponsibility({ payMode: "expected", weeklyValueCents: 700 });
+    const clean = computeDraft(householdId, childId, WEEK.start, WEEK.end);
+    expect(clean.earnedCents).toBe(700);
+
+    miss(r, ["2026-03-03", "2026-03-05"]);
+    const docked = computeDraft(householdId, childId, WEEK.start, WEEK.end);
+    expect(docked.potentialCents).toBe(700);
+    expect(docked.earnedCents).toBe(500);
+  });
+
+  it("keep it: a miss on an excused day costs nothing", () => {
+    const r = addResponsibility({ payMode: "expected", weeklyValueCents: 700 });
+    db.insert(schema.excusal)
+      .values({ childId, startDate: "2026-03-04", endDate: "2026-03-04", scope: "all" })
+      .run();
+    miss(r, ["2026-03-04"]);
+    expect(computeDraft(householdId, childId, WEEK.start, WEEK.end).earnedCents).toBe(700);
+  });
+
+  it("all or nothing: one miss loses the week's whole value", () => {
+    const r = addResponsibility({ payMode: "expected", allOrNothing: true, weeklyValueCents: 100 });
+    expect(computeDraft(householdId, childId, WEEK.start, WEEK.end).earnedCents).toBe(100);
+    miss(r, ["2026-03-06"]);
+    expect(computeDraft(householdId, childId, WEEK.start, WEEK.end).earnedCents).toBe(0);
+  });
+
+  it("all or nothing is judged per week across a two-week period", () => {
+    const r = addResponsibility({ payMode: "expected", allOrNothing: true, weeklyValueCents: 100 });
+    miss(r, ["2026-03-10"]); // second week only
+    const draft = computeDraft(householdId, childId, "2026-03-02", "2026-03-15");
+    expect(draft.potentialCents).toBe(200);
+    expect(draft.earnedCents).toBe(100);
+  });
+
+  it("earn it + all or nothing: pays only when every day is checked off", () => {
+    const r = addResponsibility({ allOrNothing: true, weeklyValueCents: 100 });
+    complete(r, WEEK_DATES.slice(0, 6));
+    expect(computeDraft(householdId, childId, WEEK.start, WEEK.end).earnedCents).toBe(0);
+    complete(r, WEEK_DATES.slice(6));
+    expect(computeDraft(householdId, childId, WEEK.start, WEEK.end).earnedCents).toBe(100);
   });
 
   it("honours a selected-days cadence", () => {

@@ -10,7 +10,11 @@ import { requireParent } from "@/lib/auth/guard";
 import { getChild } from "@/lib/children";
 import { parseAmountToCents } from "@/lib/money";
 import { resolvePolicy } from "@/lib/policy";
-import { createResponsibilityTemplateForChild } from "@/lib/responsibilities";
+import {
+  createResponsibilityTemplateForChild,
+  parsePayFields,
+  toggleDay,
+} from "@/lib/responsibilities";
 
 export type RespState = { error?: string; ok?: boolean };
 
@@ -79,6 +83,7 @@ export async function addResponsibility(
       cadence: parsed.data.cadence,
       daysOfWeek: parsed.data.cadence === "daily_selected" ? days : null,
       maxOccurrences,
+      ...parsePayFields(formData),
     },
     parsed.data.applyToAllChildren === "on",
   );
@@ -162,6 +167,8 @@ export async function editResponsibility(
         parsed.data.cadence === "up_to_n"
           ? Math.max(1, Number(parsed.data.maxOccurrences ?? 1))
           : null,
+      ...parsePayFields(formData),
+      ...(parsed.data.cadence === "up_to_n" ? { payMode: "optional" as const } : {}),
       syncedWithTemplate: false,
     })
     .where(eq(responsibility.id, parsed.data.responsibilityId))
@@ -201,35 +208,13 @@ export async function toggleCompletion(formData: FormData): Promise<void> {
 
   if (!getChild(parent.householdId, childId)) return;
 
-  const existing = db
-    .select()
-    .from(completion)
-    .where(
-      and(
-        eq(completion.responsibilityId, responsibilityId),
-        eq(completion.occurrenceDate, date),
-      ),
-    )
-    .get();
-
-  if (existing) {
-    db.delete(completion).where(eq(completion.id, existing.id)).run();
-  } else {
-    const policy = resolvePolicy(parent.householdId, childId);
-    db.insert(completion)
-      .values({
-        responsibilityId,
-        childId,
-        occurrenceDate: date,
-        // In auto-approve mode a claim counts immediately; otherwise a parent
-        // marking it is itself the approval.
-        status: policy.completion.mode === "parent_marks_only" ? "approved" : "claimed",
-        claimedByUserId: parent.id,
-        decidedByUserId:
-          policy.completion.mode === "parent_marks_only" ? parent.id : null,
-      })
-      .run();
-  }
+  toggleDay({
+    childId,
+    responsibilityId,
+    date,
+    parentId: parent.id,
+    completionMode: resolvePolicy(parent.householdId, childId).completion.mode,
+  });
 
   revalidatePath(`/children/${childId}/responsibilities`);
   revalidatePath(`/children/${childId}/pay`);

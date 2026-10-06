@@ -370,6 +370,13 @@ export const ledgerEntry = sqliteTable(
 export type Cadence = "daily" | "daily_selected" | "weekly" | "up_to_n";
 
 /**
+ * expected: the week's pay is theirs from the start; a parent marks a miss
+ * and that docks it. optional: starts empty; each check-off earns its share.
+ * Up-to-N is always optional — "up to three times" has nothing to miss.
+ */
+export type PayMode = "expected" | "optional";
+
+/**
  * The family-level definition — created once, applied to every child by
  * default. A child's own `responsibility` row is what payroll and
  * completions actually read; this is the thing that keeps their values in
@@ -388,6 +395,10 @@ export const responsibilityTemplate = sqliteTable(
     cadence: text("cadence").$type<Cadence>().notNull(),
     daysOfWeek: text("days_of_week", { mode: "json" }).$type<number[]>(),
     maxOccurrences: integer("max_occurrences"),
+    /** See PayMode. */
+    payMode: text("pay_mode").$type<PayMode>().notNull().default("expected"),
+    /** One miss in a week forfeits that whole week's value for this responsibility. */
+    allOrNothing: integer("all_or_nothing", { mode: "boolean" }).notNull().default(false),
     /**
      * Whether a child added later gets this automatically. True for
      * family-wide responsibilities; false for one created on a single
@@ -437,6 +448,10 @@ export const responsibility = sqliteTable(
     daysOfWeek: text("days_of_week", { mode: "json" }).$type<number[]>(),
     /** Chance ceiling for cadence='up_to_n'. */
     maxOccurrences: integer("max_occurrences"),
+    /** See PayMode. */
+    payMode: text("pay_mode").$type<PayMode>().notNull().default("expected"),
+    /** One miss in a week forfeits that whole week's value for this responsibility. */
+    allOrNothing: integer("all_or_nothing", { mode: "boolean" }).notNull().default(false),
     active: integer("active", { mode: "boolean" }).notNull().default(true),
     effectiveFrom: text("effective_from").notNull(),
     archivedAt: integer("archived_at"),
@@ -449,7 +464,8 @@ export const responsibility = sqliteTable(
   ],
 );
 
-export type CompletionStatus = "claimed" | "approved" | "rejected" | "excused";
+/** "missed" is a parent's mark against an expected responsibility. */
+export type CompletionStatus = "claimed" | "approved" | "rejected" | "excused" | "missed";
 
 export const completion = sqliteTable(
   "completion",

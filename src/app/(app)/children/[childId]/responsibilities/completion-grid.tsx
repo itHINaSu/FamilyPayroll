@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 
+import { PayModeFields } from "@/components/pay-mode-fields";
 import { Alert, Button, Field, Input, Select } from "@/components/ui";
 import { formatCents } from "@/lib/money";
 import {
@@ -26,6 +27,12 @@ export type GridRow = {
   eligibleDates: string[];
   excusedDates: string[];
   doneDates: string[];
+  missedDates: string[];
+  missed: number;
+  payMode: "expected" | "optional";
+  allOrNothing: boolean;
+  toEarnCents: number;
+  lostCents: number;
   daysOfWeek: number[] | null;
   maxOccurrences: number | null;
   fromTemplate: boolean;
@@ -116,6 +123,13 @@ function EditRow({ row, childId, onDone }: { row: GridRow; childId: string; onDo
             </Field>
           )}
 
+          <PayModeFields
+            key={cadence === "up_to_n" ? "n" : "d"}
+            cadence={cadence}
+            defaultPayMode={row.payMode}
+            defaultAllOrNothing={row.allOrNothing}
+          />
+
           {row.fromTemplate && (
             <p className="text-xs text-ink-400">
               This is a family responsibility. Saving here changes only{" "}
@@ -159,6 +173,12 @@ export function CompletionGrid({
 
   return (
     <div>
+      {rows.some((r) => r.payMode === "expected") && (
+        <p className="mb-3 text-xs text-ink-400">
+          Keep-it days start checked — tap one to mark a miss. Earn-it days start
+          empty — tap to check off.
+        </p>
+      )}
       <div className="grid grid-cols-7 gap-1.5 pb-2 text-center text-xs font-medium text-ink-400 sm:max-w-sm">
         {days.map((d) => (
           <span key={d} className={d === today ? "text-ledger-600 dark:text-ledger-500" : ""}>
@@ -171,6 +191,8 @@ export function CompletionGrid({
         const eligible = new Set(row.eligibleDates);
         const excused = new Set(row.excusedDates);
         const done = new Set(row.doneDates);
+        const missed = new Set(row.missedDates);
+        const expected = row.payMode === "expected";
 
         return (
           <div key={row.id} className="border-t border-ink-100 py-3 dark:border-ink-700">
@@ -191,7 +213,9 @@ export function CompletionGrid({
                   )}
                 </p>
                 <p className="text-xs text-ink-400">
-                  {row.cadenceLabel} · {formatCents(row.weeklyValueCents)}/week
+                  {row.cadenceLabel} · {formatCents(row.weeklyValueCents)}/week ·{" "}
+                  {expected ? "Keep it" : "Earn it"}
+                  {row.allOrNothing && " · All or nothing"}
                 </p>
               </div>
               <p className="tnum shrink-0 text-right text-sm">
@@ -207,13 +231,14 @@ export function CompletionGrid({
                 const isExcused = excused.has(d);
                 const isEligible = eligible.has(d) && !isExcused;
                 const isDone = done.has(d);
+                const isMissed = missed.has(d);
 
                 if (isExcused) {
                   return (
                     <span
                       key={d}
                       className="flex h-10 items-center justify-center rounded-md bg-ink-100 text-xs text-ink-400 dark:bg-ink-700"
-                      title="Excused — this lowers potential pay, not earnings"
+                      title="Excused — counts as done, never costs pay"
                     >
                       –
                     </span>
@@ -231,6 +256,20 @@ export function CompletionGrid({
                   );
                 }
 
+                const todayRing = d === today ? "ring-2 ring-ledger-500/40" : "";
+                const look = expected
+                  ? isMissed
+                    ? "border-red-500 bg-red-500 text-white"
+                    : "border-ledger-100 bg-ledger-100 text-ledger-600 dark:border-ledger-600/40 dark:bg-ledger-600/20 dark:text-ledger-500"
+                  : isDone
+                    ? "border-ledger-600 bg-ledger-600 text-white"
+                    : "border-ink-300 hover:border-ledger-500 dark:border-ink-600";
+                const label = expected
+                  ? isMissed
+                    ? `Undo miss: ${row.name} on ${d}`
+                    : `Mark ${row.name} missed on ${d}`
+                  : `${row.name} on ${d}`;
+
                 return (
                   <form key={d} action={toggleCompletion}>
                     <input type="hidden" name="responsibilityId" value={row.id} />
@@ -238,16 +277,11 @@ export function CompletionGrid({
                     <input type="hidden" name="date" value={d} />
                     <button
                       type="submit"
-                      aria-label={`${row.name} on ${d}`}
-                      className={`h-10 w-full rounded-md border text-sm transition ${
-                        isDone
-                          ? "border-ledger-600 bg-ledger-600 text-white"
-                          : `border-ink-300 hover:border-ledger-500 dark:border-ink-600 ${
-                              d === today ? "border-ledger-500 dark:border-ledger-500" : ""
-                            }`
-                      }`}
+                      aria-label={label}
+                      title={label}
+                      className={`h-10 w-full rounded-md border text-sm transition ${look} ${todayRing}`}
                     >
-                      {isDone ? "✓" : ""}
+                      {expected ? (isMissed ? "✕" : "✓") : isDone ? "✓" : ""}
                     </button>
                   </form>
                 );

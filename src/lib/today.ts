@@ -11,6 +11,7 @@ import { getBalances } from "@/lib/ledger";
 import { pendingJobClaims } from "@/lib/jobs";
 import { resolvePolicy } from "@/lib/policy";
 import {
+  effectivePayMode,
   evaluatePeriod,
   excusedDates,
   listResponsibilities,
@@ -35,13 +36,21 @@ export type TodayItem = {
   /** False on a day this responsibility does not apply, e.g. Tuesdays only. */
   dueToday: boolean;
   doneToday: boolean;
+  /** Keep-it only: a miss has been marked for today. */
+  missedToday: boolean;
+  payMode: "expected" | "optional";
+  allOrNothing: boolean;
   excusedToday: boolean;
   /** Up-to-N allows several a day, so this counts rather than toggles. */
   repeatable: boolean;
   doneTodayCount: number;
   weekCompleted: number;
   weekChances: number;
-  remainingCents: number;
+  weekMissed: number;
+  /** Earn-it: still available this period. */
+  toEarnCents: number;
+  /** Keep-it: docked this period. */
+  lostCents: number;
 };
 
 export type TodayChild = {
@@ -109,9 +118,10 @@ export function todayForHousehold(householdId: string): {
           occurrenceDates(r, period.startDate, period.endDate),
         );
         const excused = excusedDates(c.id, r.id, period.startDate, period.endDate);
-        const todayRows = completions.filter(
+        const todayAll = completions.filter(
           (x) => x.responsibilityId === r.id && x.occurrenceDate === today,
         );
+        const todayRows = todayAll.filter((x) => x.status !== "missed");
 
         earnedCents += result.earnedCents;
         potentialCents += result.potentialCents;
@@ -121,12 +131,17 @@ export function todayForHousehold(householdId: string): {
           name: r.name,
           dueToday: applicable.has(today),
           doneToday: todayRows.length > 0,
+          missedToday: todayAll.some((x) => x.status === "missed"),
+          payMode: effectivePayMode(r),
+          allOrNothing: r.allOrNothing,
           excusedToday: excused.has(today),
           repeatable: r.cadence === "up_to_n",
           doneTodayCount: todayRows.length,
           weekCompleted: result.completed,
           weekChances: result.chances,
-          remainingCents: Math.max(0, result.potentialCents - result.earnedCents),
+          weekMissed: result.missed,
+          toEarnCents: result.toEarnCents,
+          lostCents: result.lostCents,
         };
       });
 
