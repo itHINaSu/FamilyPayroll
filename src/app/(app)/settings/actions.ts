@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { and, eq, ne } from "drizzle-orm";
 
 import { db } from "@/db";
@@ -16,7 +15,7 @@ import {
   verifyTotp,
 } from "@/lib/auth/totp";
 import { UsernameSchema } from "@/lib/auth/username";
-import { createBackup, resetAllData, restoreFromUpload } from "@/lib/backup";
+import { createBackup, resetMoney, restoreFromUpload } from "@/lib/backup";
 import { pausePayroll, resumePayroll } from "@/lib/payroll-pause";
 import { getChild } from "@/lib/children";
 import { getOverrides, savePolicyVersion, type PartialPolicy } from "@/lib/policy";
@@ -459,14 +458,16 @@ export async function togglePayroll(
 }
 
 /**
- * Erase everything and return to the first-run setup wizard.
+ * Zero every balance and clear payroll history, keeping all setup.
  *
  * Gated twice, both checked here rather than trusted from the client: the
- * current password, and typing RESET. A safety snapshot is written first
- * (with this audit entry in it), so even this is one restore away from
- * undone. No restart needed — the next request lands on /setup.
+ * current password, and typing RESET. A safety snapshot is written first,
+ * so even this is one restore away from undone.
  */
-export async function resetApp(_prev: SettingsState, formData: FormData): Promise<SettingsState> {
+export async function resetBalances(
+  _prev: PayrollState,
+  formData: FormData,
+): Promise<PayrollState> {
   const parent = await requireParent();
 
   if (String(formData.get("confirmText") ?? "").trim() !== "RESET") {
@@ -482,14 +483,18 @@ export async function resetApp(_prev: SettingsState, formData: FormData): Promis
   db.insert(auditLog)
     .values({
       actorUserId: parent.id,
-      action: "household.reset",
+      action: "household.money_reset",
       entityType: "household",
       entityId: parent.householdId,
     })
     .run();
 
-  resetAllData();
-  redirect("/setup");
+  resetMoney(parent.householdId);
+  revalidatePath("/", "layout");
+  return {
+    message:
+      "Balances reset to $0.00 and payroll history cleared. A backup was saved first.",
+  };
 }
 
 export type MfaEnrollState = {

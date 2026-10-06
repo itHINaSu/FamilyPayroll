@@ -27,8 +27,8 @@ export default async function ChildLayout({
         title={record.displayName}
         subtitle={`${ageFromBirthdate(record.birthdate)} years old · born ${record.birthdate}`}
         action={
-          <Link href="/children" className="text-sm text-ink-400 hover:underline">
-            ← All children
+          <Link href="/balances" className="text-sm text-ink-400 hover:underline">
+            ← Balances
           </Link>
         }
       />

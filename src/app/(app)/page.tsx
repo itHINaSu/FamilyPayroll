@@ -37,7 +37,7 @@ export default async function DashboardPage() {
         subtitle={home?.name ? `${friendlyDate} · ${home.name}` : friendlyDate}
         action={
           <Link
-            href="/children"
+            href="/balances"
             className="text-sm text-ink-400 transition hover:underline"
           >
             Balances and history →

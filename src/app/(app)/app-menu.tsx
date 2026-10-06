@@ -14,12 +14,11 @@ import {
   ShieldIcon,
   SignOutIcon,
   UserIcon,
-  WalletIcon,
 } from "./icons";
 import { ThemeToggle } from "./theme-toggle";
 
 const SETUP_LINKS = [
-  { href: "/children", label: "Children", icon: WalletIcon },
+  { href: "/children", label: "Children", icon: UserIcon },
   { href: "/responsibilities", label: "Responsibilities", icon: ChecklistIcon },
   { href: "/expectations", label: "Expectations", icon: ShieldIcon },
   { href: "/jobs", label: "Extra jobs", icon: BriefcaseIcon },

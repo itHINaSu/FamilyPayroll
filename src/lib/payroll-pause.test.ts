@@ -33,7 +33,8 @@ const { draftPaystub, postPaystub, runPayrollCycle } = await import("@/lib/payro
 const { generateInstances } = await import("@/lib/bills");
 const { seedHousehold } = await import("@/lib/seed");
 const { pausePayroll, payrollPausedOn, resumePayroll } = await import("@/lib/payroll-pause");
-const { resetAllData } = await import("@/lib/backup");
+const { resetMoney } = await import("@/lib/backup");
+const { recordTransaction } = await import("@/lib/ledger");
 const { setSecret, getSecret } = await import("@/lib/secrets");
 
 let householdId: string;
@@ -195,31 +196,54 @@ describe("resuming", () => {
   });
 });
 
-describe("reset", () => {
-  it("empties every table but keeps the schema and app secrets", () => {
+describe("reset balances", () => {
+  it("zeroes money and clears payroll history but keeps setup", () => {
+    const posted = draftPaystub(householdId, childId, "2026-01-05", "2026-01-11", "2026-01-16");
+    postPaystub(posted);
+    recordTransaction({
+      childId,
+      accountType: "checking",
+      amountCents: 1234,
+      type: "cash_deposit",
+      description: "Birthday money",
+    });
+    const funded = db
+      .select()
+      .from(schema.account)
+      .where(eq(schema.account.childId, childId))
+      .all();
+    expect(funded.some((a) => a.balanceCents !== 0)).toBe(true);
     setSecret("session_secret", "keep-me");
 
-    const { safetyBackup } = resetAllData();
+    const { safetyBackup } = resetMoney(householdId);
 
     expect(fs.existsSync(safetyBackup)).toBe(true);
-    for (const table of ["household", "user", "child", "paystub", "ledger_entry", "account"]) {
-      const { n } = sqlite.prepare(`SELECT count(*) AS n FROM "${table}"`).get() as { n: number };
-      expect(n, table).toBe(0);
-    }
-    expect(getSecret("session_secret")).toBe("keep-me");
+    const count = (sql: string) =>
+      (sqlite.prepare(sql).get(childId) as { n: number }).n;
+    expect(count(`SELECT count(*) n FROM ledger_entry WHERE child_id = ?`)).toBe(0);
+    expect(count(`SELECT count(*) n FROM paystub WHERE child_id = ?`)).toBe(0);
+    expect(count(`SELECT count(*) n FROM pay_period WHERE child_id = ?`)).toBe(0);
+    expect(count(`SELECT count(*) n FROM account WHERE child_id = ? AND balance_cents != 0`)).toBe(0);
 
-    // The immutability triggers came back with the schema.
+    // Setup survives.
+    expect(count(`SELECT count(*) n FROM child WHERE id = ?`)).toBe(1);
+    expect(count(`SELECT count(*) n FROM account WHERE child_id = ?`)).toBe(funded.length);
+    expect(count(`SELECT count(*) n FROM responsibility WHERE child_id = ?`)).toBe(1);
+    expect(getSecret("session_secret")).toBe("keep-me");
+    expect(payrollResumedOn()).toBe(todayInHousehold());
+
+    // The immutability triggers came back.
     const { t } = sqlite
       .prepare(`SELECT count(*) AS t FROM sqlite_master WHERE type = 'trigger'`)
       .get() as { t: number };
     expect(t).toBe(4);
-
-    // Schema still usable: the setup wizard's first insert works.
-    const fresh = db
-      .insert(schema.household)
-      .values({ name: "Fresh" })
-      .returning({ id: schema.household.id })
-      .get();
-    expect(fresh.id).toBeTruthy();
   });
 });
+
+function payrollResumedOn() {
+  return db
+    .select({ r: schema.household.payrollResumedOn })
+    .from(schema.household)
+    .where(eq(schema.household.id, householdId))
+    .get()!.r;
+}

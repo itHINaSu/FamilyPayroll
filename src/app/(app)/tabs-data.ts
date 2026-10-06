@@ -7,7 +7,7 @@ export const TABS = [
   // (/responsibilities, /expectations) are Setup, not a tab.
   { href: "/chores", label: "Chores", icon: ChecklistIcon },
   { href: "/trust", label: "Trust", icon: ShieldIcon },
-  { href: "/children", label: "Balances", icon: WalletIcon },
+  { href: "/balances", label: "Balances", icon: WalletIcon },
   { href: "/settings", label: "Settings", icon: GearIcon },
 ] as const;
 
@@ -15,9 +15,9 @@ export const TABS = [
  * Which tab a given path belongs to, checked in priority order rather than
  * each tab testing independently — a per-child page can plausibly match
  * more than one tab's prefix (e.g. /children/[id]/responsibilities is under
- * both "/children" and "/chores" conceptually — only the latter should
- * light up). Setup's own pages (/responsibilities, /expectations, /jobs,
- * /bills, /config) intentionally light up nothing — they're reached
+ * both Balances and Chores conceptually — only the latter should light
+ * up). Setup's own pages (/children, /responsibilities, /expectations,
+ * /jobs, /bills, /config) intentionally light up nothing — they're reached
  * through the hamburger, not this bar.
  */
 export function activeTab(pathname: string): string | null {
@@ -27,6 +27,6 @@ export function activeTab(pathname: string): string | null {
   if (pathname.startsWith("/children/") && pathname.includes("/responsibilities")) return "/chores";
   if (pathname.startsWith("/children/") && pathname.includes("/trust")) return "/trust";
   if (pathname.startsWith("/settings")) return "/settings";
-  if (pathname.startsWith("/children")) return "/children";
+  if (pathname.startsWith("/balances") || pathname.startsWith("/children/")) return "/balances";
   return null;
 }

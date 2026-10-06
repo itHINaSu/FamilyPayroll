@@ -39,7 +39,7 @@ export default async function TrustPage() {
         children={children}
         hrefFor={(id) => `/children/${id}/trust`}
         subtitleFor={(id) => standing.get(id) ?? null}
-        emptyMessage="No children yet — add one from Balances first."
+        emptyMessage="No children yet — add one under Setup › Children first."
       />
     </>
   );

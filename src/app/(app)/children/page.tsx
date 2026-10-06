@@ -7,8 +7,6 @@ import {
   CHILD_STATUS_LABELS,
   listChildren,
 } from "@/lib/children";
-import { getBalances } from "@/lib/ledger";
-import { formatCents } from "@/lib/money";
 import { resolveHouseholdPolicy } from "@/lib/policy";
 import { AddChildForm, AddChildToggle } from "./add-child-form";
 import { ArchiveButton, RestoreButton } from "./row-actions";
@@ -26,10 +24,7 @@ export default async function ChildrenPage() {
 
   return (
     <>
-      <PageHeader
-        title="Children"
-        subtitle="Balances, history, and settings for each child. Add one as they are born; archive them as they grow out. Nothing is ever deleted."
-      />
+      <PageHeader title="Children" />
 
       <div className="mx-auto max-w-2xl space-y-6">
         <div className="space-y-4">
@@ -41,16 +36,7 @@ export default async function ChildrenPage() {
 
           {activeChildren.map((c) => (
             <Card key={c.id}>
-              {/*
-                Two explicit rows below sm, one row from sm up — deterministic
-                rather than left to flex-wrap's shrink-first behaviour, which
-                truncated the name down to three or four letters before ever
-                giving up the line to the balance and Archive button. The
-                second row is indented to line up under the name (avatar width
-                + gap), and min-w-0 on the name block is what lets `truncate`
-                actually clip instead of forcing the row wider.
-              */}
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <div className="flex items-center justify-between gap-4">
                 <div className="flex min-w-0 items-center gap-4">
                   {c.photoBlobId ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -67,7 +53,7 @@ export default async function ChildrenPage() {
 
                   <div className="min-w-0">
                     <Link
-                      href={`/children/${c.id}`}
+                      href={`/children/${c.id}/settings`}
                       className="block truncate font-medium hover:underline"
                     >
                       {c.displayName}
@@ -79,16 +65,7 @@ export default async function ChildrenPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between gap-3 pl-[72px] sm:pl-0">
-                  <div className="text-right">
-                    <p className="tnum text-lg">
-                      {formatCents(getBalances(c.id).visibleTotal)}
-                    </p>
-                    <p className="text-xs text-ink-400">total</p>
-                  </div>
-
-                  <ArchiveButton childId={c.id} name={c.displayName} />
-                </div>
+                <ArchiveButton childId={c.id} name={c.displayName} />
               </div>
             </Card>
           ))}

@@ -6,6 +6,7 @@ import Database from "better-sqlite3";
 
 import { sqlite } from "@/db";
 import { config } from "@/lib/config";
+import { todayInHousehold } from "@/lib/dates";
 
 /**
  * Nightly snapshot.
@@ -65,50 +66,49 @@ export function listBackups() {
 }
 
 /**
- * Erase everything — household, parents, children, every ledger entry —
- * back to a first-run install, after a safety snapshot like a restore takes.
+ * Zero every balance and erase the money history — ledger, pay periods and
+ * stubs, bill instances, interest accruals, money requests — while keeping
+ * the household's setup: parents, children, responsibilities, bills, jobs,
+ * goals, trust, and every setting. A safety snapshot is taken first.
  *
- * Unlike a restore this works in-process, through the live connection: it
- * empties tables rather than swapping the file, so it takes effect on the
- * very next request with no restart. Kept: the migration history (the
- * schema stays current) and app_secret (session signing key, VAPID keys) —
- * neither is family data, and regenerating them buys nothing.
+ * Chore check-offs and job claims stay: they're the work record, and each
+ * already-paid one carries its pay_period_id, so nothing is paid twice.
+ * Setting payroll_resumed_on to today stops payroll from re-drafting any
+ * period that ended before the reset; the period in progress pays normally.
  */
-export function resetAllData(): { safetyBackup: string } {
+export function resetMoney(householdId: string): { safetyBackup: string } {
   const safetyBackup = createBackup();
-
-  const tables = sqlite
-    .prepare(
-      `SELECT name FROM sqlite_master
-       WHERE type = 'table'
-         AND name NOT LIKE 'sqlite_%'
-         AND name NOT IN ('__drizzle_migrations', 'app_secret')`,
-    )
-    .all() as { name: string }[];
+  const today = todayInHousehold();
 
   // The append-only ledger and immutable posted pay stubs are enforced by
-  // triggers (migration 0001), which correctly refuse these deletes. Erasing
-  // the whole household is the one legitimate exception, so they're lifted
-  // and recreated from their own stored SQL inside the same transaction —
-  // if anything fails, the rollback restores them along with the data.
+  // triggers (migration 0001), which correctly refuse these deletes. This
+  // reset is the one deliberate exception, so they're lifted and recreated
+  // from their own stored SQL inside the same transaction — if anything
+  // fails, the rollback restores them along with the data.
   const triggers = sqlite
     .prepare(`SELECT name, sql FROM sqlite_master WHERE type = 'trigger'`)
     .all() as { name: string; sql: string }[];
 
-  // foreign_keys can't change inside a transaction, so it's toggled around
-  // one — with it off, delete order across the schema doesn't matter.
-  sqlite.pragma("foreign_keys = OFF");
-  try {
-    sqlite.transaction(() => {
-      for (const t of triggers) sqlite.prepare(`DROP TRIGGER "${t.name}"`).run();
-      for (const { name } of tables) {
-        sqlite.prepare(`DELETE FROM "${name}"`).run();
-      }
-      for (const t of triggers) sqlite.prepare(t.sql).run();
-    })();
-  } finally {
-    sqlite.pragma("foreign_keys = ON");
-  }
+  const kids = `SELECT id FROM child WHERE household_id = ?`;
+
+  sqlite.transaction(() => {
+    for (const t of triggers) sqlite.prepare(`DROP TRIGGER "${t.name}"`).run();
+
+    sqlite.prepare(`DELETE FROM ledger_entry WHERE child_id IN (${kids})`).run(householdId);
+    // Cascades to paystub and paystub_line.
+    sqlite.prepare(`DELETE FROM pay_period WHERE child_id IN (${kids})`).run(householdId);
+    for (const table of ["bill_instance", "interest_accrual", "approval_request"]) {
+      sqlite.prepare(`DELETE FROM ${table} WHERE child_id IN (${kids})`).run(householdId);
+    }
+    sqlite
+      .prepare(`UPDATE account SET balance_cents = 0 WHERE child_id IN (${kids})`)
+      .run(householdId);
+    sqlite
+      .prepare(`UPDATE household SET payroll_resumed_on = ? WHERE id = ?`)
+      .run(today, householdId);
+
+    for (const t of triggers) sqlite.prepare(t.sql).run();
+  })();
 
   return { safetyBackup };
 }

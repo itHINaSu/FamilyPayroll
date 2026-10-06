@@ -32,7 +32,7 @@ export default async function ChoresPage() {
         children={children}
         hrefFor={(id) => `/children/${id}/responsibilities`}
         subtitleFor={(id) => progress.get(id) ?? null}
-        emptyMessage="No children yet — add one from Balances first."
+        emptyMessage="No children yet — add one under Setup › Children first."
       />
     </>
   );
