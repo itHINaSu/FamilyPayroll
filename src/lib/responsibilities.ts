@@ -46,7 +46,7 @@ export function occurrenceDates(
       return days.filter((d) => selected.has(dayOfWeek(d)));
     }
     case "weekly":
-      return [start];
+      return days; // once, on whichever day of the week it gets done
     case "up_to_n":
       return days; // any day is eligible; the cap limits the count
   }
@@ -90,6 +90,15 @@ export function excusedDates(
     for (const d of eachDate(from, to)) covered.add(d);
   }
   return covered;
+}
+
+/** A period's dates split into its weeks; leftover days join the last week. */
+export function weekBlocks(dates: IsoDate[], start: IsoDate, weeks: number): IsoDate[][] {
+  const blocks: IsoDate[][] = Array.from({ length: Math.max(1, weeks) }, () => []);
+  for (const d of dates) {
+    blocks[Math.min(Math.floor(daysBetween(start, d) / 7), blocks.length - 1)].push(d);
+  }
+  return blocks;
 }
 
 export type PeriodResult = {
@@ -142,7 +151,11 @@ export function evaluatePeriod(
   const excusedSet =
     r.cadence === "up_to_n" ? new Set<IsoDate>() : excusedDates(childId, r.id, start, end);
   const excusedCount =
-    r.cadence === "up_to_n" ? 0 : dates.filter((d) => excusedSet.has(d)).length;
+    r.cadence === "up_to_n"
+      ? 0
+      : r.cadence === "weekly"
+        ? weekBlocks(dates, start, rawChances).filter((w) => w.every((d) => excusedSet.has(d))).length
+        : dates.filter((d) => excusedSet.has(d)).length;
 
   const rows = db
     .select()
@@ -174,19 +187,36 @@ export function evaluatePeriod(
 
   let completed: number;
   let missed: number;
-  if (dated) {
+  if (r.cadence === "weekly") {
+    // One chance per week, on any day of it. A week whose every day is
+    // excused had no chance at all, so it's credited.
+    let credit = 0;
+    missed = 0;
+    for (const week of weekBlocks(dates, start, rawChances)) {
+      const excusedWeek = week.every((d) => excusedSet.has(d));
+      const missedWeek = week.some((d) => missedDates.has(d));
+      const doneWeek = week.some((d) => doneDates.has(d));
+      if (mode === "expected") {
+        if (missedWeek && !excusedWeek) missed++;
+        else credit++;
+      } else if (doneWeek || excusedWeek) {
+        credit++;
+      }
+    }
+    completed = credit;
+  } else if (dated) {
     completed = dates.filter(credited).length;
     missed = mode === "expected" ? dates.filter((d) => missedDates.has(d)).length : 0;
-  } else if (mode === "expected") {
-    missed = Math.min(missedRows.length, rawChances - excusedCount);
-    completed = rawChances - missed;
   } else {
+    // up_to_n: always earn-it, never excused.
     missed = 0;
-    completed = Math.min(doneRows.length + excusedCount, rawChances);
+    completed = Math.min(doneRows.length, rawChances);
   }
 
   let earnedCents: number;
-  if (!r.allOrNothing) {
+  // Weekly already has one chance per week, so all-or-nothing is the same
+  // as paying each week's share.
+  if (!r.allOrNothing || r.cadence === "weekly") {
     earnedCents = earnedForResponsibility(potentialCents, completed, rawChances);
   } else if (dated && dates.length > 0) {
     // Judged week by week, so one bad week of a biweekly period costs only
@@ -238,7 +268,7 @@ export function listResponsibilities(childId: string, activeOnly = true) {
 export const CADENCE_LABELS: Record<Cadence, string> = {
   daily: "Every day",
   daily_selected: "Certain days",
-  weekly: "Once a week",
+  weekly: "Once a week, any day",
   up_to_n: "Up to N times",
 };
 
@@ -255,7 +285,7 @@ export function describeCadence(r: {
       return (r.daysOfWeek ?? []).map((d) => names[d]).join(", ") || "No days chosen";
     }
     case "weekly":
-      return "Once a week";
+      return "Once a week, any day";
     case "up_to_n":
       return `Up to ${r.maxOccurrences ?? 1}× a week`;
   }

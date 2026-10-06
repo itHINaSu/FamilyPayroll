@@ -209,6 +209,28 @@ describe("payroll draft", () => {
     expect(computeDraft(householdId, childId, WEEK.start, WEEK.end).earnedCents).toBe(100);
   });
 
+  it("once a week, any day: earn it on whichever day it gets done", () => {
+    const r = addResponsibility({ cadence: "weekly", weeklyValueCents: 300 });
+    expect(computeDraft(householdId, childId, WEEK.start, WEEK.end).earnedCents).toBe(0);
+    complete(r, ["2026-03-07"]); // Saturday
+    expect(computeDraft(householdId, childId, WEEK.start, WEEK.end).earnedCents).toBe(300);
+  });
+
+  it("once a week, any day: keep it loses the week on a miss marked any day", () => {
+    const r = addResponsibility({ cadence: "weekly", payMode: "expected", weeklyValueCents: 100 });
+    expect(computeDraft(householdId, childId, WEEK.start, WEEK.end).earnedCents).toBe(100);
+    miss(r, ["2026-03-05"]); // Thursday
+    expect(computeDraft(householdId, childId, WEEK.start, WEEK.end).earnedCents).toBe(0);
+  });
+
+  it("once a week over two weeks: each week stands alone", () => {
+    const r = addResponsibility({ cadence: "weekly", payMode: "expected", weeklyValueCents: 100 });
+    miss(r, ["2026-03-12"]);
+    const draft = computeDraft(householdId, childId, "2026-03-02", "2026-03-15");
+    expect(draft.potentialCents).toBe(200);
+    expect(draft.earnedCents).toBe(100);
+  });
+
   it("honours a selected-days cadence", () => {
     const r = addResponsibility({
       name: "Trash out",

@@ -55,8 +55,8 @@ function CadenceFields({
       <Field label="How often">
         <Select name="cadence" value={cadence} onChange={(e) => setCadence(e.target.value)}>
           <option value="daily">Every day</option>
-          <option value="daily_selected">Certain days only</option>
-          <option value="weekly">Once a week</option>
+          <option value="daily_selected">Certain days (pick them)</option>
+          <option value="weekly">Once a week, any day</option>
           <option value="up_to_n">Up to N times a week</option>
         </Select>
       </Field>

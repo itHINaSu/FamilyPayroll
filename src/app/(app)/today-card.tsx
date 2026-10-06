@@ -90,7 +90,7 @@ export function TodayCard({ child, today }: { child: TodayChild; today: string }
                     value={item.responsibilityId}
                   />
                   <input type="hidden" name="childId" value={child.id} />
-                  <input type="hidden" name="date" value={today} />
+                  <input type="hidden" name="date" value={item.toggleDate} />
                   <input
                     type="hidden"
                     name="repeatable"
@@ -143,9 +143,13 @@ export function TodayCard({ child, today }: { child: TodayChild; today: string }
                     <span className="block text-xs text-ink-400">
                       {item.payMode === "expected"
                         ? item.weekMissed > 0
-                          ? `${item.weekMissed} missed this week${item.allOrNothing ? " · all or nothing" : ""}`
+                          ? `${item.weekly ? "Missed" : `${item.weekMissed} missed`} this week${item.allOrNothing ? " · all or nothing" : ""}`
                           : `On track this week${item.allOrNothing ? " · all or nothing" : ""}`
-                        : `${item.weekCompleted}/${item.weekChances} this week`}
+                        : item.weekly
+                          ? item.doneToday
+                            ? "Done this week"
+                            : "Once this week, any day"
+                          : `${item.weekCompleted}/${item.weekChances} this week`}
                     </span>
                   </span>
 

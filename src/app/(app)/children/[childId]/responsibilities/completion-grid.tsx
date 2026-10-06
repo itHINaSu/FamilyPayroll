@@ -83,8 +83,8 @@ function EditRow({ row, childId, onDone }: { row: GridRow; childId: string; onDo
             <Field label="How often">
               <Select name="cadence" value={cadence} onChange={(e) => setCadence(e.target.value)}>
                 <option value="daily">Every day</option>
-                <option value="daily_selected">Certain days only</option>
-                <option value="weekly">Once a week</option>
+                <option value="daily_selected">Certain days (pick them)</option>
+                <option value="weekly">Once a week, any day</option>
                 <option value="up_to_n">Up to N times a week</option>
               </Select>
             </Field>
@@ -193,6 +193,13 @@ export function CompletionGrid({
         const done = new Set(row.doneDates);
         const missed = new Set(row.missedDates);
         const expected = row.payMode === "expected";
+        // Weekly is once on any day: after one day in a week is marked, the
+        // rest of that week has nothing left to mark.
+        const weekOf = (d: string) => Math.floor(days.indexOf(d) / 7);
+        const markedWeeks = new Set(
+          (expected ? row.missedDates : row.doneDates).map(weekOf),
+        );
+        const markedDays = new Set(expected ? row.missedDates : row.doneDates);
 
         return (
           <div key={row.id} className="border-t border-ink-100 py-3 dark:border-ink-700">
@@ -245,7 +252,10 @@ export function CompletionGrid({
                   );
                 }
 
-                if (!isEligible) {
+                const settledByAnotherDay =
+                  row.cadence === "weekly" && markedWeeks.has(weekOf(d)) && !markedDays.has(d);
+
+                if (!isEligible || settledByAnotherDay) {
                   return (
                     <span
                       key={d}

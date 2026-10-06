@@ -16,6 +16,7 @@ import {
   excusedDates,
   listResponsibilities,
   occurrenceDates,
+  weekBlocks,
 } from "@/lib/responsibilities";
 
 /**
@@ -38,6 +39,9 @@ export type TodayItem = {
   doneToday: boolean;
   /** Keep-it only: a miss has been marked for today. */
   missedToday: boolean;
+  /** The day a tap acts on: today, or for weekly the day already marked this week. */
+  toggleDate: IsoDate;
+  weekly: boolean;
   payMode: "expected" | "optional";
   allOrNothing: boolean;
   excusedToday: boolean;
@@ -118,8 +122,19 @@ export function todayForHousehold(householdId: string): {
           occurrenceDates(r, period.startDate, period.endDate),
         );
         const excused = excusedDates(c.id, r.id, period.startDate, period.endDate);
+        // Weekly is once on any day, so "today" means this week.
+        const thisWeek =
+          r.cadence === "weekly"
+            ? new Set(
+                weekBlocks(
+                  eachDate(period.startDate, period.endDate),
+                  period.startDate,
+                  result.chances,
+                ).find((w) => w.includes(today)) ?? [today],
+              )
+            : new Set([today]);
         const todayAll = completions.filter(
-          (x) => x.responsibilityId === r.id && x.occurrenceDate === today,
+          (x) => x.responsibilityId === r.id && thisWeek.has(x.occurrenceDate),
         );
         const todayRows = todayAll.filter((x) => x.status !== "missed");
 
@@ -132,6 +147,8 @@ export function todayForHousehold(householdId: string): {
           dueToday: applicable.has(today),
           doneToday: todayRows.length > 0,
           missedToday: todayAll.some((x) => x.status === "missed"),
+          toggleDate: todayAll[0]?.occurrenceDate ?? today,
+          weekly: r.cadence === "weekly",
           payMode: effectivePayMode(r),
           allOrNothing: r.allOrNothing,
           excusedToday: excused.has(today),
