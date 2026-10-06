@@ -110,18 +110,17 @@ export function AddResponsibilityForm({
           </Field>
         )}
 
-        {hasSiblings && (
-          <label className="flex items-start gap-2 text-sm">
-            <input type="checkbox" name="applyToAllChildren" className="mt-0.5" />
-            <span>
-              Apply to all children
-              <span className="block text-xs text-ink-400">
-                Otherwise it&apos;s added just for this child — turn it on for
-                a sibling later from the family Responsibilities hub.
-              </span>
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" name="applyToAllChildren" className="mt-0.5" />
+          <span>
+            Apply to all children
+            <span className="block text-xs text-ink-400">
+              {hasSiblings ? "Including" : "That means"} any added later. Otherwise
+              it&apos;s just for this child — you can turn it on for others from
+              Setup › Responsibilities.
             </span>
-          </label>
-        )}
+          </span>
+        </label>
 
         <Submit>Add responsibility</Submit>
       </form>

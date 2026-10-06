@@ -10,6 +10,7 @@ import {
   createResponsibilityTemplate,
   disableTemplateForChild,
   enableTemplateForChild,
+  setTemplateAppliesToNewChildren,
   updateResponsibilityTemplate,
   type TemplateInput,
 } from "@/lib/responsibilities";
@@ -89,6 +90,17 @@ export async function archiveTemplate(formData: FormData): Promise<void> {
   await requireParent();
   archiveResponsibilityTemplate(String(formData.get("templateId") ?? ""));
   revalidatePath("/responsibilities");
+}
+
+export async function setAppliesToNewChildren(formData: FormData): Promise<void> {
+  const parent = await requireParent();
+  const templateId = String(formData.get("templateId") ?? "");
+  setTemplateAppliesToNewChildren(
+    parent.householdId,
+    templateId,
+    formData.get("appliesToNewChildren") === "on",
+  );
+  revalidatePath(`/responsibilities/${templateId}`);
 }
 
 export async function toggleTemplateForChild(formData: FormData): Promise<void> {

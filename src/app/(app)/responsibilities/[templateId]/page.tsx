@@ -9,7 +9,7 @@ import {
   getResponsibilityTemplate,
   templateChildStatus,
 } from "@/lib/responsibilities";
-import { PerChildStatusList } from "../forms";
+import { NewChildrenToggle, PerChildStatusList } from "../forms";
 
 export const dynamic = "force-dynamic";
 
@@ -48,11 +48,16 @@ export default async function ResponsibilityDetailPage({
         <Card>
           <h2 className="mb-1 text-lg font-semibold">Per child</h2>
           <p className="mb-4 text-xs text-ink-400">
-            On by default for every child. Turn it off for one without
-            touching anyone else&apos;s, or customize their rate and cadence
-            from their own responsibilities page.
+            Turn it off for one child without touching anyone else&apos;s,
+            or customize their rate and cadence from their own Chores page.
           </p>
           <PerChildStatusList templateId={templateId} statuses={statuses} />
+          <div className="mt-4 border-t border-ink-100 pt-4 dark:border-ink-700">
+            <NewChildrenToggle
+              templateId={templateId}
+              checked={template.appliesToNewChildren}
+            />
+          </div>
         </Card>
       </div>
     </>

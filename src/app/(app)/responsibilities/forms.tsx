@@ -10,6 +10,7 @@ import {
   addResponsibilityTemplate,
   archiveTemplate,
   editResponsibilityTemplate,
+  setAppliesToNewChildren,
   toggleTemplateForChild,
   type TemplateState,
 } from "./actions";
@@ -275,5 +276,36 @@ export function PerChildStatusList({
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Saves on tap — a single setting doesn't warrant a Save button. */
+export function NewChildrenToggle({
+  templateId,
+  checked,
+}: {
+  templateId: string;
+  checked: boolean;
+}) {
+  const formRef = useRef<HTMLFormElement>(null);
+  return (
+    <form ref={formRef} action={setAppliesToNewChildren}>
+      <input type="hidden" name="templateId" value={templateId} />
+      <label className="flex cursor-pointer items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          name="appliesToNewChildren"
+          defaultChecked={checked}
+          onChange={() => formRef.current?.requestSubmit()}
+          className="mt-0.5"
+        />
+        <span>
+          Add to new children automatically
+          <span className="block text-xs text-ink-400">
+            When you add a child later, they start with this responsibility.
+          </span>
+        </span>
+      </label>
+    </form>
   );
 }

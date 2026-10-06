@@ -244,6 +244,7 @@ export function listResponsibilityTemplates(householdId: string, activeOnly = tr
 function insertTemplateRow(
   householdId: string,
   input: TemplateInput,
+  appliesToNewChildren: boolean,
 ): ResponsibilityTemplateRow {
   const cadenceFields = normalizeCadenceFields(input);
 
@@ -251,6 +252,7 @@ function insertTemplateRow(
     .insert(responsibilityTemplate)
     .values({
       householdId,
+      appliesToNewChildren,
       name: input.name,
       weeklyValueCents: input.weeklyValueCents,
       cadence: input.cadence,
@@ -289,7 +291,7 @@ export function createResponsibilityTemplate(
   householdId: string,
   input: TemplateInput,
 ): ResponsibilityTemplateRow {
-  const template = insertTemplateRow(householdId, input);
+  const template = insertTemplateRow(householdId, input, true);
   instantiateTemplateFor(
     template,
     listChildren(householdId).map((c) => c.id),
@@ -308,7 +310,7 @@ export function createResponsibilityTemplateForChild(
   input: TemplateInput,
   applyToAllChildren: boolean,
 ): ResponsibilityTemplateRow {
-  const template = insertTemplateRow(householdId, input);
+  const template = insertTemplateRow(householdId, input, applyToAllChildren);
   const childIds = applyToAllChildren
     ? listChildren(householdId).map((c) => c.id)
     : [childId];
@@ -330,6 +332,22 @@ export function getResponsibilityTemplate(
       ),
     )
     .get();
+}
+
+export function setTemplateAppliesToNewChildren(
+  householdId: string,
+  templateId: string,
+  value: boolean,
+): void {
+  db.update(responsibilityTemplate)
+    .set({ appliesToNewChildren: value })
+    .where(
+      and(
+        eq(responsibilityTemplate.id, templateId),
+        eq(responsibilityTemplate.householdId, householdId),
+      ),
+    )
+    .run();
 }
 
 /** Edits the template and propagates the new values to every synced child row. */
@@ -453,8 +471,11 @@ export function enableTemplateForChild(childId: string, templateId: string): voi
 }
 
 /** Instantiates every active family template for a newly created child. */
+/** Subscribes a newly added child to every family-wide responsibility. */
 export function instantiateTemplatesForChild(householdId: string, childId: string): void {
-  const templates = listResponsibilityTemplates(householdId);
+  const templates = listResponsibilityTemplates(householdId).filter(
+    (t) => t.appliesToNewChildren,
+  );
   const today = todayInHousehold();
 
   templates.forEach((t, index) => {

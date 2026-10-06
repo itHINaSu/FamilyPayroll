@@ -388,6 +388,14 @@ export const responsibilityTemplate = sqliteTable(
     cadence: text("cadence").$type<Cadence>().notNull(),
     daysOfWeek: text("days_of_week", { mode: "json" }).$type<number[]>(),
     maxOccurrences: integer("max_occurrences"),
+    /**
+     * Whether a child added later gets this automatically. True for
+     * family-wide responsibilities; false for one created on a single
+     * child's page without "Apply to all children".
+     */
+    appliesToNewChildren: integer("applies_to_new_children", { mode: "boolean" })
+      .notNull()
+      .default(true),
     active: integer("active", { mode: "boolean" }).notNull().default(true),
     archivedAt: integer("archived_at"),
     sortOrder: integer("sort_order").notNull().default(0),
