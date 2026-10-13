@@ -17,8 +17,7 @@ const MODES = [
 
 /**
  * How a responsibility pays — shared by every create and edit form so the
- * wording stays identical everywhere. Up-to-N is always "Earn it": there's
- * no fixed set of days to miss.
+ * wording stays identical everywhere.
  */
 export function PayModeFields({
   cadence,
@@ -30,14 +29,6 @@ export function PayModeFields({
   defaultAllOrNothing?: boolean;
 }) {
   const [mode, setMode] = useState(defaultPayMode === "optional" ? "optional" : "expected");
-
-  if (cadence === "up_to_n") {
-    return (
-      <p className="text-xs text-ink-400">
-        Up-to-N expectations are always earned per check-off.
-      </p>
-    );
-  }
 
   const current = MODES.find((m) => m.value === mode)!;
 

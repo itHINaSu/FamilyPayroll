@@ -66,7 +66,10 @@ export async function addResponsibilityTemplate(
   const result = parseTemplateInput(formData);
   if ("error" in result) return { error: result.error };
 
-  createResponsibilityTemplate(parent.householdId, result.data);
+  const childIds = formData.getAll("childIds").map(String);
+  if (childIds.length === 0) return { error: "Pick at least one child." };
+
+  createResponsibilityTemplate(parent.householdId, result.data, childIds);
 
   revalidatePath("/responsibilities");
   return { ok: true };

@@ -644,6 +644,10 @@ export const billTemplate = sqliteTable(
       .notNull()
       .default(false),
     autopay: integer("autopay", { mode: "boolean" }).notNull().default(true),
+    /** Whether a child added later gets this bill automatically. */
+    appliesToNewChildren: integer("applies_to_new_children", { mode: "boolean" })
+      .notNull()
+      .default(true),
     active: integer("active", { mode: "boolean" }).notNull().default(true),
     archivedAt: integer("archived_at"),
     createdAt: createdAt(),

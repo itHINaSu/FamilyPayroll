@@ -9,9 +9,13 @@ import {
   addBillTemplate,
   archiveTemplate,
   editBillTemplate,
+  resyncBillForChild,
+  setBillNewChildren,
   toggleBillTemplateForChild,
   type BillTemplateState,
 } from "./actions";
+import { editBill, type BillState } from "../children/[childId]/bills/actions";
+import { ChildCheckboxes } from "@/components/child-checkboxes";
 
 function Submit({ children }: { children: string }) {
   const { pending } = useFormStatus();
@@ -109,7 +113,7 @@ function DispositionFields({
   );
 }
 
-export function AddTemplateForm() {
+export function AddTemplateForm({ kids }: { kids: { id: string; name: string }[] }) {
   const [state, formAction] = useActionState<BillTemplateState, FormData>(addBillTemplate, {});
   const [cadence, setCadence] = useState("monthly");
   const formRef = useRef<HTMLFormElement>(null);
@@ -122,8 +126,7 @@ export function AddTemplateForm() {
     <Card className="h-fit">
       <h2 className="mb-1 text-lg font-semibold">Add a bill</h2>
       <p className="mb-4 text-xs text-ink-400">
-        Applies to every child by default — turn it off or change the amount
-        for one child below if it shouldn&apos;t.
+        Change the amount for one child afterward from the bill&apos;s card.
       </p>
 
       <form ref={formRef} action={formAction} className="space-y-4">
@@ -140,6 +143,7 @@ export function AddTemplateForm() {
 
         <CadenceFields cadence={cadence} setCadence={setCadence} />
         <DispositionFields />
+        <ChildCheckboxes kids={kids} />
 
         <Submit>Add bill</Submit>
       </form>
@@ -153,6 +157,9 @@ export type TemplateChildStatus = {
   enabled: boolean;
   customized: boolean;
   amountCents: number | null;
+  billId: string | null;
+  cadence: string | null;
+  dueDay: number | null;
 };
 
 export function TemplateCard({
@@ -170,6 +177,7 @@ export function TemplateCard({
     autopay: boolean;
     mayUseEarmarked: boolean;
     cadenceLabel: string;
+    appliesToNewChildren: boolean;
   };
   statuses: TemplateChildStatus[];
 }) {
@@ -248,33 +256,128 @@ export function TemplateCard({
       <p className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-400">Per child</p>
       <ul className="space-y-2 text-sm">
         {statuses.map((s) => (
-          <li key={s.childId} className="flex items-center justify-between gap-3">
-            <span>{s.childName}</span>
-            <span className="flex items-center gap-3">
-              {s.enabled && s.customized && (
-                <span className="text-xs text-ink-400">
-                  Customized · {formatCents(s.amountCents ?? 0)}
-                </span>
-              )}
-              <form action={toggleBillTemplateForChild}>
-                <input type="hidden" name="templateId" value={template.id} />
-                <input type="hidden" name="childId" value={s.childId} />
-                <input type="hidden" name="enabled" value={String(s.enabled)} />
-                <button
-                  type="submit"
-                  className={`min-w-12 rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                    s.enabled
-                      ? "bg-ledger-100 text-ledger-600"
-                      : "bg-ink-100 text-ink-400 dark:bg-ink-700"
-                  }`}
-                >
-                  {s.enabled ? "On" : "Off"}
-                </button>
-              </form>
-            </span>
-          </li>
+          <BillChildRow key={s.childId} templateId={template.id} status={s} />
         ))}
       </ul>
+
+      <form
+        action={setBillNewChildren}
+        className="mt-4 border-t border-ink-100 pt-3 dark:border-ink-700"
+      >
+        <input type="hidden" name="templateId" value={template.id} />
+        <label className="flex cursor-pointer items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            name="appliesToNewChildren"
+            defaultChecked={template.appliesToNewChildren}
+            onChange={(e) => e.currentTarget.form?.requestSubmit()}
+          />
+          Add to new children automatically
+        </label>
+      </form>
     </Card>
+  );
+}
+
+/** One child's line on a bill: on/off, and a per-child amount if needed. */
+function BillChildRow({ templateId, status: s }: { templateId: string; status: TemplateChildStatus }) {
+  const [open, setOpen] = useState(false);
+  const [cadence, setCadence] = useState(s.cadence ?? "monthly");
+  const [state, formAction] = useActionState<BillState, FormData>(editBill, {});
+
+  useEffect(() => {
+    if (state.ok) setOpen(false);
+  }, [state]);
+
+  return (
+    <li>
+      <div className="flex items-center justify-between gap-3">
+        <span className="min-w-0">
+          {s.childName}
+          {s.enabled && s.customized && (
+            <span className="block text-xs text-ink-400">
+              Customized · {formatCents(s.amountCents ?? 0)}
+            </span>
+          )}
+        </span>
+        <span className="flex shrink-0 items-center gap-3">
+          {s.enabled && s.billId && (
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              className="text-xs text-ink-400 hover:text-ink-700 hover:underline"
+            >
+              {open ? "Close" : "Customize"}
+            </button>
+          )}
+          <form action={toggleBillTemplateForChild}>
+            <input type="hidden" name="templateId" value={templateId} />
+            <input type="hidden" name="childId" value={s.childId} />
+            <input type="hidden" name="enabled" value={String(s.enabled)} />
+            <button
+              type="submit"
+              className={`min-w-12 rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                s.enabled
+                  ? "bg-ledger-100 text-ledger-600"
+                  : "bg-ink-100 text-ink-400 dark:bg-ink-700"
+              }`}
+            >
+              {s.enabled ? "On" : "Off"}
+            </button>
+          </form>
+        </span>
+      </div>
+
+      {open && s.billId && (
+        <div className="mt-2 space-y-3 rounded-lg bg-ink-50 p-3 dark:bg-ink-900">
+          <form action={formAction} className="space-y-3">
+            <input type="hidden" name="billId" value={s.billId} />
+            <input type="hidden" name="childId" value={s.childId} />
+            {state.error && <Alert>{state.error}</Alert>}
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Amount">
+                <Input
+                  name="amount"
+                  inputMode="decimal"
+                  defaultValue={((s.amountCents ?? 0) / 100).toFixed(2)}
+                  required
+                />
+              </Field>
+              <Field label="How often">
+                <Select name="cadence" value={cadence} onChange={(e) => setCadence(e.target.value)}>
+                  <option value="monthly">Monthly</option>
+                  <option value="weekly">Weekly</option>
+                </Select>
+              </Field>
+            </div>
+            <Field label={cadence === "monthly" ? "Day of month" : "Weekday"}>
+              {cadence === "monthly" ? (
+                <Input name="dueDay" type="number" min={1} max={31} defaultValue={s.dueDay ?? 1} />
+              ) : (
+                <Select name="dueDay" defaultValue={String(s.dueDay ?? 5)}>
+                  {["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map(
+                    (d, i) => (
+                      <option key={d} value={i}>
+                        {d}
+                      </option>
+                    ),
+                  )}
+                </Select>
+              )}
+            </Field>
+            <Submit>{`Save for ${s.childName}`}</Submit>
+          </form>
+          {s.customized && (
+            <form action={resyncBillForChild}>
+              <input type="hidden" name="billId" value={s.billId} />
+              <input type="hidden" name="childId" value={s.childId} />
+              <button type="submit" className="text-xs text-ledger-600 hover:underline">
+                Use the family amount instead
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+    </li>
   );
 }

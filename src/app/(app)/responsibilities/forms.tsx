@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
+import { ChildCheckboxes } from "@/components/child-checkboxes";
 import { PayModeFields } from "@/components/pay-mode-fields";
 import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
 import { formatCents } from "@/lib/money";
@@ -15,6 +16,11 @@ import {
   toggleTemplateForChild,
   type TemplateState,
 } from "./actions";
+import {
+  editResponsibility,
+  resyncChildResponsibility,
+  type RespState,
+} from "../children/[childId]/responsibilities/actions";
 
 const DAYS = [
   { value: 0, label: "Sun" },
@@ -97,7 +103,7 @@ function CadenceFields({
   );
 }
 
-export function AddTemplateForm() {
+export function AddTemplateForm({ kids }: { kids: { id: string; name: string }[] }) {
   const [state, formAction] = useActionState<TemplateState, FormData>(
     addResponsibilityTemplate,
     {},
@@ -113,10 +119,7 @@ export function AddTemplateForm() {
     <Card className="h-fit">
       <h2 className="mb-1 text-lg font-semibold">Add an expectation</h2>
       <p className="mb-4 text-xs text-ink-400">
-        Applies to every child by default — click into it afterward to turn
-        it off for one child if it shouldn&apos;t, or change their rate
-        without touching anyone
-        else&apos;s.
+        Change it for one child afterward by clicking into it.
       </p>
 
       <form ref={formRef} action={formAction} className="space-y-4">
@@ -134,6 +137,7 @@ export function AddTemplateForm() {
         <CadenceFields cadence={cadence} setCadence={setCadence} />
 
         <PayModeFields cadence={cadence} />
+        <ChildCheckboxes kids={kids} />
 
         <Submit>Add expectation</Submit>
       </form>
@@ -147,6 +151,15 @@ export type TemplateChildStatus = {
   enabled: boolean;
   customized: boolean;
   weeklyValueCents: number | null;
+  row: {
+    id: string;
+    weeklyValueCents: number;
+    cadence: string;
+    daysOfWeek: number[] | null;
+    maxOccurrences: number | null;
+    payMode: string;
+    allOrNothing: boolean;
+  } | null;
 };
 
 /**
@@ -260,33 +273,100 @@ export function PerChildStatusList({
   return (
     <ul className="space-y-2 text-sm">
       {statuses.map((s) => (
-        <li key={s.childId} className="flex items-center justify-between gap-3">
-          <span>{s.childName}</span>
-          <span className="flex items-center gap-3">
-            {s.enabled && s.customized && (
-              <span className="text-xs text-ink-400">
-                Customized · {formatCents(s.weeklyValueCents ?? 0)}/week
-              </span>
-            )}
-            <form action={toggleTemplateForChild}>
-              <input type="hidden" name="templateId" value={templateId} />
-              <input type="hidden" name="childId" value={s.childId} />
-              <input type="hidden" name="enabled" value={String(s.enabled)} />
-              <button
-                type="submit"
-                className={`min-w-12 rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                  s.enabled
-                    ? "bg-ledger-100 text-ledger-600"
-                    : "bg-ink-100 text-ink-400 dark:bg-ink-700"
-                }`}
-              >
-                {s.enabled ? "On" : "Off"}
-              </button>
-            </form>
-          </span>
-        </li>
+        <ChildRow key={s.childId} templateId={templateId} status={s} />
       ))}
     </ul>
+  );
+}
+
+/** One child's line: on/off, and their own rate and schedule if needed. */
+function ChildRow({ templateId, status: s }: { templateId: string; status: TemplateChildStatus }) {
+  const [open, setOpen] = useState(false);
+  const [cadence, setCadence] = useState(s.row?.cadence ?? "daily");
+  const [state, formAction] = useActionState<RespState, FormData>(editResponsibility, {});
+
+  useEffect(() => {
+    if (state.ok) setOpen(false);
+  }, [state]);
+
+  return (
+    <li>
+      <div className="flex items-center justify-between gap-3">
+        <span className="min-w-0">
+          {s.childName}
+          {s.enabled && s.customized && (
+            <span className="block text-xs text-ink-400">
+              Customized · {formatCents(s.weeklyValueCents ?? 0)}/week
+            </span>
+          )}
+        </span>
+        <span className="flex shrink-0 items-center gap-3">
+          {s.enabled && s.row && (
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              className="text-xs text-ink-400 hover:text-ink-700 hover:underline"
+            >
+              {open ? "Close" : "Customize"}
+            </button>
+          )}
+          <form action={toggleTemplateForChild}>
+            <input type="hidden" name="templateId" value={templateId} />
+            <input type="hidden" name="childId" value={s.childId} />
+            <input type="hidden" name="enabled" value={String(s.enabled)} />
+            <button
+              type="submit"
+              className={`min-w-12 rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                s.enabled
+                  ? "bg-ledger-100 text-ledger-600"
+                  : "bg-ink-100 text-ink-400 dark:bg-ink-700"
+              }`}
+            >
+              {s.enabled ? "On" : "Off"}
+            </button>
+          </form>
+        </span>
+      </div>
+
+      {open && s.row && (
+        <div className="mt-2 space-y-3 rounded-lg bg-ink-50 p-3 dark:bg-ink-900">
+          <form action={formAction} className="space-y-3">
+            <input type="hidden" name="responsibilityId" value={s.row.id} />
+            <input type="hidden" name="childId" value={s.childId} />
+            {state.error && <Alert>{state.error}</Alert>}
+            <Field label="Weekly value">
+              <Input
+                name="weeklyValue"
+                inputMode="decimal"
+                defaultValue={(s.row.weeklyValueCents / 100).toFixed(2)}
+                required
+              />
+            </Field>
+            <CadenceFields
+              cadence={cadence}
+              setCadence={setCadence}
+              defaultDays={s.row.daysOfWeek ?? undefined}
+              defaultMax={s.row.maxOccurrences}
+            />
+            <PayModeFields
+              cadence={cadence}
+              defaultPayMode={s.row.payMode}
+              defaultAllOrNothing={s.row.allOrNothing}
+            />
+            <Submit>{`Save for ${s.childName}`}</Submit>
+          </form>
+          {s.customized && (
+            <form action={resyncChildResponsibility}>
+              <input type="hidden" name="responsibilityId" value={s.row.id} />
+              <input type="hidden" name="childId" value={s.childId} />
+              <button type="submit" className="text-xs text-ledger-600 hover:underline">
+                Use the family settings instead
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+    </li>
   );
 }
 

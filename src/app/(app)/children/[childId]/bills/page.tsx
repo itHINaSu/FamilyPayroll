@@ -1,16 +1,18 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Alert, Card } from "@/components/ui";
 import { requireParent } from "@/lib/auth/guard";
-import { DISPOSITION_LABELS, listBillTemplates, listBills, upcomingBills } from "@/lib/bills";
+import { DISPOSITION_LABELS, listBills, upcomingBills } from "@/lib/bills";
 import { getChild } from "@/lib/children";
 import { getBalances } from "@/lib/ledger";
 import { formatCents } from "@/lib/money";
-import { addTemplateForThisChild, archiveBill } from "./actions";
-import { AddBillForm, CollectButton, EditableBillRow } from "./forms";
+import { CollectButton } from "./forms";
 import { formatShortDate } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
+
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export default async function BillsPage({
   params,
@@ -28,13 +30,8 @@ export default async function BillsPage({
 
   const short = upcoming.filter((b) => b.shortfallCents > 0);
 
-  const enabledTemplateIds = new Set(bills.filter((b) => b.templateId).map((b) => b.templateId));
-  const availableTemplates = listBillTemplates(parent.householdId).filter(
-    (t) => !enabledTemplateIds.has(t.id),
-  );
-
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+    <div className="mx-auto max-w-3xl">
       <div className="space-y-6">
         {short.length > 0 && (
           <Alert tone="warning">
@@ -116,72 +113,31 @@ export default async function BillsPage({
               not a paycheck was earned.
             </Alert>
           ) : (
-            <ul className="space-y-3">
+            <ul className="divide-y divide-ink-100 text-sm dark:divide-ink-700">
               {bills.map((b) => (
-                <EditableBillRow
-                  key={b.id}
-                  bill={{
-                    id: b.id,
-                    name: b.name,
-                    amountCents: b.amountCents,
-                    cadence: b.cadence,
-                    dueDay: b.dueDay,
-                    disposition: b.disposition,
-                    sourceAccountOrder: b.sourceAccountOrder as string[],
-                  }}
-                  childId={childId}
-                  fromTemplate={!!b.templateId}
-                  customized={!!b.templateId && !b.syncedWithTemplate}
-                  dispositionLabel={DISPOSITION_LABELS[b.disposition]}
-                  onArchive={
-                    <form action={archiveBill}>
-                      <input type="hidden" name="billId" value={b.id} />
-                      <input type="hidden" name="childId" value={childId} />
-                      <button
-                        type="submit"
-                        className="text-xs text-ink-400 hover:text-ink-700 hover:underline"
-                      >
-                        {b.templateId ? "Turn off" : "Archive"}
-                      </button>
-                    </form>
-                  }
-                />
+                <li key={b.id} className="flex items-start justify-between gap-3 py-2.5">
+                  <span className="min-w-0">
+                    {b.name}
+                    <span className="block text-xs text-ink-400">
+                      {b.cadence === "monthly" ? `Day ${b.dueDay} of the month` : `Every ${WEEKDAYS[b.dueDay]}`}{" "}
+                      · {DISPOSITION_LABELS[b.disposition]} (parents only)
+                    </span>
+                  </span>
+                  <span className="tnum shrink-0">{formatCents(b.amountCents)}</span>
+                </li>
               ))}
             </ul>
           )}
         </Card>
 
-        {availableTemplates.length > 0 && (
-          <Card>
-            <h2 className="mb-1 text-lg font-semibold">Family bills not included</h2>
-            <p className="mb-4 text-xs text-ink-400">
-              Turned off for {record.displayName}. Add one back at the family
-              rate, then customize it here if needed.
-            </p>
-            <ul className="space-y-2 text-sm">
-              {availableTemplates.map((t) => (
-                <li key={t.id} className="flex items-center justify-between gap-3">
-                  <span>
-                    {t.name}
-                    <span className="ml-2 text-xs text-ink-400">
-                      {formatCents(t.amountCents)}
-                    </span>
-                  </span>
-                  <form action={addTemplateForThisChild}>
-                    <input type="hidden" name="childId" value={childId} />
-                    <input type="hidden" name="templateId" value={t.id} />
-                    <button type="submit" className="text-xs text-ledger-600 hover:underline">
-                      Add for {record.displayName}
-                    </button>
-                  </form>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        )}
+        <p className="text-center text-xs text-ink-400">
+          Add, change, or turn off bills in{" "}
+          <Link href="/bills" className="underline">
+            Setup › Bills
+          </Link>
+          .
+        </p>
       </div>
-
-      <AddBillForm childId={childId} />
     </div>
   );
 }

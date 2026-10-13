@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { responsibility } from "@/db/schema";
 import { AGE_PRESETS, bandForAge, type AgeBand } from "@/lib/age-presets";
+import { adoptOrphans } from "@/lib/adopt";
 import { todayInHousehold } from "@/lib/dates";
 
 export { AGE_PRESETS, bandForAge };
@@ -28,7 +29,7 @@ export type { AgeBand };
  * Everything written here is a normal row a parent can edit or delete
  * afterward; this only exists to skip the blank-page moment.
  */
-export function applyAgePreset(childId: string, band: AgeBand): void {
+export function applyAgePreset(childId: string, householdId: string, band: AgeBand): void {
   const preset = AGE_PRESETS[band];
   const today = todayInHousehold();
 
@@ -46,6 +47,10 @@ export function applyAgePreset(childId: string, band: AgeBand): void {
       })
       .run();
   });
+
+  // Attach them to the family list in Setup (by name, or as new entries
+  // just for this child) so they're managed there like everything else.
+  adoptOrphans(householdId);
 }
 
 /**
@@ -62,11 +67,24 @@ export function copyFromSibling(sourceChildId: string, targetChildId: string): v
     .from(responsibility)
     .where(and(eq(responsibility.childId, sourceChildId), eq(responsibility.active, true)))
     .all();
+  // The new child may already have the family-wide ones.
+  const already = new Set(
+    db
+      .select({ t: responsibility.templateId })
+      .from(responsibility)
+      .where(eq(responsibility.childId, targetChildId))
+      .all()
+      .map((x) => x.t),
+  );
 
-  sourceResponsibilities.forEach((r, index) => {
+  sourceResponsibilities
+    .filter((r) => !r.templateId || !already.has(r.templateId))
+    .forEach((r, index) => {
     db.insert(responsibility)
       .values({
         childId: targetChildId,
+        templateId: r.templateId,
+        syncedWithTemplate: r.syncedWithTemplate,
         name: r.name,
         icon: r.icon,
         weeklyValueCents: r.weeklyValueCents,

@@ -468,17 +468,45 @@ function instantiateTemplateFor(
   });
 }
 
-/** Creates a family template and instantiates it for every current child. */
+/**
+ * Creates a family expectation and gives it to the chosen children (all of
+ * them by default). Picking everyone also gives it to children added later.
+ */
 export function createResponsibilityTemplate(
   householdId: string,
   input: TemplateInput,
+  childIds?: string[],
 ): ResponsibilityTemplateRow {
-  const template = insertTemplateRow(householdId, input, true);
-  instantiateTemplateFor(
-    template,
-    listChildren(householdId).map((c) => c.id),
-  );
+  const all = listChildren(householdId).map((c) => c.id);
+  const chosen = childIds ? all.filter((id) => childIds.includes(id)) : all;
+  const template = insertTemplateRow(householdId, input, chosen.length === all.length);
+  instantiateTemplateFor(template, chosen);
   return template;
+}
+
+/** Puts a customized child copy back on its family template's values. */
+export function resyncResponsibility(responsibilityId: string): void {
+  const row = db.select().from(responsibility).where(eq(responsibility.id, responsibilityId)).get();
+  if (!row?.templateId) return;
+  const t = db
+    .select()
+    .from(responsibilityTemplate)
+    .where(eq(responsibilityTemplate.id, row.templateId))
+    .get();
+  if (!t) return;
+  db.update(responsibility)
+    .set({
+      syncedWithTemplate: true,
+      name: t.name,
+      weeklyValueCents: t.weeklyValueCents,
+      cadence: t.cadence,
+      daysOfWeek: t.daysOfWeek,
+      maxOccurrences: t.maxOccurrences,
+      payMode: t.payMode,
+      allOrNothing: t.allOrNothing,
+    })
+    .where(eq(responsibility.id, responsibilityId))
+    .run();
 }
 
 /**
@@ -704,6 +732,17 @@ export function templateChildStatus(householdId: string, templateId: string) {
       enabled: !!row,
       customized: row ? !row.syncedWithTemplate : false,
       weeklyValueCents: row?.weeklyValueCents ?? null,
+      row: row
+        ? {
+            id: row.id,
+            weeklyValueCents: row.weeklyValueCents,
+            cadence: row.cadence,
+            daysOfWeek: row.daysOfWeek,
+            maxOccurrences: row.maxOccurrences,
+            payMode: row.payMode,
+            allOrNothing: row.allOrNothing,
+          }
+        : null,
     };
   });
 }

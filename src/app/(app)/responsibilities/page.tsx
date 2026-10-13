@@ -64,7 +64,7 @@ export default async function ResponsibilitiesHubPage() {
           )}
         </div>
 
-        <AddTemplateForm />
+        <AddTemplateForm kids={children.map((c) => ({ id: c.id, name: c.displayName }))} />
       </div>
     </>
   );

@@ -763,7 +763,7 @@ describe("starter setup — age preset and copy-from-sibling", () => {
     });
 
     const band = bandForAge(7);
-    applyAgePreset(kidId, band);
+    applyAgePreset(kidId, householdId, band);
 
     const responsibilities = listResponsibilities(kidId);
     expect(responsibilities.length).toBe(AGE_PRESETS[band].responsibilities.length);
@@ -777,7 +777,7 @@ describe("starter setup — age preset and copy-from-sibling", () => {
       birthdate: "2015-01-01",
       status: "active",
     });
-    applyAgePreset(first, "11-13");
+    applyAgePreset(first, householdId, "11-13");
 
     const second = createChild({
       householdId,

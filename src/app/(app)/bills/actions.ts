@@ -8,6 +8,8 @@ import {
   createBillTemplate,
   disableBillTemplateForChild,
   enableBillTemplateForChild,
+  resyncBill,
+  setBillTemplateAppliesToNewChildren,
   updateBillTemplate,
   type BillTemplateInput,
 } from "@/lib/bills";
@@ -69,7 +71,10 @@ export async function addBillTemplate(
   const result = parseTemplateInput(formData);
   if ("error" in result) return { error: result.error };
 
-  createBillTemplate(parent.householdId, result.data);
+  const childIds = formData.getAll("childIds").map(String);
+  if (childIds.length === 0) return { error: "Pick at least one child." };
+
+  createBillTemplate(parent.householdId, result.data, childIds);
 
   revalidatePath("/bills");
   return { ok: true };
@@ -110,6 +115,26 @@ export async function toggleBillTemplateForChild(formData: FormData): Promise<vo
     enableBillTemplateForChild(parent.householdId, childId, templateId);
   }
 
+  revalidatePath("/bills");
+  revalidatePath(`/children/${childId}/bills`);
+}
+
+export async function setBillNewChildren(formData: FormData): Promise<void> {
+  const parent = await requireParent();
+  setBillTemplateAppliesToNewChildren(
+    parent.householdId,
+    String(formData.get("templateId") ?? ""),
+    formData.get("appliesToNewChildren") === "on",
+  );
+  revalidatePath("/bills");
+}
+
+/** Back to the family amount and schedule for one child. */
+export async function resyncBillForChild(formData: FormData): Promise<void> {
+  const parent = await requireParent();
+  const childId = String(formData.get("childId") ?? "");
+  if (!getChild(parent.householdId, childId)) return;
+  resyncBill(String(formData.get("billId") ?? ""));
   revalidatePath("/bills");
   revalidatePath(`/children/${childId}/bills`);
 }

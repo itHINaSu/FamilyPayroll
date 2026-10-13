@@ -1,6 +1,7 @@
 import { Alert, PageHeader } from "@/components/ui";
 import { requireParent } from "@/lib/auth/guard";
 import { billTemplateChildStatus, listBillTemplates } from "@/lib/bills";
+import { listChildren } from "@/lib/children";
 import { AddTemplateForm, TemplateCard } from "./forms";
 
 export const dynamic = "force-dynamic";
@@ -19,13 +20,11 @@ function describeBillCadence(cadence: string, dueDay: number): string {
 export default async function BillsHubPage() {
   const parent = await requireParent();
   const templates = listBillTemplates(parent.householdId);
+  const kids = listChildren(parent.householdId);
 
   return (
     <>
-      <PageHeader
-        title="Bills"
-        subtitle="Rent, subscriptions, anything due whether or not a paycheck was earned. Created once, applied to every child — turn it off or change the amount per child below."
-      />
+      <PageHeader title="Bills" />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
         <div className="space-y-4">
@@ -46,6 +45,7 @@ export default async function BillsHubPage() {
                   autopay: t.autopay,
                   mayUseEarmarked: t.mayUseEarmarked,
                   cadenceLabel: describeBillCadence(t.cadence, t.dueDay),
+                  appliesToNewChildren: t.appliesToNewChildren,
                 }}
                 statuses={billTemplateChildStatus(parent.householdId, t.id)}
               />
@@ -53,7 +53,7 @@ export default async function BillsHubPage() {
           )}
         </div>
 
-        <AddTemplateForm />
+        <AddTemplateForm kids={kids.map((c) => ({ id: c.id, name: c.displayName }))} />
       </div>
     </>
   );

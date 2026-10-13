@@ -91,7 +91,7 @@ export async function addChild(
     }
   } else if (parsed.data.starterSetup === "preset") {
     const band = bandForAge(ageFromBirthdate(parsed.data.birthdate));
-    applyAgePreset(childId, band);
+    applyAgePreset(childId, parent.householdId, band);
   }
 
   db.insert(auditLog)

@@ -11,8 +11,10 @@ export async function register() {
   const { initDatabase } = await import("@/db");
   const { getSessionSecret } = await import("@/lib/secrets");
   const { startScheduler } = await import("@/lib/scheduler");
+  const { adoptOrphans } = await import("@/lib/adopt");
 
   initDatabase(); // opens the connection and runs migrations
+  adoptOrphans(); // every expectation and bill gets a family entry in Setup
   getSessionSecret(); // generate-and-persist on first boot
   startScheduler();
 }

@@ -10,107 +10,9 @@ import { requireParent } from "@/lib/auth/guard";
 import { getChild } from "@/lib/children";
 import { parseAmountToCents } from "@/lib/money";
 import { resolvePolicy } from "@/lib/policy";
-import {
-  createResponsibilityTemplateForChild,
-  parsePayFields,
-  toggleBox,
-} from "@/lib/responsibilities";
+import { parsePayFields, resyncResponsibility, toggleBox } from "@/lib/responsibilities";
 
 export type RespState = { error?: string; ok?: boolean };
-
-const ResponsibilitySchema = z.object({
-  childId: z.string().min(1),
-  name: z.string().trim().min(1, "Give it a name."),
-  weeklyValue: z.string().min(1, "Enter a weekly amount."),
-  cadence: z.enum(["daily", "daily_selected", "weekly", "up_to_n"]),
-  maxOccurrences: z.string().optional(),
-  daysOfWeek: z.array(z.string()).optional(),
-  applyToAllChildren: z.string().optional(),
-});
-
-/**
- * Adding a responsibility from a child's own page still joins the
- * household's global list — created once, so it is a family template a
- * sibling can be switched onto later — but by default only this child is
- * subscribed to it, since that was the point of adding it here rather than
- * on the family hub. The checkbox opts into the hub's usual "everyone"
- * default instead.
- */
-export async function addResponsibility(
-  _prev: RespState,
-  formData: FormData,
-): Promise<RespState> {
-  const parent = await requireParent();
-
-  const parsed = ResponsibilitySchema.safeParse({
-    childId: formData.get("childId"),
-    name: formData.get("name"),
-    weeklyValue: formData.get("weeklyValue"),
-    cadence: formData.get("cadence"),
-    maxOccurrences: formData.get("maxOccurrences") ?? undefined,
-    daysOfWeek: formData.getAll("daysOfWeek").map(String),
-    applyToAllChildren: formData.get("applyToAllChildren") ?? undefined,
-  });
-
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Check the details." };
-  }
-  if (!getChild(parent.householdId, parsed.data.childId)) {
-    return { error: "That child could not be found." };
-  }
-
-  const weeklyValueCents = parseAmountToCents(parsed.data.weeklyValue);
-  if (weeklyValueCents === null || weeklyValueCents <= 0) {
-    return { error: "Enter a positive weekly amount." };
-  }
-
-  const days = (parsed.data.daysOfWeek ?? []).map(Number).filter((n) => !Number.isNaN(n));
-  if (parsed.data.cadence === "daily_selected" && days.length === 0) {
-    return { error: "Choose at least one day." };
-  }
-
-  const maxOccurrences =
-    parsed.data.cadence === "up_to_n"
-      ? Math.max(1, Number(parsed.data.maxOccurrences ?? 1))
-      : null;
-
-  createResponsibilityTemplateForChild(
-    parent.householdId,
-    parsed.data.childId,
-    {
-      name: parsed.data.name,
-      weeklyValueCents,
-      cadence: parsed.data.cadence,
-      daysOfWeek: parsed.data.cadence === "daily_selected" ? days : null,
-      maxOccurrences,
-      ...parsePayFields(formData),
-    },
-    parsed.data.applyToAllChildren === "on",
-  );
-
-  revalidatePath(`/children/${parsed.data.childId}/responsibilities`);
-  revalidatePath("/responsibilities");
-  return { ok: true };
-}
-
-export async function archiveResponsibility(formData: FormData): Promise<void> {
-  const parent = await requireParent();
-  const id = String(formData.get("responsibilityId") ?? "");
-  const childId = String(formData.get("childId") ?? "");
-
-  if (!getChild(parent.householdId, childId)) return;
-
-  // Archived rather than deleted: past pay stubs reference it by name and id.
-  // For a row that came from a family template, this is "off for this child"
-  // — the template hub's per-child toggle does the exact same update.
-  db.update(responsibility)
-    .set({ active: false, archivedAt: Date.now() })
-    .where(eq(responsibility.id, id))
-    .run();
-
-  revalidatePath(`/children/${childId}/responsibilities`);
-  revalidatePath("/responsibilities");
-}
 
 const EditSchema = z.object({
   responsibilityId: z.string().min(1),
@@ -168,30 +70,29 @@ export async function editResponsibility(
           ? Math.max(1, Number(parsed.data.maxOccurrences ?? 1))
           : null,
       ...parsePayFields(formData),
-      ...(parsed.data.cadence === "up_to_n" ? { payMode: "optional" as const } : {}),
       syncedWithTemplate: false,
     })
-    .where(eq(responsibility.id, parsed.data.responsibilityId))
+    .where(
+      and(
+        eq(responsibility.id, parsed.data.responsibilityId),
+        eq(responsibility.childId, parsed.data.childId),
+      ),
+    )
     .run();
 
   revalidatePath(`/children/${parsed.data.childId}/responsibilities`);
-  revalidatePath("/responsibilities");
+  revalidatePath("/responsibilities", "layout");
   return { ok: true };
 }
 
-/** Adds a family template back for this one child, mirroring its current values. */
-export async function addTemplateForThisChild(formData: FormData): Promise<void> {
+/** Back to the family values for one child's copy of an expectation. */
+export async function resyncChildResponsibility(formData: FormData): Promise<void> {
   const parent = await requireParent();
   const childId = String(formData.get("childId") ?? "");
-  const templateId = String(formData.get("templateId") ?? "");
-
   if (!getChild(parent.householdId, childId)) return;
-
-  const { enableTemplateForChild } = await import("@/lib/responsibilities");
-  enableTemplateForChild(childId, templateId);
-
+  resyncResponsibility(String(formData.get("responsibilityId") ?? ""));
+  revalidatePath("/responsibilities", "layout");
   revalidatePath(`/children/${childId}/responsibilities`);
-  revalidatePath("/responsibilities");
 }
 
 /**
@@ -335,5 +236,7 @@ export async function applyRaise(
     .run();
 
   revalidatePath(`/children/${childId}/responsibilities`);
+  revalidatePath(`/children/${childId}/settings`);
+  revalidatePath("/responsibilities", "layout");
   return { ok: true };
 }

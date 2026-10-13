@@ -63,3 +63,41 @@ it("gives a new child the all-children responsibilities only", () => {
   expect(namesFor(baby)).toEqual(["Dishes", "Laundry", "Make your bed"]);
   expect(namesFor(oldest)).toEqual(["Dishes", "Laundry", "Make your bed", "Mow the lawn"]);
 });
+
+it("attaches one-child expectations to Setup: by name, or as a new one-child entry", async () => {
+  const { adoptOrphans } = await import("@/lib/adopt");
+  const householdId = db
+    .insert(schema.household)
+    .values({ name: "Adopt test" })
+    .returning({ id: schema.household.id })
+    .get().id;
+  const kid = createChild({ householdId, displayName: "Kid", birthdate: "2014-01-01", status: "active" });
+  const family = createResponsibilityTemplate(householdId, input("Make your bed"));
+
+  const orphan = (name: string, cents: number) =>
+    db
+      .insert(schema.responsibility)
+      .values({ childId: kid, name, weeklyValueCents: cents, cadence: "daily", effectiveFrom: "2026-01-01" })
+      .returning({ id: schema.responsibility.id })
+      .get().id;
+  // The kid already has the family copy; an older stray copy at a different rate:
+  const stray = orphan("make your bed", 900);
+  const own = orphan("Mow the lawn", 800);
+
+  adoptOrphans(householdId);
+
+  const rows = db.select().from(schema.responsibility).where(eq(schema.responsibility.childId, kid)).all();
+  const strayRow = rows.find((r) => r.id === stray)!;
+  expect(strayRow.templateId).toBe(family.id);
+  expect(strayRow.syncedWithTemplate).toBe(false);
+
+  const ownRow = rows.find((r) => r.id === own)!;
+  const ownTemplate = db
+    .select()
+    .from(schema.responsibilityTemplate)
+    .where(eq(schema.responsibilityTemplate.id, ownRow.templateId!))
+    .get()!;
+  expect(ownTemplate.name).toBe("Mow the lawn");
+  expect(ownTemplate.appliesToNewChildren).toBe(false);
+  expect(ownRow.syncedWithTemplate).toBe(true);
+});

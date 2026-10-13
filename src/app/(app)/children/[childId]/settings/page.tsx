@@ -12,6 +12,8 @@ import { checkGuardrails, getOverrides, resolvePolicy } from "@/lib/policy";
 import { clearChildOverrides } from "@/app/(app)/settings/actions";
 import { ChildLoginForm } from "./child-login-form";
 import { EditChildForm } from "../edit-child-form";
+import { RaiseForm } from "../responsibilities/forms";
+import { listResponsibilities } from "@/lib/responsibilities";
 
 export const dynamic = "force-dynamic";
 
@@ -87,15 +89,21 @@ export default async function ChildSettingsPage({
           />
         </div>
 
-        <EditChildForm
-          child={{
-            id: record.id,
-            displayName: record.displayName,
-            birthdate: record.birthdate,
-            status: record.status,
-            photoBlobId: record.photoBlobId,
-          }}
-        />
+        <div className="space-y-6">
+          <EditChildForm
+            child={{
+              id: record.id,
+              displayName: record.displayName,
+              birthdate: record.birthdate,
+              status: record.status,
+              photoBlobId: record.photoBlobId,
+            }}
+          />
+          <RaiseForm
+            childId={childId}
+            responsibilities={listResponsibilities(childId).map((r) => ({ id: r.id, name: r.name }))}
+          />
+        </div>
       </div>
     </div>
   );

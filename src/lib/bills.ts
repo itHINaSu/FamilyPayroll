@@ -348,15 +348,25 @@ export function listBillTemplates(householdId: string, activeOnly = true) {
     .all();
 }
 
-export function createBillTemplate(householdId: string, input: BillTemplateInput): BillTemplateRow {
+/**
+ * Creates a family bill and gives it to the chosen children (all of them by
+ * default). Picking everyone also gives it to children added later.
+ */
+export function createBillTemplate(
+  householdId: string,
+  input: BillTemplateInput,
+  childIds?: string[],
+): BillTemplateRow {
+  const children = listChildren(householdId);
+  const chosen = childIds ? children.filter((c) => childIds.includes(c.id)) : children;
   const template = db
     .insert(billTemplate)
-    .values({ householdId, ...input })
+    .values({ householdId, ...input, appliesToNewChildren: chosen.length === children.length })
     .returning()
     .get();
 
   const today = todayInHousehold();
-  for (const c of listChildren(householdId)) {
+  for (const c of chosen) {
     db.insert(bill)
       .values({
         childId: c.id,
@@ -496,7 +506,7 @@ export function enableBillTemplateForChild(householdId: string, childId: string,
 }
 
 export function instantiateBillTemplatesForChild(householdId: string, childId: string): void {
-  const templates = listBillTemplates(householdId);
+  const templates = listBillTemplates(householdId).filter((t) => t.appliesToNewChildren);
   const today = todayInHousehold();
 
   for (const t of templates) {
@@ -534,6 +544,9 @@ export function billTemplateChildStatus(householdId: string, templateId: string)
       enabled: !!row,
       customized: row ? !row.syncedWithTemplate : false,
       amountCents: row?.amountCents ?? null,
+      billId: row?.id ?? null,
+      cadence: row?.cadence ?? null,
+      dueDay: row?.dueDay ?? null,
     };
   });
 }
@@ -558,3 +571,37 @@ export const DISPOSITION_LABELS = {
   disappears: "Gone — a real expense",
   family_fund: "Into a family fund",
 } as const;
+
+export function setBillTemplateAppliesToNewChildren(
+  householdId: string,
+  templateId: string,
+  value: boolean,
+): void {
+  db.update(billTemplate)
+    .set({ appliesToNewChildren: value })
+    .where(and(eq(billTemplate.id, templateId), eq(billTemplate.householdId, householdId)))
+    .run();
+}
+
+/** Puts a customized bill back on its family template's values. */
+export function resyncBill(billId: string): void {
+  const row = db.select().from(bill).where(eq(bill.id, billId)).get();
+  if (!row?.templateId) return;
+  const t = db.select().from(billTemplate).where(eq(billTemplate.id, row.templateId)).get();
+  if (!t) return;
+  db.update(bill)
+    .set({
+      syncedWithTemplate: true,
+      name: t.name,
+      amountCents: t.amountCents,
+      cadence: t.cadence,
+      dueDay: t.dueDay,
+      disposition: t.disposition,
+      sourceAccountOrder: t.sourceAccountOrder,
+      mayUseEarmarked: t.mayUseEarmarked,
+      autopay: t.autopay,
+    })
+    .where(eq(bill.id, billId))
+    .run();
+  generateInstances();
+}
