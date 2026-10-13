@@ -97,22 +97,12 @@ export const PolicySchema = z.object({
 
   display: z.object({
     /**
-     * A child can be on the trust track long before they earn anything. Showing
-     * them on a money dashboard with four empty balances is noise, so they are
-     * hidden here by default and always reachable under Children.
+     * A child can be in the family list long before they earn anything.
+     * Showing them on a money dashboard with empty balances is noise, so they
+     * are hidden here by default and always reachable under Children.
      */
     showNotYetEarning: z.boolean(),
     childOrder: z.enum(["oldest_first", "youngest_first", "name"]),
-  }),
-
-  trust: z.object({
-    enabled: z.boolean(),
-    drainAmount: z.number().int().min(1).max(20),
-    drainIntervalHours: z.number().int().min(1).max(168),
-    drainAnchorHour: z.number().int().min(0).max(23),
-    capLoad: z.number().int().min(1).max(100),
-    childVisibility: z.enum(["level_only", "show_load", "show_tariff"]),
-    pinDefaultExpiryHours: z.number().int().min(1).max(720),
   }),
 });
 
@@ -185,18 +175,6 @@ export const DEFAULT_POLICY: Policy = {
     // Oldest first: birth order is how families actually think about their
     // children, and it stays stable as they grow. Alphabetical is arbitrary.
     childOrder: "oldest_first",
-  },
-  trust: {
-    enabled: true,
-    // Fast by design: 2 per 12 hours against a cap of 6 clears a worst-possible
-    // day inside two days. A consequence a young child cannot see the end of has
-    // stopped teaching (SPEC §12.2).
-    drainAmount: 2,
-    drainIntervalHours: 12,
-    drainAnchorHour: 6,
-    capLoad: 6,
-    childVisibility: "level_only",
-    pinDefaultExpiryHours: 24,
   },
 };
 
@@ -351,24 +329,6 @@ export function checkGuardrails(policy: Policy, childAge?: number): Guardrail[] 
       "bills",
       "Recovering 100% of gross with no past-due cap can produce repeated $0.00 pay stubs.",
     );
-  }
-
-  if (policy.trust.enabled) {
-    const worstCaseDays =
-      (policy.trust.capLoad / policy.trust.drainAmount) *
-      (policy.trust.drainIntervalHours / 24);
-
-    // Consequence proximity (SPEC §12.2): a consequence too far removed from the
-    // action stops teaching. The tolerable distance scales with age.
-    const limit = childAge === undefined ? 14 : childAge < 8 ? 3 : childAge <= 12 ? 7 : 14;
-
-    if (worstCaseDays > limit) {
-      warn(
-        "trust",
-        `Worst-case trust recovery is ${worstCaseDays.toFixed(1)} days. ` +
-          `For this age, a consequence beyond about ${limit} days stops teaching and starts feeling like weather.`,
-      );
-    }
   }
 
   return warnings;

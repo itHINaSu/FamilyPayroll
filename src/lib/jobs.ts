@@ -6,7 +6,6 @@ import { db } from "@/db";
 import { job, jobClaim, type RepeatRule } from "@/db/schema";
 import { addDays, todayInHousehold } from "@/lib/dates";
 import { LedgerError } from "@/lib/ledger";
-import { trustLevelFor } from "@/lib/trust";
 
 /**
  * The job board (SPEC §4.5).
@@ -14,11 +13,6 @@ import { trustLevelFor } from "@/lib/trust";
  * Bonus work: claimed rather than assigned, paid per job, and deliberately not
  * part of potential pay — a child who claims nothing has not failed to earn
  * anything.
- *
- * A job may require a minimum trust level. That is the single sanctioned point
- * of contact between the two tracks and it is bounded by invariant I10: trust
- * can stop a child *claiming* work they are not ready for, and can never reduce
- * pay for work already done.
  */
 
 export type JobRow = typeof job.$inferSelect;
@@ -104,19 +98,6 @@ export function availableJobs(
           reason: "Already taken for this period",
           claimedByThisChild: false,
         };
-      }
-
-      // Invariant I10: trust gates access to opportunity, nothing else.
-      if (j.trustAreaId && j.minTrustLevel !== null) {
-        const status = trustLevelFor(childId, j.trustAreaId);
-        if (status.level.level < j.minTrustLevel) {
-          return {
-            job: j,
-            available: false,
-            reason: "Not ready for this one yet",
-            claimedByThisChild: false,
-          };
-        }
       }
 
       return { job: j, available: true, claimedByThisChild: false };

@@ -34,7 +34,7 @@ export function PayModeFields({
   if (cadence === "up_to_n") {
     return (
       <p className="text-xs text-ink-400">
-        Up-to-N responsibilities are always earned per check-off.
+        Up-to-N expectations are always earned per check-off.
       </p>
     );
   }

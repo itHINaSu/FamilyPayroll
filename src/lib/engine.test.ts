@@ -1,10 +1,5 @@
 /**
- * Payroll, bills, interest, and trust, against a real database.
- *
- * These assert the behaviours the design conversation actually turned on: that
- * doing nothing still pays a child, that excusals lower potential rather than
- * earnings, that a bad afternoon never touches money, and that trust recovers
- * on its own.
+ * Payroll, bills, and interest, against a real database.
  */
 
 import fs from "node:fs";
@@ -38,8 +33,6 @@ const { accrueDaily, postMonthlyInterest, lifetimeInterestCents } = await import
   "@/lib/interest"
 );
 const { earmark, listGoals, unearmark } = await import("@/lib/goals");
-const trust = await import("@/lib/trust");
-const { seedHousehold } = await import("@/lib/seed");
 const { savePolicyVersion, resolvePolicy, checkGuardrails, DEFAULT_POLICY } =
   await import("@/lib/policy");
 
@@ -52,7 +45,6 @@ beforeAll(() => {
     .values({ name: "Test", timezone: "America/Chicago" })
     .returning({ id: schema.household.id })
     .get().id;
-  seedHousehold(householdId);
 });
 
 beforeEach(() => {
@@ -584,216 +576,6 @@ describe("goals", () => {
   });
 });
 
-describe("trust — invariant I10", () => {
-  function firstArea() {
-    return db
-      .select()
-      .from(schema.trustArea)
-      .where(eq(schema.trustArea.householdId, householdId))
-      .get()!;
-  }
-
-  it("never touches money", () => {
-    recordTransaction({
-      childId,
-      accountType: "checking",
-      amountCents: 2500,
-      type: "cash_deposit",
-      description: "seed",
-    });
-
-    const before = getBalances(childId);
-    const area = firstArea();
-
-    trust.recordMark({
-      childId,
-      trustAreaId: area.id,
-      weight: 2,
-      note: "hit sibling",
-      createdByUserId: "parent-1",
-    });
-
-    expect(getBalances(childId)).toEqual(before);
-
-    const entries = db
-      .select()
-      .from(schema.ledgerEntry)
-      .where(eq(schema.ledgerEntry.childId, childId))
-      .all();
-    expect(entries).toHaveLength(1); // only the seed deposit
-  });
-
-  it("drops a level as marks accumulate", () => {
-    const area = firstArea();
-
-    expect(trust.trustLevelFor(childId, area.id).level.name).toBe("Trusted");
-
-    trust.recordMark({
-      childId,
-      trustAreaId: area.id,
-      weight: 1,
-      createdByUserId: "p",
-    });
-    expect(trust.trustLevelFor(childId, area.id).level.name).toBe("Working on it");
-
-    trust.recordMark({
-      childId,
-      trustAreaId: area.id,
-      weight: 2,
-      createdByUserId: "p",
-    });
-    expect(trust.trustLevelFor(childId, area.id).level.name).toBe("Not ready today");
-  });
-
-  it("caps the load, so one bad afternoon cannot dig an endless hole", () => {
-    const area = firstArea();
-
-    for (let i = 0; i < 10; i++) {
-      trust.recordMark({
-        childId,
-        trustAreaId: area.id,
-        weight: 2,
-        createdByUserId: "p",
-      });
-    }
-
-    expect(trust.trustLevelFor(childId, area.id).load).toBe(6); // default cap
-  });
-
-  it("floors credits at zero, so goodwill cannot be banked", () => {
-    const area = firstArea();
-
-    trust.recordMark({ childId, trustAreaId: area.id, weight: 1, createdByUserId: "p" });
-    trust.recordMark({ childId, trustAreaId: area.id, weight: -5, createdByUserId: "p" });
-
-    expect(trust.trustLevelFor(childId, area.id).load).toBe(0);
-
-    // A later infraction still costs full price — nothing was banked against it.
-    trust.recordMark({ childId, trustAreaId: area.id, weight: 2, createdByUserId: "p" });
-    expect(trust.trustLevelFor(childId, area.id).load).toBe(2);
-  });
-
-  it("drains with time, so doing nothing heals", () => {
-    const area = firstArea();
-
-    trust.recordMark({ childId, trustAreaId: area.id, weight: 4, createdByUserId: "p" });
-    expect(trust.trustLevelFor(childId, area.id).load).toBe(4);
-
-    // Rewind the drain clock by 24 hours: two intervals at 2 points each.
-    db.update(schema.trustState)
-      .set({ lastDrainedAt: Date.now() - 24 * 3_600_000 })
-      .where(
-        and(
-          eq(schema.trustState.childId, childId),
-          eq(schema.trustState.trustAreaId, area.id),
-        ),
-      )
-      .run();
-
-    expect(trust.trustLevelFor(childId, area.id).load).toBe(0);
-    expect(trust.trustLevelFor(childId, area.id).level.name).toBe("Trusted");
-  });
-
-  it("retracts a mark cleanly, unlike the ledger", () => {
-    const area = firstArea();
-
-    const markId = trust.recordMark({
-      childId,
-      trustAreaId: area.id,
-      weight: 2,
-      createdByUserId: "p",
-    });
-    expect(trust.trustLevelFor(childId, area.id).load).toBe(2);
-
-    trust.retractMark(markId);
-    expect(trust.trustLevelFor(childId, area.id).load).toBe(0);
-  });
-
-  it("keeps areas independent", () => {
-    const areas = db
-      .select()
-      .from(schema.trustArea)
-      .where(eq(schema.trustArea.householdId, householdId))
-      .all();
-
-    const friendships = areas.find((a) => a.name === "Friendships")!;
-    const screens = areas.find((a) => a.name === "Screens")!;
-
-    trust.recordMark({
-      childId,
-      trustAreaId: friendships.id,
-      weight: 4,
-      createdByUserId: "p",
-    });
-
-    // Unkind to a friend does not cost television.
-    expect(trust.trustLevelFor(childId, friendships.id).level.level).toBeLessThan(3);
-    expect(trust.trustLevelFor(childId, screens.id).level.name).toBe("Trusted");
-  });
-
-  it("scopes trustSummary and privilegesFor to area membership", () => {
-    // createChild (the bare primitive used throughout this file) does not
-    // join any area on its own — that instantiate-for-everyone step lives in
-    // the addChild action, mirrored here explicitly.
-    expect(trust.trustSummary(childId)).toEqual([]);
-
-    trust.joinAllAreasForChild(householdId, childId);
-    const afterJoin = trust.trustSummary(childId);
-    expect(afterJoin.length).toBeGreaterThan(0);
-
-    const areas = db
-      .select()
-      .from(schema.trustArea)
-      .where(eq(schema.trustArea.householdId, householdId))
-      .all();
-    const screens = areas.find((a) => a.name === "Screens")!;
-
-    trust.leaveArea(screens.id, childId);
-    const afterLeave = trust.trustSummary(childId);
-    expect(afterLeave.some((a) => a.areaName === "Screens")).toBe(false);
-    expect(afterLeave.length).toBe(afterJoin.length - 1);
-
-    // A privilege tied to an area the child isn't a member of should not
-    // appear on either side of privilegesFor.
-    const screenPriv = db
-      .select()
-      .from(schema.privilege)
-      .where(eq(schema.privilege.trustAreaId, screens.id))
-      .get();
-    if (screenPriv) {
-      const { ready, notYet } = trust.privilegesFor(childId);
-      expect(ready.some((p) => p.name === screenPriv.name)).toBe(false);
-      expect(notYet.some((p) => p.name === screenPriv.name)).toBe(false);
-    }
-
-    trust.joinArea(screens.id, childId);
-    expect(trust.trustSummary(childId).some((a) => a.areaName === "Screens")).toBe(true);
-  });
-
-  it("applies a new area to every existing child by default", () => {
-    const sibling = createChild({
-      householdId,
-      displayName: "Membership Sibling",
-      birthdate: "2014-01-01",
-      status: "active",
-    });
-    trust.joinAllAreasForChild(householdId, childId);
-    trust.joinAllAreasForChild(householdId, sibling);
-
-    const newAreaId = db
-      .insert(schema.trustArea)
-      .values({ householdId, name: "Chores" })
-      .returning({ id: schema.trustArea.id })
-      .get().id;
-
-    // Mirrors what the addArea action does after inserting the row.
-    trust.joinAreaForAllChildren(householdId, newAreaId);
-
-    expect(trust.trustSummary(childId).some((a) => a.areaName === "Chores")).toBe(true);
-    expect(trust.trustSummary(sibling).some((a) => a.areaName === "Chores")).toBe(true);
-  });
-});
-
 describe("policy", () => {
   it("merges a child override over the household default", () => {
     savePolicyVersion({
@@ -842,15 +624,6 @@ describe("policy", () => {
     };
     const warnings = checkGuardrails(broken);
     expect(warnings.some((w) => w.field === "allocation")).toBe(true);
-  });
-
-  it("warns when trust recovery is too far removed for a young child", () => {
-    const slow = {
-      ...DEFAULT_POLICY,
-      trust: { ...DEFAULT_POLICY.trust, drainAmount: 1, drainIntervalHours: 24, capLoad: 10 },
-    };
-    expect(checkGuardrails(slow, 6).some((w) => w.field === "trust")).toBe(true);
-    expect(checkGuardrails(slow, 15).some((w) => w.field === "trust")).toBe(false);
   });
 });
 
@@ -920,35 +693,21 @@ describe("starter setup — age preset and copy-from-sibling", () => {
     });
 
     const band = bandForAge(7);
-    applyAgePreset(kidId, householdId, band);
+    applyAgePreset(kidId, band);
 
     const responsibilities = listResponsibilities(kidId);
     expect(responsibilities.length).toBe(AGE_PRESETS[band].responsibilities.length);
     expect(responsibilities.map((r) => r.name)).toContain("Make your bed");
-
-    // Trust overrides land on every active household area.
-    const areas = db
-      .select()
-      .from(schema.trustArea)
-      .where(eq(schema.trustArea.householdId, householdId))
-      .all();
-    const overrides = db
-      .select()
-      .from(schema.trustAreaOverride)
-      .where(eq(schema.trustAreaOverride.childId, kidId))
-      .all();
-    expect(overrides.length).toBe(areas.length);
-    expect(overrides[0].drainAmount).toBe(AGE_PRESETS[band].trust.drainAmount);
   });
 
-  it("copies a sibling's responsibilities and trust overrides rather than the preset", () => {
+  it("copies a sibling's responsibilities rather than the preset", () => {
     const first = createChild({
       householdId,
       displayName: "First",
       birthdate: "2015-01-01",
       status: "active",
     });
-    applyAgePreset(first, householdId, "11-13");
+    applyAgePreset(first, "11-13");
 
     const second = createChild({
       householdId,
@@ -965,18 +724,6 @@ describe("starter setup — age preset and copy-from-sibling", () => {
       .map((r) => r.name)
       .sort();
     expect(secondNames).toEqual(firstNames);
-
-    const firstOverrides = db
-      .select()
-      .from(schema.trustAreaOverride)
-      .where(eq(schema.trustAreaOverride.childId, first))
-      .all();
-    const secondOverrides = db
-      .select()
-      .from(schema.trustAreaOverride)
-      .where(eq(schema.trustAreaOverride.childId, second))
-      .all();
-    expect(secondOverrides.length).toBe(firstOverrides.length);
   });
 
   it("leaves a blank child with nothing, when asked", () => {

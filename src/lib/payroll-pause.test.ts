@@ -31,7 +31,6 @@ const { createChild } = await import("@/lib/children");
 const { addDays, todayInHousehold } = await import("@/lib/dates");
 const { draftPaystub, postPaystub, runPayrollCycle } = await import("@/lib/payroll");
 const { generateInstances } = await import("@/lib/bills");
-const { seedHousehold } = await import("@/lib/seed");
 const { pausePayroll, payrollPausedOn, resumePayroll } = await import("@/lib/payroll-pause");
 const { resetHistory } = await import("@/lib/backup");
 const { recordTransaction } = await import("@/lib/ledger");
@@ -47,7 +46,6 @@ beforeAll(() => {
     .values({ name: "Test", timezone: "America/Chicago", setupCompletedAt: Date.now() })
     .returning({ id: schema.household.id })
     .get().id;
-  seedHousehold(householdId);
   parentId = db
     .insert(schema.user)
     .values({
@@ -220,7 +218,6 @@ describe("reset history", () => {
       money: true,
       chores: false,
       jobs: false,
-      trust: false,
     });
 
     expect(fs.existsSync(safetyBackup)).toBe(true);
@@ -247,7 +244,7 @@ describe("reset history", () => {
     expect(t).toBe(4);
   });
 
-  it("chores and trust only: clears those, leaves money alone", () => {
+  it("chores only: clears check-offs, leaves money alone", () => {
     addCheckOff();
     recordTransaction({
       childId,
@@ -256,20 +253,10 @@ describe("reset history", () => {
       type: "cash_deposit",
       description: "Allowance",
     });
-    const area = db
-      .select()
-      .from(schema.trustArea)
-      .where(eq(schema.trustArea.householdId, householdId))
-      .get()!;
-    db.insert(schema.trustMark).values({ childId, trustAreaId: area.id, weight: 2 }).run();
-    db.insert(schema.trustState).values({ childId, trustAreaId: area.id, load: 2, lastDrainedAt: Date.now() }).run();
-
-    resetHistory(householdId, { money: false, chores: true, jobs: false, trust: true });
+    resetHistory(householdId, { money: false, chores: true, jobs: false });
 
     const count = (sql: string) => (sqlite.prepare(sql).get(childId) as { n: number }).n;
     expect(count(`SELECT count(*) n FROM completion WHERE child_id = ?`)).toBe(0);
-    expect(count(`SELECT count(*) n FROM trust_mark WHERE child_id = ?`)).toBe(0);
-    expect(count(`SELECT count(*) n FROM trust_state WHERE child_id = ?`)).toBe(0);
     expect(count(`SELECT count(*) n FROM ledger_entry WHERE child_id = ?`)).toBe(1);
     expect(count(`SELECT count(*) n FROM account WHERE child_id = ? AND balance_cents = 800`)).toBe(1);
   });

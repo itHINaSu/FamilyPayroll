@@ -9,10 +9,8 @@ import { EditJobRow } from "./form";
 export function JobRow({
   job,
   eligibleLabel,
-  gateLabel,
   repeatLabel,
   children,
-  areas,
 }: {
   job: {
     id: string;
@@ -26,14 +24,10 @@ export function JobRow({
     claimExpiryHours: number;
     allocationMode: string;
     eligibleChildIds: string[] | null;
-    trustAreaId: string | null;
-    minTrustLevel: number | null;
   };
   eligibleLabel: string;
-  gateLabel: string | null;
   repeatLabel: string;
   children: { id: string; name: string }[];
-  areas: { id: string; name: string }[];
 }) {
   const [editing, setEditing] = useState(false);
 
@@ -51,9 +45,6 @@ export function JobRow({
           <p className="mt-0.5 text-xs text-ink-400">
             {repeatLabel} · {eligibleLabel}
           </p>
-          {gateLabel && (
-            <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-300">{gateLabel}</p>
-          )}
         </div>
 
         <span className="flex items-center gap-3">
@@ -90,11 +81,8 @@ export function JobRow({
             claimExpiryHours: job.claimExpiryHours,
             allocationMode: job.allocationMode,
             eligibleChildIds: job.eligibleChildIds,
-            trustAreaId: job.trustAreaId,
-            minTrustLevel: job.minTrustLevel,
           }}
           children={children}
-          areas={areas}
           onDone={() => setEditing(false)}
         />
       )}

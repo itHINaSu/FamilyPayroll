@@ -24,7 +24,7 @@ export default async function AppLayout({
   // The single choke point: every route under this layout is the parent
   // management app. A child-role session belongs at /me — its own
   // read-only view through the same kiosk boundary (I4, I11) that keeps
-  // the held account, bill dispositions, and a sibling's trust off of it.
+  // the held account and bill dispositions off of it.
   if (sessionUser.role === "child") redirect("/me");
 
   const home = getHousehold();

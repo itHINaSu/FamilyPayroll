@@ -99,7 +99,7 @@ export function listChildren(
 /**
  * Children to show on a money-oriented surface — the dashboard and the kiosk.
  *
- * `pre_participant` is a real state: a child can be on the trust track, or just
+ * `pre_participant` is a real state: a child can be in the family list, or just
  * recorded ahead of time, years before they earn anything. Four empty balances
  * next to a sibling's real ones is noise, so they are excluded unless a parent
  * asks for them.

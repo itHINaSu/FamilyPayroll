@@ -165,8 +165,8 @@ export function AddChildForm({
 
         {starterSetup === "preset" && band && (
           <p className="rounded-lg bg-ink-100 px-3 py-2 text-xs text-ink-500 dark:bg-ink-700 dark:text-ink-300">
-            Adds {AGE_PRESETS[band].responsibilities.length} responsibilities and
-            matching trust settings for {AGE_PRESETS[band].label.toLowerCase()}.
+            Adds {AGE_PRESETS[band].responsibilities.length} expectations for{" "}
+            {AGE_PRESETS[band].label.toLowerCase()}.
           </p>
         )}
 

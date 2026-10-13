@@ -74,28 +74,6 @@ export default async function MePage() {
         </Card>
       )}
 
-      {detail.trust.length > 0 && (
-        <Card>
-          <h2 className="mb-3 font-semibold">How things are going</h2>
-          <ul className="space-y-3">
-            {detail.trust.map((t) => (
-              <li key={t.areaName} className="flex items-center justify-between text-sm">
-                <span>{t.areaName}</span>
-                <span className="text-right">
-                  <span className="block font-medium">{t.levelName}</span>
-                  <span className="block text-xs text-ink-400">{t.recovery}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-          {detail.focusNote && (
-            <p className="mt-4 rounded-lg bg-ink-50 p-3 text-sm dark:bg-ink-900">
-              {detail.focusNote}
-            </p>
-          )}
-        </Card>
-      )}
-
       {detail.goals.length > 0 && (
         <Card>
           <h2 className="mb-3 font-semibold">Goals</h2>

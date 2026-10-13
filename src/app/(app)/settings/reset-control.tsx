@@ -15,18 +15,13 @@ const OPTIONS = [
   },
   {
     name: "chores",
-    label: "Chore check-offs",
-    detail: "Every ticked box and excused day — this pay period starts from zero.",
+    label: "Expectation marks",
+    detail: "Every marked miss, check-off, and excused day — this pay period starts fresh.",
   },
   {
     name: "jobs",
     label: "Extra-job claims",
     detail: "Claimed, submitted, and approved jobs. The jobs on offer stay.",
-  },
-  {
-    name: "trust",
-    label: "Trust marks and levels",
-    detail: "Every mark, every level back to the top, and today's focus. Areas and rules stay.",
   },
 ] as const;
 
@@ -67,8 +62,8 @@ export function ResetControl() {
     <Card className="!border-red-300 dark:!border-red-900">
       <h2 className="mb-1 text-lg font-semibold text-red-700 dark:text-red-400">Reset history</h2>
       <p className="mb-4 text-sm text-ink-400">
-        Clears what you tick. Parents, children, responsibilities, bills, jobs,
-        goals, trust areas, and settings are always kept. A backup is saved
+        Clears what you tick. Parents, children, expectations, bills, jobs,
+        goals, and settings are always kept. A backup is saved
         first, so it can be restored from the Backups section.
       </p>
 

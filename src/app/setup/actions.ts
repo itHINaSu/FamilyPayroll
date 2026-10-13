@@ -10,7 +10,6 @@ import { createSession } from "@/lib/auth/session";
 import { isSetupComplete } from "@/lib/auth/guard";
 import { UsernameSchema } from "@/lib/auth/username";
 import { config } from "@/lib/config";
-import { seedHousehold } from "@/lib/seed";
 
 const SetupSchema = z.object({
   householdName: z.string().trim().min(1, "Give your household a name."),
@@ -81,10 +80,6 @@ export async function completeSetup(
 
     return { userId: createdUser.id, householdId: createdHousehold.id };
   });
-
-  // Starter trust areas, house rules, and privileges, so nobody meets a blank
-  // configuration screen. All of it is editable afterwards.
-  seedHousehold(createdUserId.householdId);
 
   await createSession(createdUserId.userId);
   redirect("/");

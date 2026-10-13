@@ -5,9 +5,9 @@ import { ChevronRightIcon } from "./icons";
 
 /**
  * "A list of children, quickly select one" — the entry point shared by the
- * Chores and Trust tabs. Each one is a picker in front of an existing
+ * Balances tab. A picker in front of an existing
  * per-child page that already does the real work (the completion grid, the
- * trust mark form) rather than a new surface duplicating it.
+ * money page) rather than a new surface duplicating it.
  */
 export function ChildPicker({
   children,
@@ -17,8 +17,8 @@ export function ChildPicker({
 }: {
   children: { id: string; displayName: string; photoBlobId: string | null }[];
   hrefFor: (childId: string) => string;
-  /** A one-line "why you'd tap this one" hint — today's chore count, current
-   * trust standing, whatever is relevant to the tab this picker is on. */
+  /** A one-line "why you'd tap this one" hint — today's count, current
+   * whatever is relevant to the tab this picker is on. */
   subtitleFor?: (childId: string) => string | null;
   emptyMessage: string;
 }) {

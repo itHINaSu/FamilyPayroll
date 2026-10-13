@@ -7,7 +7,6 @@ import { child, household, paystub, payPeriod } from "@/db/schema";
 import { upcomingBills } from "@/lib/bills";
 import { formatCents } from "@/lib/money";
 import { notifyParents } from "@/lib/notifications";
-import { trustSummary } from "@/lib/trust";
 
 /**
  * The daily nudges.
@@ -47,19 +46,6 @@ export async function sendDailyNudges(): Promise<void> {
             body: `${c.displayName} has enough set aside.`,
             url: `/children/${c.id}/bills`,
             tag: `due-${c.id}`,
-          });
-        }
-      }
-
-      // A trust level that has sat low for days is usually a parent who forgot,
-      // not a child who is still in trouble. The app carries the follow-through.
-      for (const area of trustSummary(c.id)) {
-        if (area.level.level <= 1 && area.pinned) {
-          await notifyParents(home.id, "trust_stale", {
-            title: `${c.displayName} is still at "${area.level.name}"`,
-            body: `In ${area.areaName}, set by hand. Still accurate?`,
-            url: `/children/${c.id}/trust`,
-            tag: `trust-${c.id}-${area.areaId}`,
           });
         }
       }

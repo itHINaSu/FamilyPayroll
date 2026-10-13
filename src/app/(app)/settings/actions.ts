@@ -459,9 +459,8 @@ export async function togglePayroll(
 
 const RESET_LABELS: Record<keyof ResetScope, string> = {
   money: "balances and payroll history",
-  chores: "chore check-offs",
+  chores: "expectation check-offs and misses",
   jobs: "extra-job claims",
-  trust: "trust marks and levels",
 };
 
 /**
@@ -481,7 +480,6 @@ export async function resetHistoryAction(
     money: formData.get("money") === "on",
     chores: formData.get("chores") === "on",
     jobs: formData.get("jobs") === "on",
-    trust: formData.get("trust") === "on",
   };
   const chosen = (Object.keys(scope) as (keyof ResetScope)[]).filter((k) => scope[k]);
   if (chosen.length === 0) {

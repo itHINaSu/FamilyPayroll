@@ -30,8 +30,8 @@ export function KioskForm({
       <h2 className="mb-1 text-lg font-semibold">Kiosk displays</h2>
       <p className="mb-4 text-sm text-ink-400">
         A link that pairs a screen permanently. Open it once on the wall tablet;
-        it stays signed in and shows the family display. Trust status never
-        appears on the shared view, and neither does anything held for the future.
+        it stays signed in and shows the family display. Nothing held for the
+        future ever appears on the shared view.
       </p>
 
       {devices.length > 0 && (

@@ -39,8 +39,7 @@ export function ChildLoginForm({
       <p className="mb-4 text-sm text-ink-400">
         Old enough to check their own balance and status directly, instead of
         over your shoulder. A personal login only ever shows a read-only view
-        of their own account — no held funds, no bill amounts, no
-        sibling&apos;s trust status.
+        of their own account — no held funds, no bill amounts.
       </p>
 
       {existingLogin ? (

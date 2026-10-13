@@ -26,22 +26,17 @@ type JobDefaults = {
   claimExpiryHours?: number;
   allocationMode?: string;
   eligibleChildIds?: string[] | null;
-  trustAreaId?: string | null;
-  minTrustLevel?: number | null;
 };
 
 /** The full field set, shared between posting a new job and editing one. */
 function JobFields({
   children,
-  areas,
   defaults,
 }: {
   children: { id: string; name: string }[];
-  areas: { id: string; name: string }[];
   defaults?: JobDefaults;
 }) {
   const [repeatRule, setRepeatRule] = useState(defaults?.repeatRule ?? "weekly");
-  const [gated, setGated] = useState(!!defaults?.trustAreaId);
   const eligibleSet = new Set(defaults?.eligibleChildIds ?? []);
 
   return (
@@ -140,55 +135,14 @@ function JobFields({
         />
       </Field>
 
-      <div className="rounded-lg border border-ink-200 p-3 dark:border-ink-700">
-        <label className="flex items-start gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={gated}
-            onChange={(e) => setGated(e.target.checked)}
-            className="mt-1"
-          />
-          <span>
-            Require a trust level
-            <span className="block text-xs text-ink-400">
-              Blocks claiming only. It can never reduce pay for work already
-              done — you do not get promoted if you are not trustworthy, but you
-              still get paid for last week.
-            </span>
-          </span>
-        </label>
-
-        {gated && (
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <Field label="Area">
-              <Select name="trustAreaId" defaultValue={defaults?.trustAreaId ?? areas[0]?.id ?? ""}>
-                {areas.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="At least">
-              <Select name="minTrustLevel" defaultValue={String(defaults?.minTrustLevel ?? 3)}>
-                <option value="3">Trusted</option>
-                <option value="2">Working on it</option>
-                <option value="1">Not ready today</option>
-              </Select>
-            </Field>
-          </div>
-        )}
-      </div>
     </>
   );
 }
 
 export function AddJobForm({
   children,
-  areas,
 }: {
   children: { id: string; name: string }[];
-  areas: { id: string; name: string }[];
 }) {
   const [state, formAction] = useActionState<JobState, FormData>(addJob, {});
   const formRef = useRef<HTMLFormElement>(null);
@@ -205,7 +159,7 @@ export function AddJobForm({
         {state.error && <Alert>{state.error}</Alert>}
         {state.ok && <Alert tone="info">Posted.</Alert>}
 
-        <JobFields children={children} areas={areas} />
+        <JobFields children={children} />
 
         <Submit>Post job</Submit>
       </form>
@@ -216,12 +170,10 @@ export function AddJobForm({
 export function EditJobRow({
   job,
   children,
-  areas,
   onDone,
 }: {
   job: JobDefaults & { id: string };
   children: { id: string; name: string }[];
-  areas: { id: string; name: string }[];
   onDone: () => void;
 }) {
   const [state, formAction] = useActionState<JobState, FormData>(editJob, {});
@@ -232,7 +184,7 @@ export function EditJobRow({
         <input type="hidden" name="jobId" value={job.id} />
         {state.error && <Alert>{state.error}</Alert>}
 
-        <JobFields children={children} areas={areas} defaults={job} />
+        <JobFields children={children} defaults={job} />
 
         <div className="flex items-center gap-3">
           <Submit>Save</Submit>

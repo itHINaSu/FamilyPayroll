@@ -23,7 +23,7 @@ export default async function ResponsibilitiesHubPage() {
   return (
     <>
       <PageHeader
-        title="Responsibilities"
+        title="Expectations"
         subtitle="The paid work. Name, pay, and cadence are editable right here — click into one to turn it off or on for a specific child."
       />
 

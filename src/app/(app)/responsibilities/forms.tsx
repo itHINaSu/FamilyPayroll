@@ -111,7 +111,7 @@ export function AddTemplateForm() {
 
   return (
     <Card className="h-fit">
-      <h2 className="mb-1 text-lg font-semibold">Add a responsibility</h2>
+      <h2 className="mb-1 text-lg font-semibold">Add an expectation</h2>
       <p className="mb-4 text-xs text-ink-400">
         Applies to every child by default — click into it afterward to turn
         it off for one child if it shouldn&apos;t, or change their rate
@@ -135,7 +135,7 @@ export function AddTemplateForm() {
 
         <PayModeFields cadence={cadence} />
 
-        <Submit>Add responsibility</Submit>
+        <Submit>Add expectation</Submit>
       </form>
     </Card>
   );
@@ -313,7 +313,7 @@ export function NewChildrenToggle({
         <span>
           Add to new children automatically
           <span className="block text-xs text-ink-400">
-            When you add a child later, they start with this responsibility.
+            When you add a child later, they start with this expectation.
           </span>
         </span>
       </label>

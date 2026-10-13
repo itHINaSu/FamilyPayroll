@@ -37,8 +37,7 @@ export type NotificationEvent =
   | "job_submitted"
   | "approval_requested"
   | "goal_reached"
-  | "interest_posted"
-  | "trust_stale";
+  | "interest_posted";
 
 export const EVENT_LABELS: Record<NotificationEvent, string> = {
   payroll_draft_ready: "A pay stub is ready to review",
@@ -51,7 +50,6 @@ export const EVENT_LABELS: Record<NotificationEvent, string> = {
   approval_requested: "A child asked for something",
   goal_reached: "A savings goal was reached",
   interest_posted: "Interest was paid",
-  trust_stale: "A trust level has sat low for days",
 };
 
 /** Off by default: these fire often enough to become noise. */

@@ -2,11 +2,10 @@ import { and, eq } from "drizzle-orm";
 
 import { Alert, Button, Card, PageHeader } from "@/components/ui";
 import { db } from "@/db";
-import { child, job, trustArea } from "@/db/schema";
+import { child, job } from "@/db/schema";
 import { requireParent } from "@/lib/auth/guard";
 import { pendingJobClaims, REPEAT_LABELS } from "@/lib/jobs";
 import { formatCents } from "@/lib/money";
-import { TRUST_LEVELS } from "@/lib/trust";
 import { decideClaim } from "./actions";
 import { AddJobForm } from "./form";
 import { JobRow } from "./job-row";
@@ -27,12 +26,6 @@ export default async function JobsPage() {
     .select()
     .from(child)
     .where(and(eq(child.householdId, parent.householdId), eq(child.status, "active")))
-    .all();
-
-  const areas = db
-    .select()
-    .from(trustArea)
-    .where(and(eq(trustArea.householdId, parent.householdId), eq(trustArea.active, true)))
     .all();
 
   const pending = pendingJobClaims(parent.householdId);
@@ -100,9 +93,6 @@ export default async function JobsPage() {
             ) : (
               <ul className="space-y-3">
                 {jobs.map((j) => {
-                  const area = areas.find((a) => a.id === j.trustAreaId);
-                  const gate = TRUST_LEVELS.find((l) => l.level === j.minTrustLevel);
-
                   const repeatLabel =
                     REPEAT_LABELS[j.repeatRule] +
                     (j.repeatRule === "every_n_days" ? ` (${j.repeatN} days)` : "");
@@ -111,7 +101,6 @@ export default async function JobsPage() {
                     (j.eligibleChildIds?.length
                       ? ` · ${j.eligibleChildIds.map((id) => childName.get(id)).join(", ")}`
                       : " · anyone");
-                  const gateLabel = area && gate ? `Needs ${gate.name} in ${area.name}` : null;
 
                   return (
                     <JobRow
@@ -119,9 +108,7 @@ export default async function JobsPage() {
                       job={j}
                       repeatLabel={repeatLabel}
                       eligibleLabel={eligibleLabel}
-                      gateLabel={gateLabel}
                       children={children.map((c) => ({ id: c.id, name: c.displayName }))}
-                      areas={areas.map((a) => ({ id: a.id, name: a.name }))}
                     />
                   );
                 })}
@@ -132,7 +119,6 @@ export default async function JobsPage() {
 
         <AddJobForm
           children={children.map((c) => ({ id: c.id, name: c.displayName }))}
-          areas={areas.map((a) => ({ id: a.id, name: a.name }))}
         />
       </div>
     </>

@@ -278,61 +278,10 @@ export const SETTINGS_SECTIONS: SectionSpec[] = [
     ],
   },
   {
-    key: "trust",
-    title: "Trust",
-    description:
-      "Marks add load, time drains it. Doing nothing produces recovery, never punishment — the same asymmetry payroll has.",
-    fields: [
-      { path: "trust.enabled", label: "Use the trust track", type: "boolean" },
-      {
-        path: "trust.drainAmount",
-        label: "Points cleared each interval",
-        type: "number",
-        min: 1,
-        max: 20,
-      },
-      {
-        path: "trust.drainIntervalHours",
-        label: "Interval (hours)",
-        hint: "2 points every 12 hours against a cap of 6 clears a worst-possible day inside two days.",
-        type: "number",
-        min: 1,
-        max: 168,
-      },
-      {
-        path: "trust.capLoad",
-        label: "Most points that can pile up",
-        hint: "Bounds the worst case. A consequence a child cannot see the end of has stopped teaching.",
-        type: "number",
-        min: 1,
-        max: 100,
-      },
-      {
-        path: "trust.childVisibility",
-        label: "What the child sees",
-        hint: "The recovery timeline is always shown. This controls the numbers behind it.",
-        type: "select",
-        options: [
-          { value: "level_only", label: "Level and timeline only" },
-          { value: "show_load", label: "Also their points" },
-          { value: "show_tariff", label: "Also what each rule costs" },
-        ],
-      },
-      {
-        path: "trust.pinDefaultExpiryHours",
-        label: "Manual level lasts (hours)",
-        type: "number",
-        min: 1,
-        max: 720,
-        advanced: true,
-      },
-    ],
-  },
-  {
     key: "display",
     title: "Who shows where",
     description:
-      "A child on the trust track before they start earning does not need to appear on a money dashboard. They stay reachable under Children either way.",
+      "A child who isn't earning yet doesn't need to appear on a money dashboard. They stay reachable under Children either way.",
     fields: [
       {
         path: "display.showNotYetEarning",
@@ -355,7 +304,7 @@ export const SETTINGS_SECTIONS: SectionSpec[] = [
     key: "kiosk",
     title: "Kiosk",
     description:
-      "The always-on display. Trust never appears on it, whatever these are set to.",
+      "The always-on display in a shared space.",
     fields: [
       {
         path: "kiosk.dashboardMode",

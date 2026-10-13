@@ -12,7 +12,6 @@ import { storeImage, ACCEPTED_UPLOAD_TYPES } from "@/lib/images";
 import { instantiateBillTemplatesForChild } from "@/lib/bills";
 import { instantiateTemplatesForChild } from "@/lib/responsibilities";
 import { applyAgePreset, bandForAge, copyFromSibling } from "@/lib/seed";
-import { joinAllAreasForChild } from "@/lib/trust";
 
 const ChildSchema = z.object({
   displayName: z.string().trim().min(1, "Enter a name."),
@@ -77,12 +76,11 @@ export async function addChild(
     photoBlobId,
   });
 
-  // Every family-level responsibility, and every expectations area, applies
-  // to a new child by default — independent of the starter-setup choice
-  // below, which only affects the child-specific extras layered on top.
+  // Family-wide expectations and bills apply to a new child by default —
+  // independent of the starter-setup choice below, which only affects the
+  // child-specific extras layered on top.
   instantiateTemplatesForChild(parent.householdId, childId);
   instantiateBillTemplatesForChild(parent.householdId, childId);
-  joinAllAreasForChild(parent.householdId, childId);
 
   // Fill the blank-page moment: a preset by default, or a sibling's existing
   // setup if the parent asked for that instead. Everything written here is a
@@ -93,7 +91,7 @@ export async function addChild(
     }
   } else if (parsed.data.starterSetup === "preset") {
     const band = bandForAge(ageFromBirthdate(parsed.data.birthdate));
-    applyAgePreset(childId, parent.householdId, band);
+    applyAgePreset(childId, band);
   }
 
   db.insert(auditLog)

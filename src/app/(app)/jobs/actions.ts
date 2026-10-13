@@ -22,8 +22,6 @@ const JobSchema = z.object({
   limitCount: z.string().optional(),
   claimExpiryHours: z.string().optional(),
   allocationMode: z.enum(["inherit", "checking_only"]),
-  trustAreaId: z.string().optional(),
-  minTrustLevel: z.string().optional(),
 });
 
 export async function addJob(_prev: JobState, formData: FormData): Promise<JobState> {
@@ -39,8 +37,6 @@ export async function addJob(_prev: JobState, formData: FormData): Promise<JobSt
     limitCount: formData.get("limitCount") ?? undefined,
     claimExpiryHours: formData.get("claimExpiryHours") ?? undefined,
     allocationMode: formData.get("allocationMode"),
-    trustAreaId: formData.get("trustAreaId") ?? undefined,
-    minTrustLevel: formData.get("minTrustLevel") ?? undefined,
   });
 
   if (!parsed.success) {
@@ -70,11 +66,6 @@ export async function addJob(_prev: JobState, formData: FormData): Promise<JobSt
       limitCount: Math.max(1, Number(parsed.data.limitCount ?? 1)),
       claimExpiryHours: Math.max(1, Number(parsed.data.claimExpiryHours ?? 48)),
       allocationMode: parsed.data.allocationMode,
-      // Invariant I10: a trust gate blocks CLAIMING, never pay for work done.
-      trustAreaId: parsed.data.trustAreaId || null,
-      minTrustLevel: parsed.data.trustAreaId
-        ? Number(parsed.data.minTrustLevel ?? 3)
-        : null,
     })
     .run();
 
@@ -96,8 +87,6 @@ export async function editJob(_prev: JobState, formData: FormData): Promise<JobS
     limitCount: formData.get("limitCount") ?? undefined,
     claimExpiryHours: formData.get("claimExpiryHours") ?? undefined,
     allocationMode: formData.get("allocationMode"),
-    trustAreaId: formData.get("trustAreaId") ?? undefined,
-    minTrustLevel: formData.get("minTrustLevel") ?? undefined,
   });
 
   if (!parsed.success) {
@@ -128,10 +117,6 @@ export async function editJob(_prev: JobState, formData: FormData): Promise<JobS
       limitCount: Math.max(1, Number(parsed.data.limitCount ?? 1)),
       claimExpiryHours: Math.max(1, Number(parsed.data.claimExpiryHours ?? 48)),
       allocationMode: parsed.data.allocationMode,
-      trustAreaId: parsed.data.trustAreaId || null,
-      minTrustLevel: parsed.data.trustAreaId
-        ? Number(parsed.data.minTrustLevel ?? 3)
-        : null,
     })
     .where(eq(job.id, jobId))
     .run();

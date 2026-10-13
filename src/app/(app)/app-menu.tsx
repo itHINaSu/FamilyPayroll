@@ -11,7 +11,6 @@ import {
   CloseIcon,
   MenuIcon,
   ReceiptIcon,
-  ShieldIcon,
   SignOutIcon,
   UserIcon,
 } from "./icons";
@@ -19,8 +18,7 @@ import { ThemeToggle } from "./theme-toggle";
 
 const SETUP_LINKS = [
   { href: "/children", label: "Children", icon: UserIcon },
-  { href: "/responsibilities", label: "Responsibilities", icon: ChecklistIcon },
-  { href: "/expectations", label: "Expectations", icon: ShieldIcon },
+  { href: "/responsibilities", label: "Expectations", icon: ChecklistIcon },
   { href: "/jobs", label: "Extra jobs", icon: BriefcaseIcon },
   { href: "/bills", label: "Bills", icon: ReceiptIcon },
 ];

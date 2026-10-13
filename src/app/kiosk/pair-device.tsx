@@ -9,8 +9,8 @@ export function PairDevice() {
           whenever the browser starts.
         </p>
         <p className="mt-6 text-xs text-ink-400">
-          Nothing sensitive is shown here — no held savings, no bill destinations,
-          and no trust status on the shared view.
+          Nothing sensitive is shown here — no held savings and no bill
+          destinations on the shared view.
         </p>
       </div>
     </main>

@@ -68,18 +68,15 @@ export function listBackups() {
 export type ResetScope = {
   /** Balances, transactions, pay stubs, bill payments, interest, money requests. */
   money: boolean;
-  /** Chore check-offs and excused days. */
+  /** Expectation check-offs, misses, and excused days. */
   chores: boolean;
   /** Extra-job claims. */
   jobs: boolean;
-  /** Trust marks, levels, and today's focus. */
-  trust: boolean;
 };
 
 /**
  * Clear chosen history for one household, keeping all of its setup:
- * parents, children, responsibilities, bills, jobs, goals, trust areas and
- * rules, and every setting. A safety snapshot is taken first.
+ * parents, children, expectations, bills, jobs, goals, and every setting. A safety snapshot is taken first.
  *
  * Money is one indivisible group: a balance is the sum of its ledger, and
  * pay stubs are what wrote most of it, so clearing any part alone would
@@ -137,12 +134,6 @@ export function resetHistory(householdId: string, scope: ResetScope): { safetyBa
         `DELETE FROM approval_request WHERE child_id IN (${kids}) AND kind = 'job_submission'`,
         householdId,
       );
-    }
-
-    if (scope.trust) {
-      for (const table of ["trust_mark", "trust_state", "focus_note"]) {
-        run(`DELETE FROM ${table} WHERE child_id IN (${kids})`, householdId);
-      }
     }
 
     if (scope.money || scope.chores) {

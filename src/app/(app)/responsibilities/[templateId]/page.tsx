@@ -37,7 +37,7 @@ export default async function ResponsibilityDetailPage({
         href="/responsibilities"
         className="mb-2 inline-block text-sm text-ink-400 hover:text-ink-700 hover:underline"
       >
-        ← All responsibilities
+        ← All expectations
       </Link>
       <PageHeader
         title={template.name}
@@ -49,7 +49,7 @@ export default async function ResponsibilityDetailPage({
           <h2 className="mb-1 text-lg font-semibold">Per child</h2>
           <p className="mb-4 text-xs text-ink-400">
             Turn it off for one child without touching anyone else&apos;s,
-            or customize their rate and cadence from their own Chores page.
+            or customize their rate and cadence below.
           </p>
           <PerChildStatusList templateId={templateId} statuses={statuses} />
           <div className="mt-4 border-t border-ink-100 pt-4 dark:border-ink-700">

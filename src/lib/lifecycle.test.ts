@@ -3,7 +3,7 @@
  *
  * The unit tests cover each engine on its own. This one runs a child through
  * four weeks of real use — responsibilities, payroll, rent, a shortfall, a bonus
- * job, a savings goal, interest, and a trust incident — to prove the pieces
+ * job, a savings goal, and interest — to prove the pieces
  * compose and that the invariants survive contact with each other.
  */
 
@@ -37,8 +37,6 @@ const { collectBill, generateInstances } = await import("@/lib/bills");
 const { accrueDaily, postMonthlyInterest } = await import("@/lib/interest");
 const { earmark, listGoals } = await import("@/lib/goals");
 const { claimJob, decideJobClaim, submitJobClaim } = await import("@/lib/jobs");
-const trust = await import("@/lib/trust");
-const { seedHousehold } = await import("@/lib/seed");
 
 describe("a month in the life", () => {
   it("runs four weeks end to end with every invariant intact", () => {
@@ -48,7 +46,6 @@ describe("a month in the life", () => {
       .returning({ id: schema.household.id })
       .get().id;
 
-    seedHousehold(householdId);
 
     const childId = createChild({
       householdId,
@@ -184,26 +181,6 @@ describe("a month in the life", () => {
     expect(afterEarmark.savings).toBe(balancesBeforeGoal.savings); // money did not move
     expect(afterEarmark.savingsGeneral).toBe(0);
     expect(listGoals(childId)[0].savedCents).toBe(balancesBeforeGoal.savings);
-
-    // --- A trust incident, which must not touch money ----------------------
-
-    const area = db
-      .select()
-      .from(schema.trustArea)
-      .where(eq(schema.trustArea.householdId, householdId))
-      .get()!;
-
-    const moneyBefore = getBalances(childId);
-    trust.recordMark({
-      childId,
-      trustAreaId: area.id,
-      weight: 2,
-      note: "yelled at their brother",
-      createdByUserId: "parent-1",
-    });
-
-    expect(getBalances(childId)).toEqual(moneyBefore); // invariant I10
-    expect(trust.trustLevelFor(childId, area.id).level.name).toBe("Working on it");
 
     // --- Rent comes due, and there is not enough in checking ---------------
 

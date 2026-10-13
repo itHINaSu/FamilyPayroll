@@ -13,19 +13,16 @@ import { getBalances } from "@/lib/ledger";
 import { computeDraft } from "@/lib/payroll";
 import { resolvePolicy } from "@/lib/policy";
 import { evaluatePeriod, listResponsibilities } from "@/lib/responsibilities";
-import { currentFocusNote, privilegesFor, trustSummary } from "@/lib/trust";
 
 /**
  * The kiosk view model.
  *
  * This is the only place a child-facing payload is assembled, which is
- * deliberate: invariants I4 and I11 are enforced here, at the serialisation
+ * deliberate: invariant I4 is enforced here, at the serialisation
  * boundary, rather than trusted to every template downstream.
  *
  *  - I4: the `held` account and every bill disposition are absent. There is no
  *    field for them to leak through.
- *  - I11: trust never appears on the shared roster, only inside a single child's
- *    own view, and the numeric load appears only when a parent opted in.
  */
 
 export function createDeviceToken(householdId: string, name: string): string {
@@ -157,65 +154,12 @@ export function kioskRoster(householdId: string): KioskChild[] {
   });
 }
 
-export type KioskChildDetail = KioskChild & {
-  trust: {
-    areaName: string;
-    levelName: string;
-    tone: string;
-    /** Always shown: the child-facing unit is time, not points. */
-    recovery: string;
-    /** Null unless a parent opted in (SPEC §12.2.1). */
-    load: number | null;
-  }[];
-  focusNote: string | null;
-  readyFor: string[];
-  notReadyFor: string[];
-};
+export type KioskChildDetail = KioskChild;
 
-/**
- * A single child's own view. Trust appears here and nowhere else — a red state
- * beside a sibling's green one is a scoreboard, not a conversation (I11).
- */
+/** A single child's own view. */
 export function kioskChildDetail(
   householdId: string,
   childId: string,
 ): KioskChildDetail | null {
-  const base = kioskRoster(householdId).find((c) => c.id === childId);
-  if (!base) return null;
-
-  const policy = resolvePolicy(householdId, childId);
-  const showLoad = policy.trust.childVisibility !== "level_only";
-  const privileges = privilegesFor(childId);
-
-  return {
-    ...base,
-    trust: policy.trust.enabled
-      ? trustSummary(childId).map((area) => ({
-          areaName: area.areaName,
-          levelName: area.level.name,
-          tone: area.level.tone,
-          recovery: describeRecovery(area.clearsAt),
-          load: showLoad ? area.load : null,
-        }))
-      : [],
-    focusNote: currentFocusNote(childId)?.text ?? null,
-    readyFor: privileges.ready.map((p) => p.name),
-    notReadyFor: privileges.notYet.map((p) => p.name),
-  };
-}
-
-function describeRecovery(clearsAt: number | null): string {
-  if (!clearsAt) return "All clear";
-
-  const hours = Math.max(0, (clearsAt - Date.now()) / 3_600_000);
-  if (hours < 1) return "Clears within the hour";
-  if (hours < 24) return `Clears in about ${Math.round(hours)} hours`;
-
-  const when = new Date(clearsAt);
-  const days = Math.ceil(hours / 24);
-  const weekday = when.toLocaleDateString("en-US", { weekday: "long" });
-
-  return days <= 6
-    ? `Back to Trusted on ${weekday}`
-    : `Back to Trusted in about ${days} days`;
+  return kioskRoster(householdId).find((c) => c.id === childId) ?? null;
 }

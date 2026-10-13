@@ -21,13 +21,6 @@ import { formatShortDate } from "@/lib/dates";
  *    network shows staleness rather than an error screen.
  */
 
-const TONE_BG: Record<string, string> = {
-  green: "bg-emerald-500",
-  amber: "bg-amber-500",
-  orange: "bg-orange-500",
-  red: "bg-rose-500",
-};
-
 function Ring({ pct, label }: { pct: number; label: string }) {
   const radius = 34;
   const circumference = 2 * Math.PI * radius;
@@ -370,50 +363,6 @@ function ChildDetail({ detail }: { detail: KioskChildDetail }) {
         </div>
       )}
 
-      {/* Trust appears only here, inside one child's own view — never on the
-          shared roster, where a red state beside a sibling's green one would be
-          a scoreboard rather than a conversation (invariant I11). */}
-      {detail.trust.length > 0 && (
-        <div className="rounded-3xl bg-white/5 p-6">
-          <p className="mb-3 text-xs uppercase tracking-wide text-white/40">
-            What you are ready for
-          </p>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            {detail.trust.map((t) => (
-              <div key={t.areaName} className="rounded-2xl bg-white/5 p-4">
-                <div className="flex items-center gap-2">
-                  <span className={`h-3 w-3 rounded-full ${TONE_BG[t.tone]}`} />
-                  <span className="text-sm text-white/60">{t.areaName}</span>
-                  {t.load !== null && (
-                    <span className="tnum ml-auto text-xs text-white/40">{t.load}</span>
-                  )}
-                </div>
-                <p className="mt-1 text-lg font-semibold">{t.levelName}</p>
-                <p className="text-xs text-white/50">{t.recovery}</p>
-              </div>
-            ))}
-          </div>
-
-          {detail.focusNote && (
-            <p className="mt-4 rounded-2xl bg-white/5 p-4 text-sm">
-              <span className="text-white/40">Working on: </span>
-              {detail.focusNote}
-            </p>
-          )}
-
-          {detail.readyFor.length > 0 && (
-            <p className="mt-4 text-sm text-emerald-300">
-              Ready for: {detail.readyFor.join(" · ")}
-            </p>
-          )}
-          {detail.notReadyFor.length > 0 && (
-            <p className="mt-1 text-sm text-white/40">
-              Not yet: {detail.notReadyFor.join(" · ")}
-            </p>
-          )}
-        </div>
-      )}
     </div>
   );
 }

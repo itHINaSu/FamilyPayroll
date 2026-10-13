@@ -36,7 +36,7 @@ export function PayrollControl({ pausedOn }: { pausedOn: string | null }) {
       </div>
       <p className="mb-4 text-sm text-ink-400">
         {paused
-          ? "Nothing is paid, billed, or earns interest. Chores can still be marked. Starting excuses the paused days, so nobody is docked for them, and nothing is back-paid or back-billed."
+          ? "Nothing is paid, billed, or earns interest. Expectations can still be marked. Starting excuses the paused days, so nobody is docked for them, and nothing is back-paid or back-billed."
           : "Pausing stops pay, bills, and interest until you start again — for getting set up, or a stretch when life gets in the way. Unposted pay stubs and upcoming bills are cleared; nothing already paid changes."}
       </p>
 

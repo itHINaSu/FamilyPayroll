@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
  *
  * Authenticated by a long-lived device token in a cookie rather than a login,
  * because this runs unattended on a wall. It is read-mostly and never shows the
- * held account, bill dispositions, or trust on the shared roster.
+ * held account or bill dispositions on the shared roster.
  */
 export default async function KioskPage({
   searchParams,

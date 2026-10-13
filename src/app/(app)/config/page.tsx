@@ -3,13 +3,12 @@ import { and, eq } from "drizzle-orm";
 
 import { Card, PageHeader } from "@/components/ui";
 import { db } from "@/db";
-import { job, trustArea } from "@/db/schema";
+import { job } from "@/db/schema";
 import { listBills } from "@/lib/bills";
 import { requireParent } from "@/lib/auth/guard";
 import { listChildren } from "@/lib/children";
 import { pendingJobClaims } from "@/lib/jobs";
 import { listResponsibilities } from "@/lib/responsibilities";
-import { listHouseRules } from "@/lib/trust";
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +16,7 @@ export const dynamic = "force-dynamic";
  * The setup hub.
  *
  * Everything that is configured occasionally rather than used daily — the
- * children roster, the paid work, character expectations, extra jobs, and
- * bills — used to sit on the same shelf as Dashboard in the top nav, which
+ * children roster, expectations, extra jobs, and bills — used to sit on the same shelf as Dashboard in the top nav, which
  * flattened the rare next to the daily and was a real contributor to the app
  * feeling like more setup than it is. This page is that shelf instead: one
  * click from the top nav, and each destination is still one click from here.
@@ -43,13 +41,6 @@ export default async function ConfigPage() {
     .all().length;
 
   const pendingClaims = pendingJobClaims(parent.householdId).length;
-  const houseRuleCount = listHouseRules(parent.householdId).length;
-
-  const areaCount = db
-    .select({ id: trustArea.id })
-    .from(trustArea)
-    .where(and(eq(trustArea.householdId, parent.householdId), eq(trustArea.active, true)))
-    .all().length;
 
   const cards = [
     {
@@ -60,18 +51,9 @@ export default async function ConfigPage() {
     },
     {
       href: "/responsibilities",
-      title: "Responsibilities",
-      description: "The paid work — a fixed weekly ceiling per child.",
-      detail: `${responsibilityCount} across ${children.length} child${children.length === 1 ? "" : "ren"}`,
-    },
-    {
-      href: "/expectations",
       title: "Expectations",
-      description:
-        "Never scored, never paid — what it means to be a member of this family.",
-      detail: `${houseRuleCount} rule${houseRuleCount === 1 ? "" : "s"} across ${areaCount} area${
-        areaCount === 1 ? "" : "s"
-      }`,
+      description: "What each child is expected to do, and what it pays each week.",
+      detail: `${responsibilityCount} across ${children.length} child${children.length === 1 ? "" : "ren"}`,
     },
     {
       href: "/jobs",

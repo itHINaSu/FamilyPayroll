@@ -8,11 +8,10 @@ import { GearIcon } from "../../icons";
 // Short labels so the whole strip fits a phone without sideways scrolling.
 const TABS = [
   { slug: "", label: "Money" },
-  { slug: "responsibilities", label: "Chores" },
+  { slug: "responsibilities", label: "Expectations" },
   { slug: "pay", label: "Pay" },
   { slug: "bills", label: "Bills" },
   { slug: "goals", label: "Goals" },
-  { slug: "trust", label: "Trust" },
 ];
 
 export function ChildTabs({ childId }: { childId: string }) {
@@ -56,10 +55,8 @@ export function ChildBackLink({ childId }: { childId: string }) {
   const pathname = usePathname();
   const base = `/children/${childId}`;
   const [href, label] = pathname.startsWith(`${base}/responsibilities`)
-    ? ["/chores", "Chores"]
-    : pathname.startsWith(`${base}/trust`)
-      ? ["/trust", "Trust"]
-      : ["/balances", "Balances"];
+    ? ["/expectations", "Expectations"]
+    : ["/balances", "Balances"];
 
   return (
     <Link href={href} className="tap text-sm text-ink-400 hover:underline">
