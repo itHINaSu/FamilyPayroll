@@ -63,12 +63,10 @@ export default async function AppLayout({
         </div>
       </header>
 
-      {/* pb-32 clears the fixed bottom tab bar on a phone — sized for its
-          tallest case (installed-PWA extra padding, .bottom-tab-bar in
-          globals.css) rather than the ordinary-browser-tab minimum, so
-          there's slack rather than a close call. Desktop has no fixed bar,
-          so it reverts to the normal amount of breathing room. */}
-      <main className="mx-auto max-w-5xl px-4 py-8 pb-32 sm:px-6 md:pb-8">{children}</main>
+      {/* pb-28 clears the fixed bottom tab bar on a phone, home-indicator
+          inset included, with some slack. Desktop has no fixed bar, so it
+          reverts to the normal amount of breathing room. */}
+      <main className="mx-auto max-w-5xl px-4 py-8 pb-28 sm:px-6 md:pb-8">{children}</main>
 
       <BottomTabs pendingJobs={pendingJobs} />
     </div>

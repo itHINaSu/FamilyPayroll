@@ -145,22 +145,29 @@ export function PageHeader({
   action?: ReactNode;
   /** Left side of the band — a way back, usually <BackLink>. */
   back?: ReactNode;
-  /** A second row inside the band, pinned with it — e.g. the jump row. */
+  /** Pinned under the band along with it — e.g. the jump row. */
   children?: ReactNode;
 }) {
   return (
     // The app's title bar: a full-width green band pinned to the top on a
     // phone (the installed app has no other header), a rounded one in the
-    // flow on wider screens.
+    // flow on wider screens. Every band is the same height whether or not it
+    // has buttons, so switching tabs doesn't make the title jump. Less
+    // padding above the title than below: in the installed app the green
+    // status-bar strip already sits above it.
     <div
-      className="page-band sticky top-0 z-10 -mx-4 -mt-8 mb-5 grid grid-cols-[2.5rem_minmax(0,1fr)_2.5rem]
-        items-center gap-1 bg-ledger-600 px-2 py-4 text-white shadow-sm sm:-mx-6 sm:px-4 md:static md:mx-0
-        md:mt-0 md:rounded-xl md:shadow-none"
+      className="page-band sticky top-0 z-10 -mx-4 -mt-8 mb-4 shadow-sm sm:-mx-6 md:static md:mx-0
+        md:mt-0 md:mb-5 md:shadow-none"
     >
-      <div className="justify-self-start text-white/85">{back}</div>
-      <h1 className="text-center text-xl font-semibold tracking-tight text-balance">{title}</h1>
-      <div className="justify-self-end">{action}</div>
-      {children && <div className="col-span-3 -mb-1 mt-2">{children}</div>}
+      <div
+        className="grid min-h-13 grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] items-center gap-1 bg-ledger-600
+          px-2 pb-2 pt-1 text-white sm:px-4 md:rounded-xl md:py-3"
+      >
+        <div className="justify-self-start text-white/85">{back}</div>
+        <h1 className="text-center text-xl font-semibold tracking-tight text-balance">{title}</h1>
+        <div className="justify-self-end">{action}</div>
+      </div>
+      {children}
     </div>
   );
 }

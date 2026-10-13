@@ -129,24 +129,15 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 }
 
 /*
- * The fixed bottom tab bar (bottom-tabs.tsx). safe-area-inset-bottom alone
- * clears the home-indicator bar's own height, but a thumb tapping a tab
- * still lands close enough to that strip to trigger iOS's swipe-up gesture
- * highlight, and the outer two tabs sit right in the screen's rounded
- * corners — both need real pixels of margin on top of the inset, not just
- * the inset itself. Standalone (installed as a PWA, no Safari chrome at
- * all cushioning the bottom edge) gets extra again on top of that, since
- * that's where both problems are most pronounced.
+ * The fixed bottom tab bar (bottom-tabs.tsx). It ends exactly at the
+ * home-indicator inset, like a native tab bar — any more and it's a tall
+ * slab eating the screen. The side insets plus a little margin keep the
+ * outer two tabs out of the screen's rounded corners.
  */
 .bottom-tab-bar {
-  padding-bottom: calc(env(safe-area-inset-bottom) + 14px);
+  padding-bottom: max(env(safe-area-inset-bottom), 4px);
   padding-left: calc(env(safe-area-inset-left) + 10px);
   padding-right: calc(env(safe-area-inset-right) + 10px);
-}
-@media (display-mode: standalone) {
-  .bottom-tab-bar {
-    padding-bottom: calc(env(safe-area-inset-bottom) + 26px);
-  }
 }
 
 /* Bottom sheets (components/sheet.tsx) sit flush with the screen's bottom
