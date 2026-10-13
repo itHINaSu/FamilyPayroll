@@ -10,45 +10,55 @@ import { WalletIcon } from "./icons";
 
 type Day = { date: string; letter: string; isToday: boolean };
 
-/** Shading for today's column, so it reads straight down the grid. */
-const TODAY = "bg-ledger-100 dark:bg-ledger-600/25";
-
-function dotLook(box: Box) {
-  if (box.state === "missed") return "bg-red-500";
-  if (box.future) return "bg-ink-200 dark:bg-ink-600";
-  if (box.state === "met" || box.state === "done") return "bg-ledger-600";
-  if (box.state === "excused") return "bg-ink-300 dark:bg-ink-500";
-  return "border border-ink-400 dark:border-ink-400"; // open: could still be done
+function markLook(box: Box) {
+  if (box.state === "missed") return "bg-red-500 text-white";
+  if (box.future) return "bg-ink-100 text-ink-400 dark:bg-ink-700 dark:text-ink-400";
+  if (box.state === "met" || box.state === "done") return "bg-ledger-600 text-white";
+  if (box.state === "excused") return "bg-ink-200 text-ink-400 dark:bg-ink-600";
+  // Open: could still be done.
+  return "border border-ink-300 text-ink-400 dark:border-ink-500";
 }
 
-/** One expectation: its short name, then a dot per day (or its N marks). */
+/** A tiny square carrying its own day letter (or count), coloured by state. */
+function Mark({ box, label, isToday }: { box: Box; label: string; isToday?: boolean }) {
+  return (
+    <span
+      className={`flex h-3 w-3 items-center justify-center rounded-[3px] text-[9px] font-bold leading-none ${markLook(box)} ${
+        isToday ? "ring-1 ring-ledger-500 ring-offset-1 dark:ring-offset-ink-800" : ""
+      }`}
+    >
+      {label}
+    </span>
+  );
+}
+
+/**
+ * One expectation: its short name, then a square for each day it happens —
+ * a Mon/Wed/Fri expectation has only those three. "N times a week" items
+ * have no day of their own, so their squares are numbered instead.
+ */
 function Row({ e, week, days }: { e: ExpectationView; week: number; days: Day[] }) {
   const boxes = e.weeks[week]?.boxes ?? [];
   const numbered = boxes.filter((b) => b.numbered);
 
   return (
     <>
-      <span className="truncate pr-1 text-[11px] leading-[0.875rem]" title={e.name}>
+      <span className="truncate pr-1 text-[11px] leading-3" title={e.name}>
         {e.shortName || e.name}
       </span>
       {numbered.length > 0 ? (
-        // "N times a week" has no day of its own: a bar across the whole week,
-        // one segment per time, so it can't be mistaken for a single day.
-        <span className="col-span-7 flex h-3.5 items-center gap-[3px] px-0.5">
+        <span className="col-span-7 flex gap-0.5">
           {numbered.map((b) => (
-            <span key={b.key} className={`h-1.5 flex-1 rounded-full ${dotLook(b)}`} />
+            <Mark key={b.key} box={b} label={b.label} />
           ))}
         </span>
       ) : (
         days.map((d) => {
           const box = boxes.find((b) => !b.numbered && b.date === d.date);
-          return (
-            <span
-              key={d.date}
-              className={`flex h-3.5 items-center justify-center ${d.isToday ? TODAY : ""}`}
-            >
-              {box && <span className={`h-[7px] w-[7px] rounded-full ${dotLook(box)}`} />}
-            </span>
+          return box ? (
+            <Mark key={d.date} box={box} label={d.letter} isToday={d.isToday} />
+          ) : (
+            <span key={d.date} />
           );
         })
       )}
@@ -58,7 +68,7 @@ function Row({ e, week, days }: { e: ExpectationView; week: number; days: Day[] 
 
 /**
  * One child on the Dashboard, read-only: every expectation's week as rows of
- * dots, checking up by the name. The balance opens Balances at this child;
+ * lettered squares, checking up by the name. The balance opens Balances at this child;
  * anywhere else opens Expectations at this child.
  */
 export function KidSummary({
@@ -125,19 +135,8 @@ export function KidSummary({
               {columns.map((col, i) => (
                 <div
                   key={i}
-                  className="grid grid-cols-[minmax(0,1fr)_repeat(7,0.625rem)] content-start items-center gap-x-[3px]"
+                  className="grid grid-cols-[minmax(0,1fr)_repeat(7,0.75rem)] content-start items-center gap-0.5"
                 >
-                  <span />
-                  {days.map((d) => (
-                    <span
-                      key={d.date}
-                      className={`rounded-t-sm text-center text-[9px] leading-3 ${
-                        d.isToday ? `${TODAY} font-bold text-ledger-600 dark:text-ledger-500` : "text-ink-400"
-                      }`}
-                    >
-                      {d.letter}
-                    </span>
-                  ))}
                   {col.map((e) => (
                     <Row key={e.id} e={e} week={child.currentWeek} days={days} />
                   ))}
