@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 
-import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
+import { Alert, Button, Card, CheckField, Field, Input, Select } from "@/components/ui";
 import { saveSettings, type SettingsState } from "@/app/(app)/settings/actions";
 import { SETTINGS_SECTIONS, getAtPath, type FieldSpec } from "@/lib/settings-schema";
 import type { Policy } from "@/lib/policy";
@@ -20,20 +20,12 @@ function SaveButton() {
 function FieldInput({ field, value }: { field: FieldSpec; value: unknown }) {
   if (field.type === "boolean") {
     return (
-      <label className="flex items-start gap-2 text-sm">
-        <input
-          type="checkbox"
-          name={field.path}
-          defaultChecked={value === true}
-          className="mt-1"
-        />
-        <span>
-          {field.label}
-          {field.hint && (
-            <span className="block text-xs text-ink-400">{field.hint}</span>
-          )}
-        </span>
-      </label>
+      <CheckField
+        name={field.path}
+        defaultChecked={value === true}
+        label={field.label}
+        hint={field.hint}
+      />
     );
   }
 

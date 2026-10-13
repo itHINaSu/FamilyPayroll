@@ -3,22 +3,20 @@
 import { Button } from "@/components/ui";
 import { archiveChild, restoreChild } from "./actions";
 
-export function ArchiveButton({
-  childId,
-  name,
-}: {
-  childId: string;
-  name: string;
-}) {
+/**
+ * The bottom of a child's Setup page. Archiving is a once-in-a-lifetime
+ * event, so it's a plain text action behind a confirmation, not a button
+ * anywhere a child gets picked.
+ */
+export function ArchiveButton({ childId, name }: { childId: string; name: string }) {
   return (
     <form
       action={archiveChild}
       onSubmit={(event) => {
-        // Archiving is reversible and keeps every ledger entry, so the prompt is
-        // a speed bump rather than a warning.
         if (
           !confirm(
-            `Archive ${name}? Their history is kept and they can be restored at any time.`,
+            `Archive ${name}? They disappear from every tab and stop being paid. ` +
+              "Their history is kept, and you can restore them from Setup › Children.",
           )
         ) {
           event.preventDefault();
@@ -26,16 +24,11 @@ export function ArchiveButton({
       }}
     >
       <input type="hidden" name="childId" value={childId} />
-      {/*
-        A once-in-a-while action (mainly useful during initial setup)
-        stays a plain text link rather than a full button, so it doesn't
-        compete with the balance for attention on every visit.
-      */}
       <button
         type="submit"
-        className="text-xs text-ink-400 hover:text-ink-700 hover:underline dark:hover:text-ink-200"
+        className="tap text-sm text-red-600 hover:underline dark:text-red-400"
       >
-        Archive
+        Archive {name}
       </button>
     </form>
   );

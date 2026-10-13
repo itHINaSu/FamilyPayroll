@@ -1,3 +1,5 @@
+import { FIELD_LABEL } from "@/components/ui";
+
 /**
  * "Who it's for" when adding an expectation or a bill in Setup. Everyone is
  * ticked by default; leaving everyone ticked also gives it to children added
@@ -7,7 +9,7 @@ export function ChildCheckboxes({ kids }: { kids: { id: string; name: string }[]
   if (kids.length === 0) return null;
   return (
     <fieldset>
-      <legend className="mb-1.5 text-sm font-medium text-ink-700 dark:text-ink-200">
+      <legend className={`mb-1.5 ${FIELD_LABEL}`}>
         Who it&apos;s for
       </legend>
       <div className="flex flex-wrap gap-2">

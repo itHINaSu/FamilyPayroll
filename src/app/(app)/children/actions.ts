@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -195,7 +196,8 @@ export async function archiveChild(formData: FormData): Promise<void> {
     })
     .run();
 
-  revalidatePath("/children");
+  revalidatePath("/", "layout");
+  redirect("/children");
 }
 
 export async function restoreChild(formData: FormData): Promise<void> {

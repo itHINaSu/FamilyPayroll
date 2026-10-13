@@ -20,6 +20,7 @@ export type TemplateState = { error?: string; ok?: boolean };
 
 const TemplateSchema = z.object({
   name: z.string().trim().min(1, "Give it a name."),
+  shortName: z.string().trim().max(12, "Keep the short name to 12 characters or fewer.").optional(),
   weeklyValue: z.string().min(1, "Enter a weekly amount."),
   cadence: z.enum(["daily", "daily_selected", "weekly", "up_to_n"]),
   maxOccurrences: z.string().optional(),
@@ -29,6 +30,7 @@ const TemplateSchema = z.object({
 function parseTemplateInput(formData: FormData): { error: string } | { data: TemplateInput } {
   const parsed = TemplateSchema.safeParse({
     name: formData.get("name"),
+    shortName: formData.get("shortName") ?? undefined,
     weeklyValue: formData.get("weeklyValue"),
     cadence: formData.get("cadence"),
     maxOccurrences: formData.get("maxOccurrences") ?? undefined,
@@ -49,6 +51,7 @@ function parseTemplateInput(formData: FormData): { error: string } | { data: Tem
   return {
     data: {
       name: parsed.data.name,
+      shortName: parsed.data.shortName || null,
       weeklyValueCents,
       cadence: parsed.data.cadence,
       daysOfWeek: days,
@@ -71,7 +74,7 @@ export async function addResponsibilityTemplate(
 
   createResponsibilityTemplate(parent.householdId, result.data, childIds);
 
-  revalidatePath("/responsibilities");
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -86,8 +89,7 @@ export async function editResponsibilityTemplate(
 
   updateResponsibilityTemplate(templateId, result.data);
 
-  revalidatePath("/responsibilities");
-  revalidatePath(`/responsibilities/${templateId}`);
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 

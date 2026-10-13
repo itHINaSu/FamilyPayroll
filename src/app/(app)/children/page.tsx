@@ -9,7 +9,8 @@ import {
 } from "@/lib/children";
 import { resolveHouseholdPolicy } from "@/lib/policy";
 import { AddChildForm, AddChildToggle } from "./add-child-form";
-import { ArchiveButton, RestoreButton } from "./row-actions";
+import { ChevronRightIcon } from "../icons";
+import { RestoreButton } from "./row-actions";
 
 export default async function ChildrenPage() {
   const parent = await requireParent();
@@ -35,39 +36,29 @@ export default async function ChildrenPage() {
           )}
 
           {activeChildren.map((c) => (
-            <Card key={c.id}>
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex min-w-0 items-center gap-4">
-                  {c.photoBlobId ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={`/api/blobs/${c.photoBlobId}`}
-                      alt=""
-                      className="h-14 w-14 flex-shrink-0 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-ink-100 text-lg font-semibold text-ink-400 dark:bg-ink-700">
-                      {c.displayName.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-
-                  <div className="min-w-0">
-                    <Link
-                      href={`/children/${c.id}`}
-                      className="block truncate font-medium hover:underline"
-                    >
-                      {c.displayName}
-                    </Link>
-                    <p className="truncate text-sm text-ink-400">
-                      {ageFromBirthdate(c.birthdate)} years old ·{" "}
-                      {CHILD_STATUS_LABELS[c.status]}
-                    </p>
+            <Link key={c.id} href={`/children/${c.id}`} className="block">
+              <Card className="flex items-center gap-4 transition hover:border-ledger-500">
+                {c.photoBlobId ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={`/api/blobs/${c.photoBlobId}`}
+                    alt=""
+                    className="h-14 w-14 flex-shrink-0 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-ink-100 text-lg font-semibold text-ink-400 dark:bg-ink-700">
+                    {c.displayName.charAt(0).toUpperCase()}
                   </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{c.displayName}</p>
+                  <p className="truncate text-sm text-ink-400">
+                    {ageFromBirthdate(c.birthdate)} years old · {CHILD_STATUS_LABELS[c.status]}
+                  </p>
                 </div>
-
-                <ArchiveButton childId={c.id} name={c.displayName} />
-              </div>
-            </Card>
+                <ChevronRightIcon className="h-5 w-5 shrink-0 text-ink-300 dark:text-ink-500" />
+              </Card>
+            </Link>
           ))}
         </div>
 

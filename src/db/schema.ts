@@ -390,6 +390,8 @@ export const responsibilityTemplate = sqliteTable(
       .notNull()
       .references(() => household.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
+    /** A few letters for tight spots like the Dashboard ("Bed", "HW"). */
+    shortName: text("short_name"),
     icon: text("icon"),
     weeklyValueCents: integer("weekly_value_cents").notNull(),
     cadence: text("cadence").$type<Cadence>().notNull(),

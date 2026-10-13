@@ -42,6 +42,7 @@ export default async function ResponsibilitiesHubPage() {
                   template={{
                     id: t.id,
                     name: t.name,
+                    shortName: t.shortName,
                     weeklyValueCents: t.weeklyValueCents,
                     cadence: t.cadence,
                     daysOfWeek: t.daysOfWeek,

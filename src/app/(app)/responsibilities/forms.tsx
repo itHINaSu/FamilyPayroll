@@ -6,7 +6,7 @@ import { useFormStatus } from "react-dom";
 
 import { ChildCheckboxes } from "@/components/child-checkboxes";
 import { PayModeFields } from "@/components/pay-mode-fields";
-import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
+import { Alert, Button, Card, CheckField, Field, Input, Select } from "@/components/ui";
 import { formatCents } from "@/lib/money";
 import {
   addResponsibilityTemplate,
@@ -103,6 +103,20 @@ function CadenceFields({
   );
 }
 
+/** The name, and the few letters the Dashboard shows when space is tight. */
+function NameFields({ name, shortName }: { name?: string; shortName?: string | null }) {
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">
+      <Field label="Name">
+        <Input name="name" required defaultValue={name} placeholder="Make your bed" />
+      </Field>
+      <Field label="Short name">
+        <Input name="shortName" maxLength={12} defaultValue={shortName ?? ""} placeholder="Bed" />
+      </Field>
+    </div>
+  );
+}
+
 export function AddTemplateForm({ kids }: { kids: { id: string; name: string }[] }) {
   const [state, formAction] = useActionState<TemplateState, FormData>(
     addResponsibilityTemplate,
@@ -126,9 +140,10 @@ export function AddTemplateForm({ kids }: { kids: { id: string; name: string }[]
         {state.error && <Alert>{state.error}</Alert>}
         {state.ok && <Alert tone="info">Added.</Alert>}
 
-        <Field label="Name">
-          <Input name="name" required placeholder="Make your bed" />
-        </Field>
+        <NameFields />
+        <p className="-mt-2 text-xs text-ink-400">
+          The short name is what the Dashboard shows. Leave it blank to use the name.
+        </p>
 
         <Field label="Weekly value">
           <Input name="weeklyValue" inputMode="decimal" placeholder="3.50" required />
@@ -177,6 +192,7 @@ export function TemplateCard({
   template: {
     id: string;
     name: string;
+    shortName: string | null;
     weeklyValueCents: number;
     cadence: string;
     daysOfWeek: number[] | null;
@@ -195,21 +211,18 @@ export function TemplateCard({
 
   return (
     <Card>
-      <div className="flex items-start justify-between gap-4">
-        <form action={editAction} className="flex-1 space-y-3">
+      {/* Side by side on wider screens; on a phone the links drop below so
+          the fields get the card's full width. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <form action={editAction} className="min-w-0 flex-1 space-y-3">
           <input type="hidden" name="templateId" value={template.id} />
           {editState.error && <Alert>{editState.error}</Alert>}
 
-          <Input
-            name="name"
-            defaultValue={template.name}
-            required
-            className="!text-base font-semibold"
-          />
+          <NameFields name={template.name} shortName={template.shortName} />
 
           <div className="flex flex-wrap items-end gap-3">
             <div className="w-28">
-              <Field label="Weekly">
+              <Field label="Weekly value">
                 <Input
                   name="weeklyValue"
                   inputMode="decimal"
@@ -236,7 +249,7 @@ export function TemplateCard({
           <Submit small>Save</Submit>
         </form>
 
-        <div className="flex shrink-0 flex-col items-end gap-2 pt-1">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-t border-ink-100 pt-3 dark:border-ink-700 sm:flex-col sm:items-end sm:border-0 sm:pt-1">
           <Link
             href={`/responsibilities/${template.id}`}
             className="whitespace-nowrap text-xs text-ledger-600 hover:underline"
@@ -382,21 +395,13 @@ export function NewChildrenToggle({
   return (
     <form ref={formRef} action={setAppliesToNewChildren}>
       <input type="hidden" name="templateId" value={templateId} />
-      <label className="flex cursor-pointer items-start gap-2 text-sm">
-        <input
-          type="checkbox"
-          name="appliesToNewChildren"
-          defaultChecked={checked}
-          onChange={() => formRef.current?.requestSubmit()}
-          className="mt-0.5"
-        />
-        <span>
-          Add to new children automatically
-          <span className="block text-xs text-ink-400">
-            When you add a child later, they start with this expectation.
-          </span>
-        </span>
-      </label>
+      <CheckField
+        name="appliesToNewChildren"
+        defaultChecked={checked}
+        onChange={() => formRef.current?.requestSubmit()}
+        label="Add to new children automatically"
+        hint="When you add a child later, they start with this expectation."
+      />
     </form>
   );
 }

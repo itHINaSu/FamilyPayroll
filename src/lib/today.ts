@@ -14,6 +14,7 @@ import {
   describeCadence,
   evaluatePeriod,
   listResponsibilities,
+  listResponsibilityTemplates,
   type WeekBreakdown,
 } from "@/lib/responsibilities";
 
@@ -25,6 +26,8 @@ import {
 export type ExpectationView = {
   id: string;
   name: string;
+  /** The family template's abbreviation, if one was set. */
+  shortName: string | null;
   cadenceLabel: string;
   weeklyValueCents: number;
   payMode: "expected" | "optional";
@@ -72,6 +75,10 @@ function buildChildWeek(
     payDateOffsetDays: policy.pay.payDateOffsetDays,
   });
 
+  const shortNames = new Map(
+    listResponsibilityTemplates(householdId, false).map((t) => [t.id, t.shortName]),
+  );
+
   const expectations: ExpectationView[] = listResponsibilities(c.id)
     .filter((r) => r.effectiveFrom <= period.endDate)
     .map((r) => {
@@ -86,6 +93,7 @@ function buildChildWeek(
       return {
         id: r.id,
         name: r.name,
+        shortName: (r.templateId && shortNames.get(r.templateId)) || null,
         cadenceLabel: describeCadence(r),
         weeklyValueCents: r.weeklyValueCents,
         payMode: r.payMode,

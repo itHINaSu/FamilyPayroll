@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
+
+import { CheckField, FIELD_LABEL } from "@/components/ui";
 
 const MODES = [
   {
@@ -28,6 +30,7 @@ export function PayModeFields({
   defaultPayMode?: string;
   defaultAllOrNothing?: boolean;
 }) {
+  const labelId = useId();
   const [mode, setMode] = useState(defaultPayMode === "optional" ? "optional" : "expected");
 
   const current = MODES.find((m) => m.value === mode)!;
@@ -35,9 +38,12 @@ export function PayModeFields({
   return (
     <div className="space-y-3">
       <div>
+        <span id={labelId} className={`mb-1.5 block ${FIELD_LABEL}`}>
+          How it pays
+        </span>
         <div
           role="radiogroup"
-          aria-label="How it pays"
+          aria-labelledby={labelId}
           className="inline-flex rounded-lg bg-ink-100 p-1 dark:bg-ink-800"
         >
           {MODES.map((m) => (
@@ -64,22 +70,16 @@ export function PayModeFields({
         <p className="mt-1 text-xs text-ink-400">{current.hint}</p>
       </div>
 
-      <label className="flex cursor-pointer items-start gap-2 text-sm">
-        <input
-          type="checkbox"
-          name="allOrNothing"
-          defaultChecked={defaultAllOrNothing}
-          className="mt-0.5"
-        />
-        <span>
-          All or nothing
-          <span className="block text-xs text-ink-400">
-            {mode === "expected"
-              ? "One miss in a week loses that whole week's pay for this."
-              : "Pays only if every day in the week is checked off."}
-          </span>
-        </span>
-      </label>
+      <CheckField
+        name="allOrNothing"
+        defaultChecked={defaultAllOrNothing}
+        label="All or nothing"
+        hint={
+          mode === "expected"
+            ? "One miss in a week loses that whole week's pay for this."
+            : "Pays only if every day in the week is checked off."
+        }
+      />
     </div>
   );
 }

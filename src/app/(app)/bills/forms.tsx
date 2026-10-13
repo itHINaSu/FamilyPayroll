@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
-import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
+import { Alert, Button, Card, CheckField, Field, Input, Select } from "@/components/ui";
 import { formatCents } from "@/lib/money";
 import {
   addBillTemplate,
@@ -94,21 +94,18 @@ function DispositionFields({
         </Select>
       </Field>
 
-      <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" name="autopay" defaultChecked={defaultAutopay ?? true} />
-        Collect automatically when due
-      </label>
+      <CheckField
+        name="autopay"
+        defaultChecked={defaultAutopay ?? true}
+        label="Collect automatically when due"
+      />
 
-      <label className="flex items-start gap-2 text-sm">
-        <input type="checkbox" name="mayUseEarmarked" className="mt-1" defaultChecked={defaultMayUseEarmarked} />
-        <span>
-          May take money earmarked for goals
-          <span className="block text-xs text-ink-400">
-            Off by default. A Lego fund draining to pay rent teaches that saving
-            is pointless.
-          </span>
-        </span>
-      </label>
+      <CheckField
+        name="mayUseEarmarked"
+        defaultChecked={defaultMayUseEarmarked}
+        label="May take money earmarked for goals"
+        hint="Off by default. A Lego fund draining to pay rent teaches that saving is pointless."
+      />
     </>
   );
 }
@@ -265,15 +262,12 @@ export function TemplateCard({
         className="mt-4 border-t border-ink-100 pt-3 dark:border-ink-700"
       >
         <input type="hidden" name="templateId" value={template.id} />
-        <label className="flex cursor-pointer items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            name="appliesToNewChildren"
-            defaultChecked={template.appliesToNewChildren}
-            onChange={(e) => e.currentTarget.form?.requestSubmit()}
-          />
-          Add to new children automatically
-        </label>
+        <CheckField
+          name="appliesToNewChildren"
+          defaultChecked={template.appliesToNewChildren}
+          onChange={(e) => e.currentTarget.form?.requestSubmit()}
+          label="Add to new children automatically"
+        />
       </form>
     </Card>
   );

@@ -61,7 +61,7 @@ export function EditChildForm({
             <option value="active">Active — earning now</option>
             <option value="pre_participant">Not yet earning</option>
             <option value="graduated">Graduated</option>
-            <option value="archived">Archived</option>
+            {child.status === "archived" && <option value="archived">Archived</option>}
           </Select>
         </Field>
 

@@ -132,7 +132,7 @@ export function GoalCard({
           <input type="hidden" name="goalId" value={goal.id} />
           <input type="hidden" name="direction" value="in" />
           <div className="min-w-0 flex-1 sm:w-24 sm:flex-none">
-            <Input name="amount" inputMode="decimal" placeholder="0.00" />
+            <Input name="amount" inputMode="decimal" placeholder="0.00" aria-label="Amount to set aside" />
           </div>
           <Button type="submit" variant="secondary" className="w-28 shrink-0 !px-3 !py-2 text-sm sm:w-auto">
             Set aside
@@ -144,7 +144,7 @@ export function GoalCard({
           <input type="hidden" name="goalId" value={goal.id} />
           <input type="hidden" name="direction" value="out" />
           <div className="min-w-0 flex-1 sm:w-24 sm:flex-none">
-            <Input name="amount" inputMode="decimal" placeholder="0.00" />
+            <Input name="amount" inputMode="decimal" placeholder="0.00" aria-label="Amount to take back" />
           </div>
           <Button type="submit" variant="secondary" className="w-28 shrink-0 !px-3 !py-2 text-sm sm:w-auto">
             Take back

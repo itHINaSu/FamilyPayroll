@@ -1,0 +1,1 @@
+ALTER TABLE `responsibility_template` ADD `short_name` text;

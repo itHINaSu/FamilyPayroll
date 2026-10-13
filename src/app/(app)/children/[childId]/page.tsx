@@ -10,6 +10,7 @@ import { listResponsibilities } from "@/lib/responsibilities";
 import { clearChildOverrides } from "@/app/(app)/settings/actions";
 import { EditChildForm } from "./edit-child-form";
 import { RaiseForm } from "./raise-form";
+import { ArchiveButton } from "../row-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -92,6 +93,16 @@ export default async function ChildSetupPage({
           effective={policy}
           overriddenSections={overriddenSections}
         />
+
+        {record.status !== "archived" && (
+          <div className="border-t border-ink-200 pt-6 pb-2 text-center dark:border-ink-700">
+            <ArchiveButton childId={childId} name={record.displayName} />
+            <p className="mx-auto mt-1 max-w-sm text-xs text-ink-400">
+              For when {record.displayName} is done with Family Payroll for good. Their
+              history is kept and they can be restored.
+            </p>
+          </div>
+        )}
       </div>
     </>
   );

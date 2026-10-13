@@ -18,6 +18,13 @@ export function Card({
   );
 }
 
+/**
+ * Every field label in the app, on every tab: one size, weight and colour.
+ * Use <Field> or <CheckField> where possible; reach for this directly only
+ * for a label that can't be a <label> (a fieldset legend, a row heading).
+ */
+export const FIELD_LABEL = "text-sm font-medium text-ink-700 dark:text-ink-200";
+
 export function Field({
   label,
   hint,
@@ -31,9 +38,7 @@ export function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-        {label}
-      </span>
+      <span className={`mb-1.5 block ${FIELD_LABEL}`}>{label}</span>
       {children}
       {hint && !error && (
         <span className="mt-1.5 block text-xs text-ink-400">{hint}</span>
@@ -43,6 +48,27 @@ export function Field({
           {error}
         </span>
       )}
+    </label>
+  );
+}
+
+/**
+ * A setting that's simply on or off, labelled like any other field. (Ticking
+ * one of several options — which children, which days — stays a plain
+ * checkbox; those are values, not field labels.)
+ */
+export function CheckField({
+  label,
+  hint,
+  ...props
+}: Omit<ComponentProps<"input">, "type"> & { label: ReactNode; hint?: ReactNode }) {
+  return (
+    <label className="flex cursor-pointer items-start gap-2.5">
+      <input type="checkbox" {...props} className={`mt-0.5 ${props.className ?? ""}`} />
+      <span>
+        <span className={FIELD_LABEL}>{label}</span>
+        {hint && <span className="mt-0.5 block text-xs text-ink-400">{hint}</span>}
+      </span>
     </label>
   );
 }

@@ -391,6 +391,8 @@ export type ResponsibilityTemplateRow = typeof responsibilityTemplate.$inferSele
 
 export type TemplateInput = {
   name: string;
+  /** Optional abbreviation for the Dashboard; blank falls back to the name. */
+  shortName?: string | null;
   weeklyValueCents: number;
   cadence: Cadence;
   daysOfWeek?: number[] | null;
@@ -434,6 +436,7 @@ function insertTemplateRow(
       householdId,
       appliesToNewChildren,
       name: input.name,
+      shortName: input.shortName || null,
       weeklyValueCents: input.weeklyValueCents,
       cadence: input.cadence,
       ...cadenceFields,
@@ -565,7 +568,13 @@ export function updateResponsibilityTemplate(templateId: string, input: Template
   const cadenceFields = normalizeCadenceFields(input);
 
   db.update(responsibilityTemplate)
-    .set({ name: input.name, weeklyValueCents: input.weeklyValueCents, cadence: input.cadence, ...cadenceFields })
+    .set({
+      name: input.name,
+      shortName: input.shortName || null,
+      weeklyValueCents: input.weeklyValueCents,
+      cadence: input.cadence,
+      ...cadenceFields,
+    })
     .where(eq(responsibilityTemplate.id, templateId))
     .run();
 

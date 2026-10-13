@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 
-import { Alert, Button, Field, Input, Select } from "@/components/ui";
+import { Alert, Button, FIELD_LABEL, Field, Input, Select } from "@/components/ui";
 import type { AccountType } from "@/db/schema";
 import { formatCents, parseAmountToCents } from "@/lib/money";
 import { parseDollarsToCents, resolveSplit, type SplitMode, type SplitRow } from "@/lib/split";
@@ -168,7 +168,7 @@ export function MoneyForm({ kid, onDone }: { kid: MoneyKid; onDone?: () => void 
       ) : !splitting ? (
         <div>
           <div className="mb-1.5 flex items-baseline justify-between">
-            <span className="text-sm font-medium text-ink-700 dark:text-ink-200">Account</span>
+            <span className={FIELD_LABEL}>Account</span>
             <button
               type="button"
               onClick={startSplit}
@@ -256,7 +256,7 @@ function SplitEditor({
   return (
     <div className="rounded-lg border border-ink-200 p-3 dark:border-ink-700">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <span className="text-sm font-medium text-ink-700 dark:text-ink-200">Split</span>
+        <span className={FIELD_LABEL}>Split</span>
         <div className="flex gap-1 rounded-md bg-ink-100 p-0.5 dark:bg-ink-900">
           {(["amount", "percent"] as const).map((m) => (
             <button
