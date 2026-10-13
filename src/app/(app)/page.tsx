@@ -10,9 +10,9 @@ import { KidSummary } from "./kid-summary";
 export const dynamic = "force-dynamic";
 
 /**
- * Everyone at a glance, read-only: each child's pay period on the left and
- * their money on the right. A tap on either half goes to that child on the
- * Expectations or Balances tab, which is where changes are made.
+ * Everyone at a glance, read-only: each child's week and their checking
+ * balance. A tap goes to that child on the Expectations or Balances tab,
+ * which is where changes are made.
  */
 export default async function DashboardPage() {
   const sessionUser = await requireUser();
@@ -53,6 +53,15 @@ export default async function DashboardPage() {
     });
   }
 
+  // Payday is normally the same for everyone, so it's said once up top; a
+  // child with their own pay schedule gets theirs on their card.
+  const payDates = children.map((c) => c.period.payDate);
+  const payDate = payDates.sort(
+    (a, b) => payDates.filter((d) => d === b).length - payDates.filter((d) => d === a).length,
+  )[0];
+  const onTrack = children.reduce((n, c) => n + c.onTrackCents, 0);
+  const potential = children.reduce((n, c) => n + c.potentialCents, 0);
+
   return (
     <>
       <PageHeader title="Dashboard" />
@@ -80,11 +89,25 @@ export default async function DashboardPage() {
             under Setup › Children to get started.
           </Alert>
         ) : (
-          <div className="grid gap-2.5 lg:grid-cols-2">
-            {children.map((c) => (
-              <KidSummary key={c.id} child={c} today={today} />
-            ))}
-          </div>
+          <>
+            <p className="flex items-baseline justify-between gap-3 px-1 text-xs text-ink-400">
+              <span>Payday {formatShortDate(payDate)}</span>
+              <span>
+                <span className="tnum">{formatCents(onTrack)}</span> of{" "}
+                <span className="tnum">{formatCents(potential)}</span> on track
+              </span>
+            </p>
+            <div className="grid gap-2.5 lg:grid-cols-2">
+              {children.map((c) => (
+                <KidSummary
+                  key={c.id}
+                  child={c}
+                  today={today}
+                  showPayDate={c.period.payDate !== payDate}
+                />
+              ))}
+            </div>
+          </>
         )}
       </div>
     </>
