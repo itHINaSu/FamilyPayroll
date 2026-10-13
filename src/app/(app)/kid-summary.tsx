@@ -91,14 +91,15 @@ export function KidSummary({
     : [];
   const missCount = child.expectations.reduce((n, e) => n + e.misses.length, 0);
 
-  // More than three: two columns, so a long list still fits four kids on a phone.
+  // Up to five rows in one column, with room for full names; past that,
+  // two columns of up to five, so four kids still fit on a phone.
   const list = child.expectations;
   const half = Math.ceil(list.length / 2);
-  const columns = list.length > 3 ? [list.slice(0, half), list.slice(half)] : [list];
+  const columns = list.length > 5 ? [list.slice(0, half), list.slice(half)] : [list];
   const expectationsHref = `/expectations#${jumpTargetId(child.id)}`;
 
   return (
-    <div className="rounded-xl border border-ink-200 bg-white px-3 py-2.5 shadow-sm dark:border-ink-700 dark:bg-ink-800">
+    <div className="rounded-xl border border-ink-200 bg-white px-3 py-2 shadow-sm dark:border-ink-700 dark:bg-ink-800">
       <div className="flex items-center gap-2">
         <Link href={expectationsHref} className="flex min-w-0 flex-1 items-center gap-2">
           <Avatar name={child.name} photoBlobId={child.photoBlobId} size="xs" />
@@ -112,7 +113,7 @@ export function KidSummary({
         <Link
           href={`/balances#${jumpTargetId(child.id)}`}
           title={child.shortfall ? `${child.shortfall.billName} is short` : "Checking"}
-          className={`tnum inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-sm transition ${
+          className={`tnum inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-sm transition ${
             child.shortfall
               ? "bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-200"
               : "bg-ink-50 active:bg-ink-100 dark:bg-ink-900"

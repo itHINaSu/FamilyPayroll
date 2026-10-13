@@ -66,12 +66,12 @@ export default async function DashboardPage() {
     <>
       <PageHeader title="Dashboard" />
 
-      <div className="space-y-3">
+      <div className="space-y-2.5">
         {notices.length > 0 && (
           <ul className="divide-y divide-amber-200 rounded-lg border border-amber-300 bg-amber-50 text-sm text-amber-900 dark:divide-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
             {notices.map((n) => (
               <li key={n.key}>
-                <Link href={n.href} className="flex items-center justify-between gap-3 px-3 py-2">
+                <Link href={n.href} className="flex items-center justify-between gap-3 px-3 py-1.5 text-[13px]">
                   <span className="min-w-0">{n.text}</span>
                   <span aria-hidden="true">›</span>
                 </Link>
@@ -97,7 +97,7 @@ export default async function DashboardPage() {
                 <span className="tnum">{formatCents(potential)}</span> on track
               </span>
             </p>
-            <div className="grid gap-2.5 lg:grid-cols-2">
+            <div className="grid gap-2 lg:grid-cols-2">
               {children.map((c) => (
                 <KidSummary
                   key={c.id}
