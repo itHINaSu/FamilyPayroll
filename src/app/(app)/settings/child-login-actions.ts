@@ -32,32 +32,28 @@ export async function inviteChild(
     .get();
   const base = home?.appUrl?.replace(/\/$/, "") ?? "";
 
-  revalidatePath(`/children/${childId}/settings`);
+  revalidatePath("/settings", "layout");
   return { ok: true, url: `${base}/invite/${token}` };
 }
 
 export async function deactivateChildLogin(formData: FormData): Promise<void> {
   const parent = await requireParent();
   const userId = String(formData.get("userId") ?? "");
-  const childId = String(formData.get("childId") ?? "");
-
   db.update(user)
     .set({ active: false })
     .where(and(eq(user.id, userId), eq(user.householdId, parent.householdId), eq(user.role, "child")))
     .run();
 
-  revalidatePath(`/children/${childId}/settings`);
+  revalidatePath("/settings", "layout");
 }
 
 export async function reactivateChildLogin(formData: FormData): Promise<void> {
   const parent = await requireParent();
   const userId = String(formData.get("userId") ?? "");
-  const childId = String(formData.get("childId") ?? "");
-
   db.update(user)
     .set({ active: true })
     .where(and(eq(user.id, userId), eq(user.householdId, parent.householdId), eq(user.role, "child")))
     .run();
 
-  revalidatePath(`/children/${childId}/settings`);
+  revalidatePath("/settings", "layout");
 }

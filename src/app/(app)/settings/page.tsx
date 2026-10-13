@@ -21,7 +21,7 @@ export default async function SettingsPage() {
     {
       label: "Family",
       rows: [
-        { href: "/settings/family", title: "Household and parents", detail: "Family name, time zone, other parents" },
+        { href: "/settings/family", title: "Household", detail: "Family name, time zone, parent and child logins" },
         { href: "/config", title: "Setup", detail: "Children, expectations, extra jobs, bills" },
       ],
     },

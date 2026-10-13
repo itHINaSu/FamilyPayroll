@@ -26,7 +26,7 @@ import { ThemeToggle } from "./theme-toggle";
 
 const SETTINGS_LINKS = [
   { href: "/settings/account", label: "Account", icon: UserIcon },
-  { href: "/settings/family", label: "Household and parents", icon: HomeIcon },
+  { href: "/settings/family", label: "Household", icon: HomeIcon },
   { href: "/settings/payroll", label: "Payroll", icon: BanknoteIcon },
   { href: "/settings/display", label: "Display and kiosk", icon: MonitorIcon },
   { href: "/settings/notifications", label: "Notifications", icon: BellIcon },

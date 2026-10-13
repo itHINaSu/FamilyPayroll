@@ -27,7 +27,7 @@ export function HouseholdForm({
 
   return (
     <Card>
-      <h2 className="mb-4 text-lg font-semibold">Household</h2>
+      <h2 className="mb-4 text-lg font-semibold">Family details</h2>
 
       <form action={formAction} className="space-y-4">
         {state.error && <Alert>{state.error}</Alert>}

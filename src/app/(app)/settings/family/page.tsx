@@ -1,28 +1,27 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import { db } from "@/db";
 import { user } from "@/db/schema";
 import { getHousehold, requireParent } from "@/lib/auth/guard";
-import { listPendingInvites } from "@/lib/invites";
+import { listChildren } from "@/lib/children";
+import { listPendingInvites, pendingInviteForChild } from "@/lib/invites";
 import { HouseholdForm } from "../household-form";
-import { ParentsForm } from "../parents-form";
 import { SectionHeader } from "../section-header";
+import { UsersForm } from "../users-form";
 
 export const dynamic = "force-dynamic";
 
-export default async function FamilySettingsPage() {
+export default async function HouseholdSettingsPage() {
   const parent = await requireParent();
   const home = getHousehold();
-  const parents = db
-    .select()
-    .from(user)
-    .where(and(eq(user.householdId, parent.householdId), eq(user.role, "parent")))
-    .all();
-  const pendingInvites = listPendingInvites(parent.householdId, "parent");
+
+  const logins = db.select().from(user).where(eq(user.householdId, parent.householdId)).all();
+  const parents = logins.filter((u) => u.role === "parent");
+  const childLogins = logins.filter((u) => u.role === "child");
 
   return (
     <>
-      <SectionHeader title="Household and parents" />
+      <SectionHeader title="Household" />
       <div className="mx-auto max-w-2xl space-y-6">
         <HouseholdForm
           household={{
@@ -32,18 +31,26 @@ export default async function FamilySettingsPage() {
             vapidContact: home?.vapidContact ?? "",
           }}
         />
-        <ParentsForm
+        <UsersForm
           parents={parents.map((p) => ({
             id: p.id,
             displayName: p.displayName,
-            email: p.email,
+            username: p.email,
             active: p.active,
           }))}
-          invites={pendingInvites.map((i) => ({
+          parentInvites={listPendingInvites(parent.householdId, "parent").map((i) => ({
             id: i.id,
-            createdAt: i.createdAt,
             expiresAt: i.expiresAt,
           }))}
+          kids={listChildren(parent.householdId).map((c) => {
+            const login = childLogins.find((u) => u.childId === c.id);
+            return {
+              id: c.id,
+              name: c.displayName,
+              login: login ? { id: login.id, username: login.email, active: login.active } : null,
+              invitePending: !!pendingInviteForChild(c.id),
+            };
+          })}
           selfId={parent.id}
         />
       </div>

@@ -30,7 +30,7 @@ export default async function NotificationSettingsPage() {
           <Alert tone="warning">
             Set a public HTTPS URL and a push contact in{" "}
             <Link href="/settings/family" className="font-medium underline">
-              Household and parents
+              Household
             </Link>{" "}
             first. Apple rejects anything that is not a <code>mailto:</code> address or an{" "}
             <code>https://</code> URL.
