@@ -48,6 +48,7 @@ export type ChildWeek = {
   /** Index into each expectation's `weeks` for the week containing today. */
   currentWeek: number;
   checkingCents: number;
+  savingsCents: number;
   totalCents: number;
   potentialCents: number;
   /** What this period pays if nothing else changes: keep-it minus misses, plus earn-it done. */
@@ -55,6 +56,8 @@ export type ChildWeek = {
   lostCents: number;
   expectations: ExpectationView[];
   shortfall: { billName: string; dueDate: IsoDate; shortCents: number } | null;
+  /** The next bill due within a week, if any. */
+  nextBill: { name: string; dueDate: IsoDate; amountCents: number } | null;
 };
 
 function buildChildWeek(
@@ -104,7 +107,8 @@ function buildChildWeek(
   );
 
   const balances = getBalances(c.id);
-  const short = upcomingBills(c.id, 7).find((b) => b.shortfallCents > 0);
+  const bills = upcomingBills(c.id, 7);
+  const short = bills.find((b) => b.shortfallCents > 0);
   const sum = (key: "potentialCents" | "earnedCents" | "lostCents") =>
     expectations.reduce((n, e) => n + e[key], 0);
 
@@ -117,6 +121,7 @@ function buildChildWeek(
     period: { startDate: period.startDate, endDate: period.endDate, payDate: period.payDate },
     currentWeek,
     checkingCents: balances.checking,
+    savingsCents: balances.savings,
     totalCents: balances.visibleTotal,
     potentialCents: sum("potentialCents"),
     onTrackCents: sum("earnedCents"),
@@ -124,6 +129,9 @@ function buildChildWeek(
     expectations,
     shortfall: short
       ? { billName: short.billName, dueDate: short.dueDate, shortCents: short.shortfallCents }
+      : null,
+    nextBill: bills[0]
+      ? { name: bills[0].billName, dueDate: bills[0].dueDate, amountCents: bills[0].outstandingCents }
       : null,
   };
 }

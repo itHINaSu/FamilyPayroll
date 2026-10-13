@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { formatShortDate } from "@/lib/dates";
-import { MissNoteSheet, type NotePrompt } from "../../../expectations/week-card";
+import { MissNoteSheet, type NotePrompt } from "../week-card";
 
 /** Every miss this period, each with its note — tap one to add or edit it. */
 export function MissList({

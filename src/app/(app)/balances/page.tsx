@@ -1,16 +1,22 @@
 import Link from "next/link";
 
+import { JumpRow } from "@/components/jump-row";
 import { Alert, PageHeader } from "@/components/ui";
 import { requireParent } from "@/lib/auth/guard";
 import { upcomingBills } from "@/lib/bills";
 import { listChildren } from "@/lib/children";
 import { getBalances } from "@/lib/ledger";
 import { resolveHouseholdPolicy } from "@/lib/policy";
+import { AddMoneyButton } from "./add-money";
 import { BalanceCard, type BalanceView } from "./balance-card";
+import { moneyKid } from "./data";
 
 export const dynamic = "force-dynamic";
 
-/** Every child's money, as cards. Tap a name for the full history. */
+/**
+ * Every child's money, as cards — the "at the store" tab. Tap a name for
+ * that child's account; "+" or a card's button records a transaction.
+ */
 export default async function BalancesPage() {
   const parent = await requireParent();
   const policy = resolveHouseholdPolicy(parent.householdId);
@@ -34,10 +40,15 @@ export default async function BalancesPage() {
         : null,
     };
   });
+  const kids = children.map((c) => moneyKid(parent.householdId, c));
 
   return (
     <>
-      <PageHeader title="Balances" />
+      <PageHeader title="Balances" action={<AddMoneyButton kids={kids} />}>
+        <JumpRow
+          kids={children.map((c) => ({ id: c.id, name: c.displayName, photoBlobId: c.photoBlobId }))}
+        />
+      </PageHeader>
       {views.length === 0 ? (
         <Alert tone="info">
           No children yet —{" "}
@@ -48,8 +59,8 @@ export default async function BalancesPage() {
         </Alert>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
-          {views.map((v) => (
-            <BalanceCard key={v.id} child={v} />
+          {views.map((v, i) => (
+            <BalanceCard key={v.id} child={v} kid={kids[i]} />
           ))}
         </div>
       )}

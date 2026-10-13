@@ -53,7 +53,7 @@ export default async function ChildrenPage() {
 
                   <div className="min-w-0">
                     <Link
-                      href={`/children/${c.id}/settings`}
+                      href={`/children/${c.id}`}
                       className="block truncate font-medium hover:underline"
                     >
                       {c.displayName}

@@ -21,7 +21,8 @@ import {
  *
  *  - Nothing is ever updated or deleted (invariant I2). SQLite triggers enforce
  *    it, so a caller that tries will get an exception rather than silent
- *    corruption. Corrections go through `reverseEntry`.
+ *    corruption. A mistake is put right with another entry — in the app, a
+ *    transfer — so the history shows both what happened and the fix.
  *  - A ledger insert and its account balance update happen in one transaction,
  *    so the cached balance can never drift from the entries that produced it
  *    (invariant I6). `reconcileAll` re-derives and alerts if it ever does.
@@ -42,7 +43,11 @@ export type PostInput = {
   billInstanceId?: string | null;
   jobClaimId?: string | null;
   transferGroupId?: string | null;
-  /** Adjustments are the escape hatch and may drive a balance negative. */
+  /**
+   * Parents may take an account below zero (a kid who owes); the app warns
+   * but allows it. Automatic collections never pass this, so a bill or goal
+   * can only ever take what is there.
+   */
   allowNegative?: boolean;
 };
 
@@ -134,6 +139,7 @@ export type TransferInput = {
   actorUserId?: string | null;
   occurredAt?: number;
   source?: LedgerSource;
+  allowNegative?: boolean;
 };
 
 /**
@@ -163,6 +169,7 @@ export function recordTransfer(input: TransferInput): string {
       actorUserId: input.actorUserId,
       source: input.source,
       transferGroupId: groupId,
+      allowNegative: input.allowNegative,
     });
 
     postWithin(tx, {
@@ -177,6 +184,58 @@ export function recordTransfer(input: TransferInput): string {
       source: input.source,
       transferGroupId: groupId,
     });
+  });
+
+  return groupId;
+}
+
+export type SplitInput = {
+  childId: string;
+  direction: "income" | "expense";
+  parts: { accountType: AccountType; amountCents: number }[];
+  description: string;
+  memo?: string | null;
+  occurredAt?: number;
+  actorUserId?: string | null;
+};
+
+/**
+ * One income or expense, recorded as an entry per account. With more than
+ * one part the entries share a `transferGroupId`, so history can show the
+ * total with its breakdown — grandma's $20 stays one $20 gift. Expenses may
+ * overdraw (the form has already warned).
+ */
+export function recordSplit(input: SplitInput): string | null {
+  const parts = input.parts.filter((p) => p.amountCents !== 0);
+  if (parts.length === 0) throw new LedgerError("Enter an amount other than zero.");
+  if (parts.some((p) => !Number.isInteger(p.amountCents) || p.amountCents < 0)) {
+    throw new LedgerError("Each part must be a positive number of cents.");
+  }
+
+  const groupId = parts.length > 1 ? crypto.randomUUID() : null;
+  const occurredAt = input.occurredAt ?? Date.now();
+
+  db.transaction((tx) => {
+    for (const p of parts) {
+      postWithin(tx, {
+        childId: input.childId,
+        accountType: p.accountType,
+        amountCents: input.direction === "income" ? p.amountCents : -p.amountCents,
+        type:
+          input.direction === "income"
+            ? "cash_deposit"
+            : p.accountType === "generosity"
+              ? "donation"
+              : "purchase",
+        description: input.description,
+        memo: input.memo,
+        occurredAt,
+        actorUserId: input.actorUserId,
+        source: "manual",
+        transferGroupId: groupId,
+        allowNegative: true,
+      });
+    }
   });
 
   return groupId;
@@ -391,9 +450,9 @@ export const LEDGER_TYPE_LABELS: Record<LedgerEntryType, string> = {
   opening_balance: "Opening balance",
   payroll_deposit: "Payroll",
   bonus_deposit: "Bonus pay",
-  cash_deposit: "Cash in",
+  cash_deposit: "Income",
   cash_withdrawal: "Cash out",
-  purchase: "Purchase",
+  purchase: "Expense",
   bill_charge: "Bill due",
   bill_payment: "Bill paid",
   past_due_recovery: "Past due recovered",

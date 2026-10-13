@@ -63,7 +63,7 @@ export async function addGoal(_prev: GoalState, formData: FormData): Promise<Goa
     })
     .run();
 
-  revalidatePath(`/children/${parsed.data.childId}/goals`);
+  revalidatePath(`/balances/${parsed.data.childId}`, "layout");
   return { ok: true };
 }
 
@@ -96,8 +96,7 @@ export async function moveGoalMoney(
     throw error;
   }
 
-  revalidatePath(`/children/${childId}/goals`);
-  revalidatePath(`/children/${childId}`);
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -118,8 +117,7 @@ export async function buyGoal(_prev: GoalState, formData: FormData): Promise<Goa
     throw error;
   }
 
-  revalidatePath(`/children/${childId}/goals`);
-  revalidatePath(`/children/${childId}`);
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -138,5 +136,5 @@ export async function cancelGoal(formData: FormData): Promise<void> {
 
   db.update(goal).set({ status: "cancelled" }).where(eq(goal.id, goalId)).run();
 
-  revalidatePath(`/children/${childId}/goals`);
+  revalidatePath("/", "layout");
 }

@@ -1,6 +1,7 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { Alert, Card } from "@/components/ui";
+import { Alert, BackChevron, Card, PageHeader } from "@/components/ui";
 import { requireParent } from "@/lib/auth/guard";
 import { getChild } from "@/lib/children";
 import { listGoals } from "@/lib/goals";
@@ -17,7 +18,8 @@ export default async function GoalsPage({
 }) {
   const { childId } = await params;
   const parent = await requireParent();
-  if (!getChild(parent.householdId, childId)) notFound();
+  const record = getChild(parent.householdId, childId);
+  if (!record) notFound();
 
   const goals = listGoals(childId, true);
   const balances = getBalances(childId);
@@ -25,6 +27,15 @@ export default async function GoalsPage({
   const finished = goals.filter((g) => g.status !== "active");
 
   return (
+    <>
+    <PageHeader
+      title={`${record.displayName}'s goals`}
+      back={
+        <Link href={`/balances/${childId}`} title={record.displayName}>
+          <BackChevron label={record.displayName} />
+        </Link>
+      }
+    />
     <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
       <div className="space-y-6">
         <Card>
@@ -81,5 +92,6 @@ export default async function GoalsPage({
 
       <AddGoalForm childId={childId} />
     </div>
+    </>
   );
 }

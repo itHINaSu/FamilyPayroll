@@ -37,14 +37,14 @@ export async function sendDailyNudges(): Promise<void> {
             body:
               `Due ${bill.dueDate}. They need ${formatCents(bill.outstandingCents)} ` +
               `and are ${formatCents(bill.shortfallCents)} short.`,
-            url: `/children/${c.id}/bills`,
+            url: `/balances/${c.id}`,
             tag: `shortfall-${c.id}`,
           });
         } else {
           await notifyParents(home.id, "bill_due_soon", {
             title: `${bill.billName} is due ${bill.dueDate}`,
             body: `${c.displayName} has enough set aside.`,
-            url: `/children/${c.id}/bills`,
+            url: `/balances/${c.id}`,
             tag: `due-${c.id}`,
           });
         }
@@ -67,7 +67,7 @@ export async function sendDailyNudges(): Promise<void> {
         body:
           `${formatCents(stub.earnedCents)} of ${formatCents(stub.potentialCents)} earned. ` +
           `Posts on its own ${period.payDate} unless you change it.`,
-        url: `/children/${c.id}/pay`,
+        url: `/balances/${c.id}/stubs/${stub.id}`,
         tag: `draft-${c.id}`,
       });
     }

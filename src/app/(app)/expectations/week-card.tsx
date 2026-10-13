@@ -3,13 +3,16 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 
+import { Avatar } from "@/components/avatar";
+import { jumpTargetId } from "@/components/jump-target";
 import { Sheet } from "@/components/sheet";
 import { Button, Card, Textarea } from "@/components/ui";
 import { formatShortDate } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
 import type { Box } from "@/lib/responsibilities";
 import type { ChildWeek, ExpectationView } from "@/lib/today";
-import { saveMissNote, tapBox } from "../children/[childId]/responsibilities/actions";
+import { ChevronRightIcon } from "../icons";
+import { saveMissNote, tapBox } from "./actions";
 
 type NotePrompt = { missId: string; title: string; when: string; note: string };
 
@@ -30,22 +33,24 @@ export function WeekCard({
 }) {
   const [prompt, setPrompt] = useState<NotePrompt | null>(null);
 
-  return (
-    <Card>
+  const card = (
+    // A little less side padding on a phone buys the seven boxes their 44px.
+    <Card className="!px-3 sm:!px-6">
       {!full && (
-        <div className="mb-4 flex items-center gap-3">
+        <Link
+          href={`/expectations/${child.id}`}
+          className="-m-1 mb-3 flex items-center gap-3 rounded-lg p-1"
+        >
           <Avatar name={child.name} photoBlobId={child.photoBlobId} />
-          <div className="min-w-0 flex-1">
-            <Link
-              href={`/children/${child.id}/responsibilities`}
-              className="block font-medium hover:underline"
-            >
-              {child.name}
-            </Link>
-            <p className="text-xs text-ink-400">Paid {formatShortDate(child.period.payDate)}</p>
-          </div>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-medium">{child.name}</span>
+            <span className="block text-xs text-ink-400">
+              Paid {formatShortDate(child.period.payDate)}
+            </span>
+          </span>
           <PeriodTotal child={child} />
-        </div>
+          <ChevronRightIcon className="h-5 w-5 shrink-0 text-ink-300 dark:text-ink-500" />
+        </Link>
       )}
 
       {child.expectations.length === 0 ? (
@@ -59,7 +64,7 @@ export function WeekCard({
       ) : (
         <ul className="divide-y divide-ink-100 dark:divide-ink-700">
           {child.expectations.map((e) => (
-            <li key={e.id} className="py-2.5 first:pt-0 last:pb-0">
+            <li key={e.id} className="py-3 first:pt-0 last:pb-0">
               <ExpectationRow
                 childId={child.id}
                 expectation={e}
@@ -72,17 +77,16 @@ export function WeekCard({
         </ul>
       )}
 
-      {!full && child.expectations.length > 0 && (
-        <Link
-          href={`/children/${child.id}/responsibilities`}
-          className="mt-4 block text-right text-sm text-ledger-600 hover:underline dark:text-ledger-500"
-        >
-          Misses and notes →
-        </Link>
-      )}
-
       <MissNoteSheet childId={child.id} prompt={prompt} onClose={() => setPrompt(null)} />
     </Card>
+  );
+
+  return full ? (
+    card
+  ) : (
+    <div id={jumpTargetId(child.id)} className="jump-target rounded-xl">
+      {card}
+    </div>
   );
 }
 
@@ -102,21 +106,6 @@ export function PeriodTotal({ child }: { child: ChildWeek }) {
           "on track"
         )}
       </p>
-    </div>
-  );
-}
-
-export function Avatar({ name, photoBlobId }: { name: string; photoBlobId: string | null }) {
-  return photoBlobId ? (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={`/api/blobs/${photoBlobId}`}
-      alt=""
-      className="h-11 w-11 flex-shrink-0 rounded-full object-cover"
-    />
-  ) : (
-    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-ink-100 font-semibold text-ink-400 dark:bg-ink-700">
-      {name.charAt(0).toUpperCase()}
     </div>
   );
 }
@@ -171,7 +160,9 @@ function ExpectationRow({
             {weeks.length > 1 && (
               <p className="mb-1 text-xs text-ink-400">Week of {formatShortDate(w.start)}</p>
             )}
-            <div className="flex flex-wrap gap-1">
+            {/* Seven columns whatever the expectation, so a day box and a
+                numbered box are the same size and a week reads as a week. */}
+            <div className="grid grid-cols-7 gap-1">
               {w.boxes.map((b) => (
                 <BoxButton
                   key={b.key}
@@ -249,7 +240,7 @@ export function BoxButton({
       aria-pressed={checked}
       aria-label={`${verb}: ${e.name}, ${box.numbered ? `#${box.label}` : box.date}`}
       title={box.note ?? undefined}
-      className={`relative flex h-10 w-10 items-center justify-center rounded-lg border-2 text-sm font-semibold transition disabled:cursor-default ${look} ${
+      className={`relative flex aspect-square w-full max-w-14 items-center justify-center rounded-lg border-2 text-base font-semibold transition disabled:cursor-default ${look} ${
         box.future ? "opacity-40" : ""
       } ${pending ? "opacity-60" : ""} ${isToday ? "ring-2 ring-ledger-500/40 ring-offset-1 dark:ring-offset-ink-800" : ""}`}
     >
@@ -258,7 +249,7 @@ export function BoxButton({
         <svg
           viewBox="0 0 24 24"
           aria-hidden="true"
-          className="absolute inset-0 m-auto h-8 w-8 text-red-500"
+          className="absolute inset-0 m-auto h-4/5 w-4/5 text-red-500"
           fill="none"
           stroke="currentColor"
           strokeWidth={2.5}

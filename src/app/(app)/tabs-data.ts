@@ -10,17 +10,15 @@ export const TABS = [
 ] as const;
 
 /**
- * Which tab a given path belongs to. A child's own pages light up the tab
- * they expand on: their expectations page under Expectations, the rest under
- * Balances. Setup pages light up nothing — they're reached through the menu.
+ * Which tab a given path belongs to. A child's expectations page lights up
+ * Expectations; their account, goals and pay stubs light up Balances. Setup
+ * pages (including a child's profile under /children) light up nothing —
+ * they're reached through the menu.
  */
 export function activeTab(pathname: string): string | null {
   if (pathname === "/") return "/";
   if (pathname.startsWith("/expectations")) return "/expectations";
-  if (pathname.startsWith("/children/") && pathname.includes("/responsibilities")) {
-    return "/expectations";
-  }
+  if (pathname.startsWith("/balances")) return "/balances";
   if (pathname.startsWith("/settings")) return "/settings";
-  if (pathname.startsWith("/balances") || pathname.startsWith("/children/")) return "/balances";
   return null;
 }

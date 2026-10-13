@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
-import { applyRaise, type RespState } from "./actions";
+import { applyRaise, type RaiseState } from "./raise-actions";
 
 function Submit({ children }: { children: string }) {
   const { pending } = useFormStatus();
@@ -22,7 +22,7 @@ export function RaiseForm({
   childId: string;
   responsibilities: { id: string; name: string }[];
 }) {
-  const [state, formAction] = useActionState<RespState, FormData>(applyRaise, {});
+  const [state, formAction] = useActionState<RaiseState, FormData>(applyRaise, {});
   const [scope, setScope] = useState<"all" | "selected">("all");
 
   if (responsibilities.length === 0) return null;

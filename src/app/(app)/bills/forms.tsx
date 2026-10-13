@@ -14,7 +14,7 @@ import {
   toggleBillTemplateForChild,
   type BillTemplateState,
 } from "./actions";
-import { editBill, type BillState } from "../children/[childId]/bills/actions";
+import { editBill, type BillState } from "./child-actions";
 import { ChildCheckboxes } from "@/components/child-checkboxes";
 
 function Submit({ children }: { children: string }) {

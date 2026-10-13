@@ -35,7 +35,7 @@ export function EditChildForm({
 
   return (
     <Card className="h-fit">
-      <h2 className="mb-4 text-lg font-semibold">Edit</h2>
+      <h2 className="mb-4 text-lg font-semibold">Profile</h2>
 
       <form action={formAction} className="space-y-4">
         <input type="hidden" name="childId" value={child.id} />

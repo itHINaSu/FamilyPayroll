@@ -125,5 +125,5 @@ export async function toggleTemplateForChild(formData: FormData): Promise<void> 
 
   revalidatePath("/responsibilities");
   revalidatePath(`/responsibilities/${templateId}`);
-  revalidatePath(`/children/${childId}/responsibilities`);
+  revalidatePath("/expectations", "layout");
 }

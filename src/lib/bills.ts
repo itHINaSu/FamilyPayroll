@@ -274,12 +274,17 @@ export function upcomingBills(childId: string, withinDays = 14): UpcomingBill[] 
   return rows.map(({ instance, billRow }) => {
     const outstanding = instance.amountCents - instance.paidCents;
 
+    // Collection never takes an account below zero, so an overdrawn account
+    // contributes nothing rather than cancelling out money elsewhere.
     const available = (billRow.sourceAccountOrder as AccountType[]).reduce(
       (sum, a) =>
         sum +
-        (a === "savings" && !billRow.mayUseEarmarked
-          ? balances.savingsGeneral
-          : (balances[a as keyof typeof balances] ?? 0)),
+        Math.max(
+          0,
+          a === "savings" && !billRow.mayUseEarmarked
+            ? balances.savingsGeneral
+            : (balances[a as keyof typeof balances] ?? 0),
+        ),
       0,
     );
 
@@ -290,7 +295,7 @@ export function upcomingBills(childId: string, withinDays = 14): UpcomingBill[] 
       amountCents: instance.amountCents,
       outstandingCents: outstanding,
       status: instance.status,
-      shortfallCents: Math.max(0, outstanding - Math.max(0, available)),
+      shortfallCents: Math.max(0, outstanding - available),
     };
   });
 }

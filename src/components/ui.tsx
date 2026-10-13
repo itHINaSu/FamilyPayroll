@@ -136,6 +136,7 @@ export function PageHeader({
   title,
   action,
   back,
+  children,
 }: {
   title: string;
   /** Accepted for older callers; not rendered. */
@@ -144,6 +145,8 @@ export function PageHeader({
   action?: ReactNode;
   /** Left side of the band — a way back, usually <BackLink>. */
   back?: ReactNode;
+  /** A second row inside the band, pinned with it — e.g. the jump row. */
+  children?: ReactNode;
 }) {
   return (
     // The app's title bar: a full-width green band pinned to the top on a
@@ -157,7 +160,33 @@ export function PageHeader({
       <div className="justify-self-start text-white/85">{back}</div>
       <h1 className="text-center text-xl font-semibold tracking-tight text-balance">{title}</h1>
       <div className="justify-self-end">{action}</div>
+      {children && <div className="col-span-3 -mb-1 mt-2">{children}</div>}
     </div>
+  );
+}
+
+/** A round icon button for the title band (the "+" on Balances). */
+export function BandButton({ label, ...props }: ComponentProps<"button"> & { label: string }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      {...props}
+      className="flex h-10 w-10 items-center justify-center rounded-full text-white transition hover:bg-white/10"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2.25}
+        strokeLinecap="round"
+        className="h-6 w-6"
+        aria-hidden="true"
+      >
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+    </button>
   );
 }
 

@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { JumpRow } from "@/components/jump-row";
 import { Alert, PageHeader } from "@/components/ui";
 import { requireParent } from "@/lib/auth/guard";
 import { householdWeek } from "@/lib/today";
@@ -8,8 +9,9 @@ import { WeekCard } from "./week-card";
 export const dynamic = "force-dynamic";
 
 /**
- * This week, every child: each expectation as a row of boxes. Defining
- * expectations and what they pay is Setup (/responsibilities).
+ * This week, every child: each expectation as a row of boxes — the "at
+ * home" tab, where boxes get checked and misses noted. A child's name opens
+ * their whole pay period. Defining expectations is Setup (/responsibilities).
  */
 export default async function ExpectationsPage() {
   const parent = await requireParent();
@@ -17,7 +19,11 @@ export default async function ExpectationsPage() {
 
   return (
     <>
-      <PageHeader title="Expectations" />
+      <PageHeader title="Expectations">
+        <JumpRow
+          kids={children.map((c) => ({ id: c.id, name: c.name, photoBlobId: c.photoBlobId }))}
+        />
+      </PageHeader>
       {children.length === 0 ? (
         <Alert tone="info">
           No children yet —{" "}

@@ -36,9 +36,11 @@ const {
   listLedger,
   reconcileAll,
   recordTransaction,
+  recordSplit,
   recordTransfer,
   reverseEntry,
 } = await import("@/lib/ledger");
+const { childHistory } = await import("@/lib/history");
 const { createChild } = await import("@/lib/children");
 
 let householdId: string;
@@ -116,7 +118,7 @@ describe("recordTransaction", () => {
     expect(listLedger(childId)).toHaveLength(1);
   });
 
-  it("lets an adjustment go negative, as the deliberate escape hatch", () => {
+  it("goes negative only when the caller allows it", () => {
     recordTransaction({
       childId,
       accountType: "checking",
@@ -214,6 +216,132 @@ describe("recordTransfer", () => {
         description: "nowhere",
       }),
     ).toThrow(/two different accounts/);
+  });
+});
+
+describe("parent overdraws — allowed, never by automation", () => {
+  it("lets a transfer take its source below zero when asked", () => {
+    recordTransfer({
+      childId,
+      fromAccount: "checking",
+      toAccount: "savings",
+      amountCents: 300,
+      description: "fronted",
+      allowNegative: true,
+    });
+
+    const balances = getBalances(childId);
+    expect(balances.checking).toBe(-300);
+    expect(balances.savings).toBe(300);
+    expect(reconcileAll()).toEqual([]);
+  });
+
+  it("lets an expense overdraw", () => {
+    recordSplit({
+      childId,
+      direction: "expense",
+      parts: [{ accountType: "checking", amountCents: 300 }],
+      description: "Snack at the store",
+    });
+    expect(getBalances(childId).checking).toBe(-300);
+  });
+});
+
+describe("recordSplit", () => {
+  it("records one entry per account under a shared group", () => {
+    const groupId = recordSplit({
+      childId,
+      direction: "income",
+      parts: [
+        { accountType: "checking", amountCents: 1200 },
+        { accountType: "savings", amountCents: 600 },
+        { accountType: "generosity", amountCents: 200 },
+      ],
+      description: "Birthday money from Grandma",
+    });
+
+    expect(groupId).toBeTruthy();
+    const entries = listLedger(childId);
+    expect(entries).toHaveLength(3);
+    expect(new Set(entries.map((e) => e.entry.transferGroupId))).toEqual(new Set([groupId]));
+    expect(entries.every((e) => e.entry.type === "cash_deposit")).toBe(true);
+
+    const balances = getBalances(childId);
+    expect(balances.checking).toBe(1200);
+    expect(balances.savings).toBe(600);
+    expect(balances.generosity).toBe(200);
+    expect(reconcileAll()).toEqual([]);
+  });
+
+  it("leaves a single-account entry ungrouped", () => {
+    expect(
+      recordSplit({
+        childId,
+        direction: "income",
+        parts: [{ accountType: "checking", amountCents: 500 }],
+        description: "Tooth fairy",
+      }),
+    ).toBeNull();
+    expect(listLedger(childId)[0].entry.transferGroupId).toBeNull();
+  });
+
+  it("records money given from Generosity as a donation", () => {
+    recordSplit({
+      childId,
+      direction: "expense",
+      parts: [
+        { accountType: "checking", amountCents: 400 },
+        { accountType: "generosity", amountCents: 100 },
+      ],
+      description: "Church",
+    });
+    const types = listLedger(childId).map((e) => [e.accountType, e.entry.type, e.entry.amountCents]);
+    expect(types).toContainEqual(["checking", "purchase", -400]);
+    expect(types).toContainEqual(["generosity", "donation", -100]);
+  });
+
+  it("can draw from held", () => {
+    recordSplit({
+      childId,
+      direction: "expense",
+      parts: [{ accountType: "held", amountCents: 2500 }],
+      description: "Moved to brokerage account",
+    });
+    expect(getBalances(childId).held).toBe(-2500);
+    expect(getBalances(childId).visibleTotal).toBe(0);
+  });
+});
+
+describe("childHistory", () => {
+  it("folds splits and transfers into one row each", () => {
+    recordSplit({
+      childId,
+      direction: "income",
+      parts: [
+        { accountType: "checking", amountCents: 1500 },
+        { accountType: "savings", amountCents: 500 },
+      ],
+      description: "Grandma",
+    });
+    recordTransfer({
+      childId,
+      fromAccount: "checking",
+      toAccount: "generosity",
+      amountCents: 300,
+      description: "Fix: should have gone to giving",
+    });
+
+    const rows = childHistory(childId);
+    expect(rows).toHaveLength(2);
+
+    const split = rows.find((r) => r.kind === "split");
+    expect(split?.amountCents).toBe(2000);
+    expect(split?.parts).toHaveLength(2);
+
+    const transfer = rows.find((r) => r.kind === "transfer");
+    expect(transfer?.amountCents).toBe(300);
+    expect(transfer?.from).toBe("checking");
+    expect(transfer?.to).toBe("generosity");
   });
 });
 

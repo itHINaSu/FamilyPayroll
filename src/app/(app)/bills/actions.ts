@@ -116,7 +116,7 @@ export async function toggleBillTemplateForChild(formData: FormData): Promise<vo
   }
 
   revalidatePath("/bills");
-  revalidatePath(`/children/${childId}/bills`);
+  revalidatePath("/balances", "layout");
 }
 
 export async function setBillNewChildren(formData: FormData): Promise<void> {
@@ -136,5 +136,5 @@ export async function resyncBillForChild(formData: FormData): Promise<void> {
   if (!getChild(parent.householdId, childId)) return;
   resyncBill(String(formData.get("billId") ?? ""));
   revalidatePath("/bills");
-  revalidatePath(`/children/${childId}/bills`);
+  revalidatePath("/balances", "layout");
 }

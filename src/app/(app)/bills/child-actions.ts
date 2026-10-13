@@ -8,7 +8,7 @@ import { db } from "@/db";
 import { bill } from "@/db/schema";
 import { requireParent } from "@/lib/auth/guard";
 import { getChild } from "@/lib/children";
-import { collectBill, generateInstances } from "@/lib/bills";
+import { generateInstances } from "@/lib/bills";
 import { parseAmountToCents } from "@/lib/money";
 
 export type BillState = { error?: string; ok?: boolean };
@@ -56,21 +56,6 @@ export async function editBill(_prev: BillState, formData: FormData): Promise<Bi
 
   generateInstances();
 
-  revalidatePath(`/children/${parsed.data.childId}/bills`);
-  revalidatePath("/bills");
+  revalidatePath("/", "layout");
   return { ok: true };
-}
-
-/** Collect now rather than waiting for the nightly cycle. */
-export async function collectNow(formData: FormData): Promise<void> {
-  const parent = await requireParent();
-  const instanceId = String(formData.get("instanceId") ?? "");
-  const childId = String(formData.get("childId") ?? "");
-
-  if (!getChild(parent.householdId, childId)) return;
-
-  collectBill(instanceId);
-
-  revalidatePath(`/children/${childId}/bills`);
-  revalidatePath(`/children/${childId}`);
 }

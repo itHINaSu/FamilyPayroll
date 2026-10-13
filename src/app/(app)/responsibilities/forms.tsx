@@ -20,7 +20,7 @@ import {
   editResponsibility,
   resyncChildResponsibility,
   type RespState,
-} from "../children/[childId]/responsibilities/actions";
+} from "./child-actions";
 
 const DAYS = [
   { value: 0, label: "Sun" },

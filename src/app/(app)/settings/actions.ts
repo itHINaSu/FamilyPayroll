@@ -102,7 +102,7 @@ export async function saveSettings(
     .run();
 
   revalidatePath("/settings", "layout");
-  if (scopeType === "child") revalidatePath(`/children/${scopeId}/settings`);
+  if (scopeType === "child") revalidatePath(`/children/${scopeId}`);
   return { ok: true };
 }
 
@@ -120,7 +120,7 @@ export async function clearChildOverrides(formData: FormData): Promise<void> {
     note: "Cleared all overrides",
   });
 
-  revalidatePath(`/children/${childId}/settings`);
+  revalidatePath(`/children/${childId}`);
 }
 
 export async function updateHousehold(

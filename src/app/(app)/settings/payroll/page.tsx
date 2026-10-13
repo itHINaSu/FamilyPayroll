@@ -1,11 +1,23 @@
+import { and, eq } from "drizzle-orm";
+
 import { Alert, Card } from "@/components/ui";
 import { SettingsEditor } from "@/components/settings-editor";
+import { db } from "@/db";
+import { paystub } from "@/db/schema";
 import { getHousehold, requireParent } from "@/lib/auth/guard";
 import { heldFundTotal } from "@/lib/bills";
+import { listEarningChildren } from "@/lib/children";
+import { payPeriodFor, todayInHousehold } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
-import { checkGuardrails, getOverrides, resolveHouseholdPolicy } from "@/lib/policy";
+import {
+  checkGuardrails,
+  getOverrides,
+  resolveHouseholdPolicy,
+  resolvePolicy,
+} from "@/lib/policy";
 import { PayrollControl } from "../payroll-control";
 import { SectionHeader } from "../section-header";
+import { PayNow, type PayNowRow } from "./pay-now";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +31,32 @@ export default async function PayrollSettingsPage() {
   const warnings = checkGuardrails(policy);
   const held = heldFundTotal(parent.householdId);
 
+  const today = todayInHousehold();
+  const payNow: PayNowRow[] = listEarningChildren(parent.householdId, {
+    showNotYetEarning: false,
+    order: policy.display.childOrder,
+  }).map((c) => {
+    const p = resolvePolicy(parent.householdId, c.id, today).pay;
+    const period = payPeriodFor(today, {
+      cadence: p.cadence,
+      periodStartDay: p.periodStartDay,
+      payDateOffsetDays: p.payDateOffsetDays,
+    });
+    const draft = db
+      .select({ id: paystub.id })
+      .from(paystub)
+      .where(and(eq(paystub.childId, c.id), eq(paystub.status, "draft")))
+      .get();
+    return {
+      childId: c.id,
+      name: c.displayName,
+      startDate: period.startDate,
+      endDate: period.endDate,
+      payDate: period.payDate,
+      draftStubId: draft?.id ?? null,
+    };
+  });
+
   return (
     <>
       <SectionHeader title="Payroll" />
@@ -30,6 +68,8 @@ export default async function PayrollSettingsPage() {
         ))}
 
         <PayrollControl pausedOn={home?.payrollPausedOn ?? null} />
+
+        {!home?.payrollPausedOn && <PayNow rows={payNow} />}
 
         {held > 0 && (
           <Card>
@@ -43,7 +83,7 @@ export default async function PayrollSettingsPage() {
         )}
 
         <p className="text-xs text-ink-400">
-          These are the family defaults. Any child can differ — open the child and tap the gear.
+          These are the family defaults. Any child can differ — Setup › Children, then the child.
         </p>
         <SettingsEditor
           scopeType="household"

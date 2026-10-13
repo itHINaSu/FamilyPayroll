@@ -1,10 +1,11 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { Card } from "@/components/ui";
+import { BackChevron, Card, PageHeader } from "@/components/ui";
 import { requireParent } from "@/lib/auth/guard";
 import { formatDateRange, formatShortDate, todayInHousehold } from "@/lib/dates";
 import { childWeek } from "@/lib/today";
-import { PeriodTotal, WeekCard } from "../../../expectations/week-card";
+import { PeriodTotal, WeekCard } from "../week-card";
 import { MissList } from "./miss-list";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +31,15 @@ export default async function ChildExpectationsPage({
     .sort((a, b) => a.date.localeCompare(b.date));
 
   return (
+    <>
+    <PageHeader
+      title={week.name}
+      back={
+        <Link href={`/expectations#child-${childId}`} title="Expectations">
+          <BackChevron label="Expectations" />
+        </Link>
+      }
+    />
     <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
       <div className="space-y-6">
         <Card>
@@ -62,5 +72,6 @@ export default async function ChildExpectationsPage({
         </Card>
       </div>
     </div>
+    </>
   );
 }

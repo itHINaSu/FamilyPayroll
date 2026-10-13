@@ -41,7 +41,7 @@ export async function draftNow(
     return { error: error instanceof Error ? error.message : "Could not draft." };
   }
 
-  revalidatePath(`/children/${childId}/pay`);
+  revalidatePath("/", "layout");
   return { ok: "Draft ready." };
 }
 
@@ -72,7 +72,6 @@ export async function postNow(
     return { error: error instanceof Error ? error.message : "Could not post." };
   }
 
-  revalidatePath(`/children/${childId}/pay`);
-  revalidatePath(`/children/${childId}`);
+  revalidatePath("/", "layout");
   return { ok: "Posted." };
 }

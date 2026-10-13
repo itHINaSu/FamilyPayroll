@@ -1,10 +1,15 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 /**
  * A bottom sheet on phones, a centred dialog on wider screens. Escape or a
  * tap on the backdrop closes it.
+ *
+ * Portalled to <body>: opened from inside the sticky title band (the "+" on
+ * Balances), it would otherwise be trapped in the band's stacking context and
+ * sit underneath the bottom tab bar.
  */
 export function Sheet({
   open,
@@ -29,9 +34,9 @@ export function Sheet({
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open || typeof document === "undefined") return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-label={title}>
       <button
         type="button"
@@ -53,6 +58,7 @@ export function Sheet({
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
