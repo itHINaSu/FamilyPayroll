@@ -33,14 +33,14 @@ export async function subscribeDevice(
     userAgent,
   });
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true };
 }
 
 export async function unsubscribeDevice(endpoint: string): Promise<void> {
   await requireParent();
   removeSubscription(endpoint);
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
 }
 
 export async function sendTest(
@@ -97,5 +97,5 @@ export async function toggleEvent(formData: FormData): Promise<void> {
       .run();
   }
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
 }

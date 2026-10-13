@@ -77,12 +77,18 @@ export function SettingsEditor({
   scopeId,
   effective,
   overriddenSections,
+  sections,
 }: {
   scopeType: "household" | "child";
   scopeId: string;
   effective: Policy;
   overriddenSections: string[];
+  /** Only these section keys; others are left exactly as saved. */
+  sections?: string[];
 }) {
+  const shown = sections
+    ? SETTINGS_SECTIONS.filter((s) => sections.includes(s.key))
+    : SETTINGS_SECTIONS;
   const [state, formAction] = useActionState<SettingsState, FormData>(
     saveSettings,
     {},
@@ -105,7 +111,8 @@ export function SettingsEditor({
     Object.fromEntries(
       SETTINGS_SECTIONS.map((s) => [
         s.key,
-        !!s.commonlyUsed || overriddenSections.includes(s.key),
+        // A focused page (a few sections) opens them all.
+        !!sections || !!s.commonlyUsed || overriddenSections.includes(s.key),
       ]),
     ),
   );
@@ -130,7 +137,7 @@ export function SettingsEditor({
       {state.error && <Alert>{state.error}</Alert>}
       {state.ok && <Alert tone="info">Saved as a new version. History is unchanged.</Alert>}
 
-      {SETTINGS_SECTIONS.map((section) => {
+      {shown.map((section) => {
         const isOn = enabled[section.key];
         const isExpanded = expanded[section.key];
         const fields = section.fields.filter((f) => showAdvanced || !f.advanced);

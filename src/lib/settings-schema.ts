@@ -40,7 +40,7 @@ export const SETTINGS_SECTIONS: SectionSpec[] = [
     key: "pay",
     title: "Pay schedule",
     description:
-      "Pay date is deliberately separate from period end. That gap is what creates 'earned but not yet paid', exactly as a real job does.",
+      "When the pay period runs and when the paycheck lands.",
     commonlyUsed: true,
     fields: [
       {
@@ -71,7 +71,7 @@ export const SETTINGS_SECTIONS: SectionSpec[] = [
       {
         path: "pay.payDateOffsetDays",
         label: "Payday, days after period end",
-        hint: "5 means a period ending Sunday pays on Friday.",
+        hint: "1 pays the morning after the week ends. A longer gap puts the paycheck far from the week it's for.",
         type: "number",
         min: 0,
         max: 31,

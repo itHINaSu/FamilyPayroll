@@ -32,7 +32,7 @@ export function RaiseForm({
       <h2 className="mb-1 text-lg font-semibold">Give a raise</h2>
       <p className="mb-4 text-xs text-ink-400">
         Recorded as a visible event. Note that most real raises are new
-        responsibilities rather than a bigger number on the old ones.
+        expectations rather than a bigger number on the old ones.
       </p>
 
       <form action={formAction} className="space-y-4">

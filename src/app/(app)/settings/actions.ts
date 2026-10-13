@@ -101,7 +101,7 @@ export async function saveSettings(
     })
     .run();
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   if (scopeType === "child") revalidatePath(`/children/${scopeId}/settings`);
   return { ok: true };
 }
@@ -151,7 +151,7 @@ export async function updateHousehold(
     .where(eq(household.id, parent.householdId))
     .run();
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true };
 }
 
@@ -174,7 +174,7 @@ export async function createKiosk(
 
   const base = home?.appUrl?.replace(/\/$/, "") ?? "";
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true, url: `${base}/kiosk?token=${token}` };
 }
 
@@ -195,7 +195,7 @@ export async function revokeKiosk(formData: FormData): Promise<void> {
     )
     .run();
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
 }
 
 /** Mint a one-time link that turns into a second parent login. */
@@ -215,7 +215,7 @@ export async function inviteParent(
     .get();
   const base = home?.appUrl?.replace(/\/$/, "") ?? "";
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true, url: `${base}/invite/${token}` };
 }
 
@@ -224,7 +224,7 @@ export async function cancelInvite(formData: FormData): Promise<void> {
   const { revokeInvite } = await import("@/lib/invites");
 
   revokeInvite(parent.householdId, String(formData.get("inviteId") ?? ""));
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
 }
 
 /**
@@ -263,7 +263,7 @@ export async function deactivateParent(
 
   db.update(user).set({ active: false }).where(eq(user.id, targetId)).run();
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true };
 }
 
@@ -276,7 +276,7 @@ export async function reactivateParent(formData: FormData): Promise<void> {
     .where(and(eq(user.id, targetId), eq(user.householdId, parent.householdId), eq(user.role, "parent")))
     .run();
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
 }
 
 /**
@@ -349,7 +349,7 @@ export async function updateAccount(
 
   db.update(user).set(updates).where(eq(user.id, parent.id)).run();
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true };
 }
 
@@ -372,7 +372,7 @@ export async function backupNow(
     })
     .run();
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true, message: `Saved ${target.split("/").pop()}.` };
 }
 
@@ -626,6 +626,6 @@ export async function disableMfa(
     })
     .run();
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true };
 }

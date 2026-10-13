@@ -130,7 +130,7 @@ export function AppMenu({
             </div>
 
             <nav className="flex-1 overflow-y-auto py-2">
-              <MenuLink href="/settings#account" onNavigate={close}>
+              <MenuLink href="/settings/account" onNavigate={close}>
                 <UserIcon className="h-5 w-5" />
                 Account
               </MenuLink>

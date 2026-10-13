@@ -116,7 +116,9 @@ export const DEFAULT_POLICY: Policy = {
   pay: {
     cadence: "weekly",
     periodStartDay: 1, // Monday
-    payDateOffsetDays: 5, // period ends Sunday, pay date Friday
+    // Paid the morning after the week ends: the conversation about any lost
+    // pay happens while the week is still fresh, not a week later.
+    payDateOffsetDays: 1,
     cutoffHour: 20,
     minRevisionHours: 12,
   },
