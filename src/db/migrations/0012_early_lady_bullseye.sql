@@ -1,0 +1,1 @@
+ALTER TABLE `completion` ADD `note` text;

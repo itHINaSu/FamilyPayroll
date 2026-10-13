@@ -13,7 +13,7 @@ import { resolvePolicy } from "@/lib/policy";
 import {
   createResponsibilityTemplateForChild,
   parsePayFields,
-  toggleDay,
+  toggleBox,
 } from "@/lib/responsibilities";
 
 export type RespState = { error?: string; ok?: boolean };
@@ -195,63 +195,55 @@ export async function addTemplateForThisChild(formData: FormData): Promise<void>
 }
 
 /**
- * Mark a day done or undone.
- *
- * Under the default completion mode a claim stands unless a parent objects
- * before the stub posts, so toggling here is the whole interaction.
+ * A tap on one box of the week view. Returns the id of a miss it just
+ * recorded so the caller can offer to attach a note.
  */
-export async function toggleCompletion(formData: FormData): Promise<void> {
+export async function tapBox(input: {
+  childId: string;
+  responsibilityId: string;
+  date: string;
+  weekEnd?: string;
+  checked: boolean;
+}): Promise<{ missId: string | null }> {
   const parent = await requireParent();
-  const responsibilityId = String(formData.get("responsibilityId") ?? "");
-  const childId = String(formData.get("childId") ?? "");
-  const date = String(formData.get("date") ?? "");
+  if (!getChild(parent.householdId, input.childId)) return { missId: null };
 
-  if (!getChild(parent.householdId, childId)) return;
-
-  toggleDay({
-    childId,
-    responsibilityId,
-    date,
+  const result = toggleBox({
+    ...input,
     parentId: parent.id,
-    completionMode: resolvePolicy(parent.householdId, childId).completion.mode,
+    completionMode: resolvePolicy(parent.householdId, input.childId).completion.mode,
   });
 
-  revalidatePath(`/children/${childId}/responsibilities`);
-  revalidatePath(`/children/${childId}/pay`);
+  revalidatePath("/");
+  revalidatePath("/expectations");
+  revalidatePath(`/children/${input.childId}/responsibilities`);
+  revalidatePath(`/children/${input.childId}/pay`);
+  return result;
 }
 
-/** An extra tick for an up-to-N responsibility, which allows several a day. */
-export async function addOccurrence(formData: FormData): Promise<void> {
+/** Attach (or clear) the note on a miss. */
+export async function saveMissNote(input: {
+  childId: string;
+  missId: string;
+  note: string;
+}): Promise<void> {
   const parent = await requireParent();
-  const responsibilityId = String(formData.get("responsibilityId") ?? "");
-  const childId = String(formData.get("childId") ?? "");
-  const date = String(formData.get("date") ?? "");
+  if (!getChild(parent.householdId, input.childId)) return;
 
-  if (!getChild(parent.householdId, childId)) return;
-
-  const sameDay = db
-    .select()
-    .from(completion)
+  const note = input.note.trim().slice(0, 500);
+  db.update(completion)
+    .set({ note: note || null })
     .where(
       and(
-        eq(completion.responsibilityId, responsibilityId),
-        eq(completion.occurrenceDate, date),
+        eq(completion.id, input.missId),
+        eq(completion.childId, input.childId),
+        eq(completion.status, "missed"),
       ),
     )
-    .all();
-
-  db.insert(completion)
-    .values({
-      responsibilityId,
-      childId,
-      occurrenceDate: date,
-      occurrenceIndex: sameDay.length,
-      status: "claimed",
-      claimedByUserId: parent.id,
-    })
     .run();
 
-  revalidatePath(`/children/${childId}/responsibilities`);
+  revalidatePath("/expectations");
+  revalidatePath(`/children/${input.childId}/responsibilities`);
 }
 
 export async function addExcusal(

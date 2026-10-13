@@ -26,6 +26,7 @@ const schema = await import("@/db/schema");
 const { createChild } = await import("@/lib/children");
 const { getBalances, recordTransaction } = await import("@/lib/ledger");
 const { computeDraft, draftPaystub, postPaystub } = await import("@/lib/payroll");
+const { evaluatePeriod, toggleBox } = await import("@/lib/responsibilities");
 const { collectBill, generateInstances, listBills, runBillCycle, upcomingBills } = await import(
   "@/lib/bills"
 );
@@ -221,6 +222,75 @@ describe("payroll draft", () => {
     const draft = computeDraft(householdId, childId, "2026-03-02", "2026-03-15");
     expect(draft.potentialCents).toBe(200);
     expect(draft.earnedCents).toBe(100);
+  });
+
+  it("N times a week can be keep it: each miss docks one of N", () => {
+    const r = addResponsibility({
+      cadence: "up_to_n",
+      maxOccurrences: 3,
+      payMode: "expected",
+      weeklyValueCents: 300,
+    });
+    expect(computeDraft(householdId, childId, WEEK.start, WEEK.end).earnedCents).toBe(300);
+    miss(r, ["2026-03-04"]);
+    expect(computeDraft(householdId, childId, WEEK.start, WEEK.end).earnedCents).toBe(200);
+  });
+
+  it("carries miss notes onto the pay stub line", () => {
+    const r = addResponsibility({ payMode: "expected", weeklyValueCents: 700 });
+    db.insert(schema.completion)
+      .values({
+        responsibilityId: r,
+        childId,
+        occurrenceDate: "2026-03-03",
+        status: "missed",
+        note: "Left it for later and forgot",
+      })
+      .run();
+    const line = computeDraft(householdId, childId, WEEK.start, WEEK.end).lines.find(
+      (l) => l.refId === r,
+    )!;
+    expect(line.detail).toMatchObject({
+      missed: 1,
+      misses: [{ date: "2026-03-03", note: "Left it for later and forgot" }],
+    });
+  });
+
+  it("lays out a week of boxes: day letters for daily, numbers for N a week", () => {
+    const daily = addResponsibility({ payMode: "expected" });
+    const nTimes = addResponsibility({ cadence: "up_to_n", maxOccurrences: 2 });
+    const rows = db.select().from(schema.responsibility).all();
+    const evalFor = (id: string) =>
+      evaluatePeriod(rows.find((x) => x.id === id)!, childId, WEEK.start, WEEK.end, "auto_approve_with_veto", "2026-03-04");
+
+    const d = evalFor(daily).weeks[0].boxes;
+    expect(d.map((b) => b.label).join("")).toBe("MTWRFSS");
+    expect(d.filter((b) => b.future).length).toBe(4); // Thu–Sun after "today" Wed
+    expect(d.every((b) => b.state === "met")).toBe(true);
+
+    const n = evalFor(nTimes).weeks[0].boxes;
+    expect(n.map((b) => b.label)).toEqual(["1", "2"]);
+    expect(n.every((b) => b.state === "open")).toBe(true);
+  });
+
+  it("toggleBox: unchecking keep-it records a miss, re-checking removes it", () => {
+    const r = addResponsibility({ cadence: "weekly", payMode: "expected" });
+    const base = {
+      childId,
+      responsibilityId: r,
+      date: WEEK.start,
+      weekEnd: WEEK.end,
+      parentId: "p",
+      completionMode: "auto_approve_with_veto" as const,
+    };
+    const { missId } = toggleBox({ ...base, checked: true });
+    expect(missId).toBeTruthy();
+    const misses = () =>
+      db.select().from(schema.completion).where(eq(schema.completion.responsibilityId, r)).all();
+    expect(misses().map((m) => m.status)).toEqual(["missed"]);
+
+    expect(toggleBox({ ...base, checked: false }).missId).toBeNull();
+    expect(misses()).toHaveLength(0);
   });
 
   it("honours a selected-days cadence", () => {

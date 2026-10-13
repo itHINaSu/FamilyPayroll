@@ -148,3 +148,11 @@ input[type="time"]::-webkit-calendar-picker-indicator {
     padding-bottom: calc(env(safe-area-inset-bottom) + 26px);
   }
 }
+
+/* Bottom sheets (components/sheet.tsx) sit flush with the screen's bottom
+   edge on phones, so they need the home-indicator inset as padding. */
+@media (max-width: 639px) {
+  .sheet-panel {
+    padding-bottom: calc(env(safe-area-inset-bottom) + 1.25rem);
+  }
+}

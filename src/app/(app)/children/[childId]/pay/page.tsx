@@ -216,13 +216,24 @@ export default async function PayPage({
   );
 }
 
-/** "2 missed · all or nothing" under a docked keep-it line. */
+/** Under a docked line: how many were missed, and each miss's note. */
 function missedNote(detail: unknown) {
-  const d = (detail ?? {}) as { missed?: number; allOrNothing?: boolean };
+  const d = (detail ?? {}) as {
+    missed?: number;
+    allOrNothing?: boolean;
+    misses?: { date: string; note: string | null }[];
+  };
   if (!d.missed) return null;
   return (
     <span className="block text-xs text-ink-400">
       {d.missed} missed{d.allOrNothing ? " · all or nothing" : ""}
+      {(d.misses ?? [])
+        .filter((m) => m.note)
+        .map((m) => (
+          <span key={m.date + m.note} className="block italic">
+            {formatShortDate(m.date)}: {m.note}
+          </span>
+        ))}
     </span>
   );
 }

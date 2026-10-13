@@ -24,11 +24,21 @@ function SubmitButton({ children }: { children: string }) {
   );
 }
 
-export function MoneyForms({ childId }: { childId: string }) {
+export function MoneyForms({
+  childId,
+  onDone,
+  bare = false,
+}: {
+  childId: string;
+  /** Called after a successful save — e.g. to close a sheet. */
+  onDone?: () => void;
+  /** Without the surrounding card, for use inside a sheet. */
+  bare?: boolean;
+}) {
   const [tab, setTab] = useState<"transaction" | "transfer">("transaction");
 
-  return (
-    <Card className="h-fit">
+  const body = (
+    <>
       <div className="mb-4 flex gap-1 rounded-lg bg-ink-100 p-1 dark:bg-ink-900">
         {(["transaction", "transfer"] as const).map((t) => (
           <button
@@ -47,15 +57,17 @@ export function MoneyForms({ childId }: { childId: string }) {
       </div>
 
       {tab === "transaction" ? (
-        <TransactionForm childId={childId} />
+        <TransactionForm childId={childId} onDone={onDone} />
       ) : (
-        <TransferForm childId={childId} />
+        <TransferForm childId={childId} onDone={onDone} />
       )}
-    </Card>
+    </>
   );
+
+  return bare ? body : <Card className="h-fit">{body}</Card>;
 }
 
-function TransactionForm({ childId }: { childId: string }) {
+function TransactionForm({ childId, onDone }: { childId: string; onDone?: () => void }) {
   const [state, formAction] = useActionState<LedgerFormState, FormData>(
     recordManualTransaction,
     {},
@@ -64,8 +76,10 @@ function TransactionForm({ childId }: { childId: string }) {
   const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
-    if (state.ok) formRef.current?.reset();
-  }, [state.ok]);
+    if (!state.ok) return;
+    formRef.current?.reset();
+    onDone?.();
+  }, [state, onDone]);
 
   const spec = TRANSACTION_KINDS[kind];
 
@@ -134,7 +148,7 @@ function TransactionForm({ childId }: { childId: string }) {
   );
 }
 
-function TransferForm({ childId }: { childId: string }) {
+function TransferForm({ childId, onDone }: { childId: string; onDone?: () => void }) {
   const [state, formAction] = useActionState<LedgerFormState, FormData>(
     recordManualTransfer,
     {},
@@ -142,8 +156,10 @@ function TransferForm({ childId }: { childId: string }) {
   const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
-    if (state.ok) formRef.current?.reset();
-  }, [state.ok]);
+    if (!state.ok) return;
+    formRef.current?.reset();
+    onDone?.();
+  }, [state, onDone]);
 
   const accounts = ["checking", "savings", "generosity"] as const;
 

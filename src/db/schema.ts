@@ -486,6 +486,8 @@ export const completion = sqliteTable(
     claimedAt: integer("claimed_at").notNull().default(now),
     decidedAt: integer("decided_at"),
     payPeriodId: text("pay_period_id"),
+    /** A parent's optional note on a miss; it goes on that week's pay stub. */
+    note: text("note"),
   },
   (t) => [
     uniqueIndex("completion_occurrence_unique").on(

@@ -1,197 +1,151 @@
 import "server-only";
 
-import { and, eq, gte, lte } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { completion, payPeriod, paystub } from "@/db/schema";
+import { payPeriod, paystub } from "@/db/schema";
 import { upcomingBills } from "@/lib/bills";
-import { ageFromBirthdate, listEarningChildren } from "@/lib/children";
-import { eachDate, payPeriodFor, todayInHousehold, type IsoDate } from "@/lib/dates";
+import { ageFromBirthdate, getChild, listEarningChildren } from "@/lib/children";
+import { payPeriodFor, todayInHousehold, type IsoDate } from "@/lib/dates";
 import { getBalances } from "@/lib/ledger";
 import { pendingJobClaims } from "@/lib/jobs";
 import { resolvePolicy } from "@/lib/policy";
 import {
-  effectivePayMode,
+  describeCadence,
   evaluatePeriod,
-  excusedDates,
   listResponsibilities,
-  occurrenceDates,
-  weekBlocks,
+  type WeekBreakdown,
 } from "@/lib/responsibilities";
 
 /**
- * The daily view.
- *
- * Ticking things off is by far the highest-frequency action in this system, and
- * it was previously three clicks deep inside a per-child tab. This assembles
- * everything a parent needs on a weeknight — today's responsibilities for every
- * child, and anything actually waiting on them — into one screen.
- *
- * Deliberately not a second dashboard: the money view is a click away, because
- * balances are something you check occasionally and this is something you do.
+ * This pay period, per child: the numbers the Dashboard shows and the week
+ * of boxes the Expectations tab shows, assembled once so both agree.
  */
 
-export type TodayItem = {
-  responsibilityId: string;
+export type ExpectationView = {
+  id: string;
   name: string;
-  /** False on a day this responsibility does not apply, e.g. Tuesdays only. */
-  dueToday: boolean;
-  doneToday: boolean;
-  /** Keep-it only: a miss has been marked for today. */
-  missedToday: boolean;
-  /** The day a tap acts on: today, or for weekly the day already marked this week. */
-  toggleDate: IsoDate;
-  weekly: boolean;
+  cadenceLabel: string;
+  weeklyValueCents: number;
   payMode: "expected" | "optional";
   allOrNothing: boolean;
-  excusedToday: boolean;
-  /** Up-to-N allows several a day, so this counts rather than toggles. */
-  repeatable: boolean;
-  doneTodayCount: number;
-  weekCompleted: number;
-  weekChances: number;
-  weekMissed: number;
-  /** Earn-it: still available this period. */
-  toEarnCents: number;
-  /** Keep-it: docked this period. */
+  potentialCents: number;
+  earnedCents: number;
   lostCents: number;
+  toEarnCents: number;
+  missed: number;
+  weeks: WeekBreakdown[];
+  misses: { id: string; date: IsoDate; note: string | null }[];
 };
 
-export type TodayChild = {
+export type ChildWeek = {
   id: string;
   name: string;
   age: number;
   photoBlobId: string | null;
   status: string;
-  items: TodayItem[];
-  earnedCents: number;
+  period: { startDate: IsoDate; endDate: IsoDate; payDate: IsoDate };
+  /** Index into each expectation's `weeks` for the week containing today. */
+  currentWeek: number;
+  checkingCents: number;
+  totalCents: number;
   potentialCents: number;
-  payDate: IsoDate;
-  balanceCents: number;
-  /** Set only when they cannot currently cover a bill — this is the nudge. */
+  /** What this period pays if nothing else changes: keep-it minus misses, plus earn-it done. */
+  onTrackCents: number;
+  lostCents: number;
+  expectations: ExpectationView[];
   shortfall: { billName: string; dueDate: IsoDate; shortCents: number } | null;
 };
 
-export function todayForHousehold(householdId: string): {
-  today: IsoDate;
-  children: TodayChild[];
-} {
-  const today = todayInHousehold();
-  const householdPolicy = resolvePolicy(householdId, null, today);
-
-  const children = listEarningChildren(householdId, {
-    showNotYetEarning: householdPolicy.display.showNotYetEarning,
-    order: householdPolicy.display.childOrder,
+function buildChildWeek(
+  householdId: string,
+  c: { id: string; displayName: string; birthdate: string; photoBlobId: string | null; status: string },
+  today: IsoDate,
+): ChildWeek {
+  const policy = resolvePolicy(householdId, c.id, today);
+  const period = payPeriodFor(today, {
+    cadence: policy.pay.cadence,
+    periodStartDay: policy.pay.periodStartDay,
+    payDateOffsetDays: policy.pay.payDateOffsetDays,
   });
 
-  return {
-    today,
-    children: children.map((c) => {
-      const policy = resolvePolicy(householdId, c.id, today);
-      const period = payPeriodFor(today, {
-        cadence: policy.pay.cadence,
-        periodStartDay: policy.pay.periodStartDay,
-        payDateOffsetDays: policy.pay.payDateOffsetDays,
-      });
-
-      const completions = db
-        .select()
-        .from(completion)
-        .where(
-          and(
-            eq(completion.childId, c.id),
-            gte(completion.occurrenceDate, period.startDate),
-            lte(completion.occurrenceDate, period.endDate),
-          ),
-        )
-        .all();
-
-      let earnedCents = 0;
-      let potentialCents = 0;
-
-      const items: TodayItem[] = listResponsibilities(c.id).map((r) => {
-        const result = evaluatePeriod(
-          r,
-          c.id,
-          period.startDate,
-          period.endDate,
-          policy.completion.mode,
-        );
-
-        const applicable = new Set(
-          occurrenceDates(r, period.startDate, period.endDate),
-        );
-        const excused = excusedDates(c.id, r.id, period.startDate, period.endDate);
-        // Weekly is once on any day, so "today" means this week.
-        const thisWeek =
-          r.cadence === "weekly"
-            ? new Set(
-                weekBlocks(
-                  eachDate(period.startDate, period.endDate),
-                  period.startDate,
-                  result.chances,
-                ).find((w) => w.includes(today)) ?? [today],
-              )
-            : new Set([today]);
-        const todayAll = completions.filter(
-          (x) => x.responsibilityId === r.id && thisWeek.has(x.occurrenceDate),
-        );
-        const todayRows = todayAll.filter((x) => x.status !== "missed");
-
-        earnedCents += result.earnedCents;
-        potentialCents += result.potentialCents;
-
-        return {
-          responsibilityId: r.id,
-          name: r.name,
-          dueToday: applicable.has(today),
-          doneToday: todayRows.length > 0,
-          missedToday: todayAll.some((x) => x.status === "missed"),
-          toggleDate: todayAll[0]?.occurrenceDate ?? today,
-          weekly: r.cadence === "weekly",
-          payMode: effectivePayMode(r),
-          allOrNothing: r.allOrNothing,
-          excusedToday: excused.has(today),
-          repeatable: r.cadence === "up_to_n",
-          doneTodayCount: todayRows.length,
-          weekCompleted: result.completed,
-          weekChances: result.chances,
-          weekMissed: result.missed,
-          toEarnCents: result.toEarnCents,
-          lostCents: result.lostCents,
-        };
-      });
-
-      const balances = getBalances(c.id);
-      const short = upcomingBills(c.id, 7).find((b) => b.shortfallCents > 0);
-
+  const expectations: ExpectationView[] = listResponsibilities(c.id)
+    .filter((r) => r.effectiveFrom <= period.endDate)
+    .map((r) => {
+      const result = evaluatePeriod(
+        r,
+        c.id,
+        period.startDate,
+        period.endDate,
+        policy.completion.mode,
+        today,
+      );
       return {
-        id: c.id,
-        name: c.displayName,
-        age: ageFromBirthdate(c.birthdate),
-        photoBlobId: c.photoBlobId,
-        status: c.status,
-        items,
-        earnedCents,
-        potentialCents,
-        payDate: period.payDate,
-        balanceCents: balances.visibleTotal,
-        shortfall: short
-          ? {
-              billName: short.billName,
-              dueDate: short.dueDate,
-              shortCents: short.shortfallCents,
-            }
-          : null,
+        id: r.id,
+        name: r.name,
+        cadenceLabel: describeCadence(r),
+        weeklyValueCents: r.weeklyValueCents,
+        payMode: r.payMode,
+        allOrNothing: r.allOrNothing,
+        potentialCents: result.potentialCents,
+        earnedCents: result.earnedCents,
+        lostCents: result.lostCents,
+        toEarnCents: result.toEarnCents,
+        missed: result.missed,
+        weeks: result.weeks,
+        misses: result.misses,
       };
-    }),
+    });
+
+  const sampleWeeks = expectations[0]?.weeks ?? [];
+  const currentWeek = Math.max(
+    0,
+    sampleWeeks.findIndex((w) => today >= w.start && today <= w.end),
+  );
+
+  const balances = getBalances(c.id);
+  const short = upcomingBills(c.id, 7).find((b) => b.shortfallCents > 0);
+  const sum = (key: "potentialCents" | "earnedCents" | "lostCents") =>
+    expectations.reduce((n, e) => n + e[key], 0);
+
+  return {
+    id: c.id,
+    name: c.displayName,
+    age: ageFromBirthdate(c.birthdate),
+    photoBlobId: c.photoBlobId,
+    status: c.status,
+    period: { startDate: period.startDate, endDate: period.endDate, payDate: period.payDate },
+    currentWeek,
+    checkingCents: balances.checking,
+    totalCents: balances.visibleTotal,
+    potentialCents: sum("potentialCents"),
+    onTrackCents: sum("earnedCents"),
+    lostCents: sum("lostCents"),
+    expectations,
+    shortfall: short
+      ? { billName: short.billName, dueDate: short.dueDate, shortCents: short.shortfallCents }
+      : null,
   };
 }
 
-/** Things genuinely waiting on a parent, for the top of the daily view. */
-export function attentionItems(householdId: string) {
+export function householdWeek(householdId: string): { today: IsoDate; children: ChildWeek[] } {
   const today = todayInHousehold();
+  const policy = resolvePolicy(householdId, null, today);
+  const children = listEarningChildren(householdId, {
+    showNotYetEarning: policy.display.showNotYetEarning,
+    order: policy.display.childOrder,
+  });
+  return { today, children: children.map((c) => buildChildWeek(householdId, c, today)) };
+}
 
+export function childWeek(householdId: string, childId: string): ChildWeek | null {
+  const c = getChild(householdId, childId);
+  if (!c) return null;
+  return buildChildWeek(householdId, c, todayInHousehold());
+}
+
+/** Things genuinely waiting on a parent, for the top of the Dashboard. */
+export function attentionItems(householdId: string) {
   const drafts = db
     .select({ stub: paystub, period: payPeriod })
     .from(paystub)
@@ -201,21 +155,7 @@ export function attentionItems(householdId: string) {
 
   return {
     draftPaystubs: drafts.length,
-    // A draft posts itself on its pay date, so this is informational rather
-    // than a task — worded that way in the UI.
     nextPayDate: drafts.map((d) => d.period.payDate).sort()[0] ?? null,
     pendingJobs: pendingJobClaims(householdId).length,
-    today,
   };
-}
-
-export function periodDays(householdId: string, childId: string): IsoDate[] {
-  const today = todayInHousehold();
-  const policy = resolvePolicy(householdId, childId, today);
-  const period = payPeriodFor(today, {
-    cadence: policy.pay.cadence,
-    periodStartDay: policy.pay.periodStartDay,
-    payDateOffsetDays: policy.pay.payDateOffsetDays,
-  });
-  return eachDate(period.startDate, period.endDate);
 }

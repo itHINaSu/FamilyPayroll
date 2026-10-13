@@ -101,8 +101,10 @@ export function computeDraft(
         chances: result.chances,
         excused: result.excused,
         missed: result.missed,
-        payMode: r.cadence === "up_to_n" ? "optional" : r.payMode,
+        payMode: r.payMode,
         allOrNothing: r.allOrNothing,
+        // Shown on the stub so the conversation about lost pay has specifics.
+        misses: result.misses.map((m) => ({ date: m.date, note: m.note })),
         cadence: r.cadence,
       },
     });

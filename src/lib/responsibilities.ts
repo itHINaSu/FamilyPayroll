@@ -101,61 +101,94 @@ export function weekBlocks(dates: IsoDate[], start: IsoDate, weeks: number): Iso
   return blocks;
 }
 
+export type CompletionMode = "auto_approve_with_veto" | "claim_then_approve" | "parent_marks_only";
+
+/** Weekday letters, Sunday first; Thursday is R so it can't be confused with Tuesday. */
+export const DAY_LETTERS = ["S", "M", "T", "W", "R", "F", "S"];
+
+/**
+ * One box on the week view. Keep-it boxes are "met" until a parent unchecks
+ * them ("missed"); earn-it boxes are "open" until checked ("done"). Day
+ * boxes belong to a date; numbered boxes ("once a week", "N times a week")
+ * belong to the week and are interchangeable.
+ */
+export type Box = {
+  key: string;
+  label: string;
+  /** Day boxes: the occurrence date. Numbered boxes: the week's first day. */
+  date: IsoDate;
+  numbered: boolean;
+  state: "met" | "missed" | "done" | "open" | "excused";
+  /** Not yet happened — nothing to mark. */
+  future: boolean;
+  /** The miss behind a "missed" box, for its note. */
+  missId: string | null;
+  note: string | null;
+};
+
+export type WeekBreakdown = {
+  start: IsoDate;
+  end: IsoDate;
+  chances: number;
+  credited: number;
+  missed: number;
+  boxes: Box[];
+};
+
 export type PeriodResult = {
   responsibility: ResponsibilityRow;
   chances: number;
   excused: number;
-  /** Chances credited: done (optional), not missed (expected), or excused. */
+  /** Chances credited: done (earn it), not missed (keep it), or excused. */
   completed: number;
-  /** Explicit misses marked against an expected responsibility. */
+  /** Misses marked against a keep-it responsibility. */
   missed: number;
   potentialCents: number;
   earnedCents: number;
-  /** Optional only: what checking off the rest would still add. */
+  /** Earn it only: what checking off the rest would still add. */
   toEarnCents: number;
-  /** Expected only: what misses have docked. */
+  /** Keep it only: what misses have docked. */
   lostCents: number;
+  weeks: WeekBreakdown[];
+  /** Every miss in the period with its optional note, oldest first. */
+  misses: { id: string; date: IsoDate; note: string | null }[];
 };
 
-/** "up_to_n" has nothing to miss, so it is always optional. */
-export function effectivePayMode(r: Pick<ResponsibilityRow, "payMode" | "cadence">) {
-  return r.cadence === "up_to_n" ? "optional" : r.payMode;
+export function effectivePayMode(r: Pick<ResponsibilityRow, "payMode">) {
+  return r.payMode;
+}
+
+/** How many numbered boxes a week gets, or null for day boxes. */
+function slotsPerWeek(r: ResponsibilityRow): number | null {
+  if (r.cadence === "weekly") return 1;
+  if (r.cadence === "up_to_n") return Math.max(1, r.maxOccurrences ?? 1);
+  return null;
 }
 
 /**
- * What a responsibility is worth over a period, and what was actually earned.
+ * What a responsibility is worth over a period, what was earned, and the
+ * week-by-week boxes behind it.
  *
- * Potential is always the full value: an excused day (away, sick, the chore
- * didn't exist that day) is credited as done, so it never costs pay.
- *
- * Expected responsibilities start fully earned and only an explicit "missed"
- * mark docks them; optional ones earn per check-off. All-or-nothing turns
- * any miss within a week into losing that week's whole value.
+ * Potential is always the full value: an excused day (away, sick, the
+ * expectation didn't exist that day) is credited, so it never costs pay.
+ * Keep-it starts fully earned and each marked miss docks its share; earn-it
+ * earns per check-off. All-or-nothing turns any miss within a week into
+ * losing that week's whole value.
  */
 export function evaluatePeriod(
   r: ResponsibilityRow,
   childId: string,
   start: IsoDate,
   end: IsoDate,
-  completionMode: "auto_approve_with_veto" | "claim_then_approve" | "parent_marks_only",
+  completionMode: CompletionMode,
+  today: IsoDate = todayInHousehold(),
 ): PeriodResult {
-  const periodDays = eachDate(start, end).length;
-  const scaledValue = scaleWeeklyValue(r.weeklyValueCents, periodDays);
-  const mode = effectivePayMode(r);
-
-  const rawChances = chancesInPeriod(r, start, end);
-  const potentialCents = rawChances === 0 ? 0 : scaledValue;
-
-  const dated = r.cadence === "daily" || r.cadence === "daily_selected";
-  const dates = occurrenceDates(r, start, end);
-  const excusedSet =
-    r.cadence === "up_to_n" ? new Set<IsoDate>() : excusedDates(childId, r.id, start, end);
-  const excusedCount =
-    r.cadence === "up_to_n"
-      ? 0
-      : r.cadence === "weekly"
-        ? weekBlocks(dates, start, rawChances).filter((w) => w.every((d) => excusedSet.has(d))).length
-        : dates.filter((d) => excusedSet.has(d)).length;
+  const days = eachDate(start, end);
+  const scaledValue = scaleWeeklyValue(r.weeklyValueCents, days.length);
+  const expected = r.payMode === "expected";
+  const slots = slotsPerWeek(r);
+  const occurs = new Set(occurrenceDates(r, start, end));
+  const excusedSet = excusedDates(childId, r.id, start, end);
 
   const rows = db
     .select()
@@ -167,88 +200,140 @@ export function evaluatePeriod(
         lte(completion.occurrenceDate, end),
       ),
     )
-    .all();
+    .all()
+    .sort((a, b) => a.occurrenceDate.localeCompare(b.occurrenceDate) || a.claimedAt - b.claimedAt);
 
-  const countsAsDone = (status: CompletionStatus) =>
+  const isDone = (status: CompletionStatus) =>
     completionMode === "auto_approve_with_veto"
       ? status === "claimed" || status === "approved"
       : status === "approved";
+  const missRows = rows.filter((c) => c.status === "missed" && !excusedSet.has(c.occurrenceDate));
 
-  const doneRows = rows.filter((c) => countsAsDone(c.status));
-  const missedRows = rows.filter(
-    (c) => c.status === "missed" && !excusedSet.has(c.occurrenceDate),
-  );
+  const numWeeks = Math.max(1, Math.round(days.length / 7));
+  const weeks: WeekBreakdown[] = weekBlocks(days, start, numWeeks).map((week) => {
+    const weekStart = week[0];
+    const weekEnd = week[week.length - 1];
+    const inWeek = (d: IsoDate) => d >= weekStart && d <= weekEnd;
 
-  // Per-date credit for daily cadences; counts for weekly and up-to-N.
-  const doneDates = new Set(doneRows.map((c) => c.occurrenceDate));
-  const missedDates = new Set(missedRows.map((c) => c.occurrenceDate));
-  const credited = (d: IsoDate) =>
-    excusedSet.has(d) || (mode === "expected" ? !missedDates.has(d) : doneDates.has(d));
-
-  let completed: number;
-  let missed: number;
-  if (r.cadence === "weekly") {
-    // One chance per week, on any day of it. A week whose every day is
-    // excused had no chance at all, so it's credited.
-    let credit = 0;
-    missed = 0;
-    for (const week of weekBlocks(dates, start, rawChances)) {
-      const excusedWeek = week.every((d) => excusedSet.has(d));
-      const missedWeek = week.some((d) => missedDates.has(d));
-      const doneWeek = week.some((d) => doneDates.has(d));
-      if (mode === "expected") {
-        if (missedWeek && !excusedWeek) missed++;
-        else credit++;
-      } else if (doneWeek || excusedWeek) {
-        credit++;
-      }
+    if (slots === null) {
+      const boxes: Box[] = week
+        .filter((d) => occurs.has(d))
+        .map((d) => {
+          const miss = missRows.find((c) => c.occurrenceDate === d);
+          const done = rows.some((c) => c.occurrenceDate === d && isDone(c.status));
+          return {
+            key: d,
+            label: DAY_LETTERS[dayOfWeek(d)],
+            date: d,
+            numbered: false,
+            state: excusedSet.has(d)
+              ? "excused"
+              : expected
+                ? miss
+                  ? "missed"
+                  : "met"
+                : done
+                  ? "done"
+                  : "open",
+            future: d > today,
+            missId: expected ? (miss?.id ?? null) : null,
+            note: expected ? (miss?.note ?? null) : null,
+          };
+        });
+      return {
+        start: weekStart,
+        end: weekEnd,
+        chances: boxes.length,
+        credited: boxes.filter((b) => b.state !== "missed" && b.state !== "open").length,
+        missed: boxes.filter((b) => b.state === "missed").length,
+        boxes,
+      };
     }
-    completed = credit;
-  } else if (dated) {
-    completed = dates.filter(credited).length;
-    missed = mode === "expected" ? dates.filter((d) => missedDates.has(d)).length : 0;
-  } else {
-    // up_to_n: always earn-it, never excused.
-    missed = 0;
-    completed = Math.min(doneRows.length, rawChances);
-  }
+
+    // Numbered boxes: the week has `slots` interchangeable chances.
+    const excusedWeek = week.every((d) => excusedSet.has(d));
+    const weekMisses = missRows.filter((c) => inWeek(c.occurrenceDate)).slice(0, slots);
+    const weekDone = Math.min(
+      slots,
+      rows.filter((c) => inWeek(c.occurrenceDate) && isDone(c.status)).length,
+    );
+    const marked = expected ? weekMisses.length : weekDone;
+
+    const boxes: Box[] = Array.from({ length: slots }, (_, i) => {
+      // Keep-it: misses fill from the right; earn-it: check-offs from the left.
+      const missIndex = i - (slots - marked);
+      const miss = expected && missIndex >= 0 ? weekMisses[missIndex] : undefined;
+      return {
+        key: `${weekStart}#${i}`,
+        label: String(i + 1),
+        date: weekStart,
+        numbered: true,
+        state: excusedWeek
+          ? "excused"
+          : expected
+            ? miss
+              ? "missed"
+              : "met"
+            : i < marked
+              ? "done"
+              : "open",
+        future: weekStart > today,
+        missId: miss?.id ?? null,
+        note: miss?.note ?? null,
+      };
+    });
+    return {
+      start: weekStart,
+      end: weekEnd,
+      chances: slots,
+      credited: excusedWeek ? slots : expected ? slots - marked : marked,
+      missed: excusedWeek || !expected ? 0 : marked,
+      boxes,
+    };
+  });
+
+  const chances = weeks.reduce((n, w) => n + w.chances, 0);
+  const completed = weeks.reduce((n, w) => n + w.credited, 0);
+  const missed = weeks.reduce((n, w) => n + w.missed, 0);
+  const potentialCents = chances === 0 ? 0 : scaledValue;
 
   let earnedCents: number;
-  // Weekly already has one chance per week, so all-or-nothing is the same
-  // as paying each week's share.
-  if (!r.allOrNothing || r.cadence === "weekly") {
-    earnedCents = earnedForResponsibility(potentialCents, completed, rawChances);
-  } else if (dated && dates.length > 0) {
-    // Judged week by week, so one bad week of a biweekly period costs only
-    // that week's share.
-    const blocks = new Map<number, IsoDate[]>();
-    for (const d of dates) {
-      const block = Math.floor(daysBetween(start, d) / 7);
-      blocks.set(block, [...(blocks.get(block) ?? []), d]);
-    }
-    let lost = 0;
-    let failed = 0;
-    for (const blockDates of blocks.values()) {
-      if (!blockDates.every(credited)) {
-        failed++;
-        lost += Math.round((potentialCents * blockDates.length) / dates.length);
-      }
-    }
-    earnedCents = failed === blocks.size ? 0 : Math.max(0, potentialCents - lost);
+  if (!r.allOrNothing) {
+    earnedCents = earnedForResponsibility(potentialCents, completed, chances);
   } else {
-    earnedCents = completed >= rawChances ? potentialCents : 0;
+    const failed = weeks.filter((w) => w.chances > 0 && w.credited < w.chances);
+    const lost = failed.reduce(
+      (n, w) => n + Math.round((potentialCents * w.chances) / chances),
+      0,
+    );
+    const live = weeks.filter((w) => w.chances > 0);
+    earnedCents = failed.length === live.length ? 0 : Math.max(0, potentialCents - lost);
   }
 
   return {
     responsibility: r,
-    chances: rawChances,
-    excused: excusedCount,
+    chances,
+    excused: weeks.reduce(
+      (n, w) => n + w.boxes.filter((b) => b.state === "excused").length,
+      0,
+    ),
     completed,
     missed,
     potentialCents,
     earnedCents,
-    toEarnCents: mode === "optional" ? potentialCents - earnedCents : 0,
-    lostCents: mode === "expected" ? potentialCents - earnedCents : 0,
+    toEarnCents: expected ? 0 : potentialCents - earnedCents,
+    lostCents: expected ? potentialCents - earnedCents : 0,
+    weeks,
+    misses: expected
+      ? weeks.flatMap((w) =>
+          w.boxes
+            .filter((b) => b.state === "missed")
+            .map((b) => {
+              const row = missRows.find((c) => c.id === b.missId);
+              return { id: b.missId!, date: row?.occurrenceDate ?? b.date, note: b.note };
+            }),
+        )
+      : [],
   };
 }
 
@@ -318,7 +403,7 @@ function normalizeCadenceFields(input: TemplateInput) {
   return {
     daysOfWeek: input.cadence === "daily_selected" ? (input.daysOfWeek ?? null) : null,
     maxOccurrences: input.cadence === "up_to_n" ? (input.maxOccurrences ?? 1) : null,
-    payMode: (input.cadence === "up_to_n" ? "optional" : (input.payMode ?? "expected")) as PayMode,
+    payMode: input.payMode ?? "expected",
     allOrNothing: input.allOrNothing ?? false,
   };
 }
@@ -632,45 +717,86 @@ export function parsePayFields(formData: FormData): { payMode: PayMode; allOrNot
 }
 
 /**
- * A parent's tap on one day. Expected: toggles a miss. Optional: toggles a
- * check-off (approved outright if only parents mark things, otherwise a
- * claim that stands unless vetoed).
+ * A parent's tap on one box. Keep-it: unchecking a met box records a miss,
+ * re-checking a missed box removes it. Earn-it: checking an open box
+ * records a check-off (approved outright if only parents mark things,
+ * otherwise a claim that stands unless vetoed), unchecking removes it.
+ *
+ * Day boxes act on their date. Numbered boxes act on the week: a new mark
+ * lands on today if today is in that week (else the week's first day), and
+ * removing takes the most recent mark in the week.
+ *
+ * Returns the id of a miss it just created, so the parent can add a note.
  */
-export function toggleDay(input: {
+export function toggleBox(input: {
   childId: string;
   responsibilityId: string;
+  /** Day box: its date. Numbered box: the week's first day. */
   date: IsoDate;
+  /** Numbered boxes only: the week's last day. */
+  weekEnd?: IsoDate;
+  /** Whether the tapped box currently shows checked. */
+  checked: boolean;
   parentId: string;
-  completionMode: "auto_approve_with_veto" | "claim_then_approve" | "parent_marks_only";
-}): void {
+  completionMode: CompletionMode;
+}): { missId: string | null } {
   const r = db
     .select()
     .from(responsibility)
-    .where(and(eq(responsibility.id, input.responsibilityId), eq(responsibility.childId, input.childId)))
+    .where(
+      and(eq(responsibility.id, input.responsibilityId), eq(responsibility.childId, input.childId)),
+    )
     .get();
-  if (!r) return;
+  if (!r) return { missId: null };
+
+  const expected = r.payMode === "expected";
+  const today = todayInHousehold();
+  const from = input.date;
+  const to = input.weekEnd ?? input.date;
 
   const existing = db
     .select()
     .from(completion)
-    .where(and(eq(completion.responsibilityId, r.id), eq(completion.occurrenceDate, input.date)))
-    .get();
+    .where(
+      and(
+        eq(completion.responsibilityId, r.id),
+        gte(completion.occurrenceDate, from),
+        lte(completion.occurrenceDate, to),
+      ),
+    )
+    .all()
+    .filter((c) => (expected ? c.status === "missed" : c.status !== "missed"))
+    .sort((a, b) => b.claimedAt - a.claimedAt);
 
-  if (existing) {
-    db.delete(completion).where(eq(completion.id, existing.id)).run();
-    return;
+  // Keep-it: checked → add a miss. Earn-it: checked → remove a check-off.
+  const removing = expected ? !input.checked : input.checked;
+  if (removing) {
+    if (existing[0]) db.delete(completion).where(eq(completion.id, existing[0].id)).run();
+    return { missId: null };
   }
 
-  const expected = effectivePayMode(r) === "expected";
+  const date = input.weekEnd ? (today >= from && today <= to ? today : from) : input.date;
+  const sameDay = db
+    .select({ id: completion.id })
+    .from(completion)
+    .where(and(eq(completion.responsibilityId, r.id), eq(completion.occurrenceDate, date)))
+    .all().length;
+  if (!input.weekEnd && sameDay > 0) return { missId: null };
+
   const approved = !expected && input.completionMode === "parent_marks_only";
-  db.insert(completion)
+  const row = db
+    .insert(completion)
     .values({
       responsibilityId: r.id,
       childId: input.childId,
-      occurrenceDate: input.date,
+      occurrenceDate: date,
+      occurrenceIndex: sameDay,
       status: expected ? "missed" : approved ? "approved" : "claimed",
       claimedByUserId: input.parentId,
       decidedByUserId: expected || approved ? input.parentId : null,
     })
-    .run();
+    .returning({ id: completion.id })
+    .get();
+
+  return { missId: expected ? row.id : null };
 }

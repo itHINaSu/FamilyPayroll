@@ -56,6 +56,10 @@ export function Input(props: ComponentProps<"input">) {
   return <input {...props} className={`${inputClass} ${props.className ?? ""}`} />;
 }
 
+export function Textarea(props: ComponentProps<"textarea">) {
+  return <textarea {...props} className={`${inputClass} ${props.className ?? ""}`} />;
+}
+
 export function Select(props: ComponentProps<"select">) {
   // A plain <select> keeps the OS's own dropdown chrome no matter how the
   // element itself is styled — appearance-none turns that off, and this
