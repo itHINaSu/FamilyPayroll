@@ -1,15 +1,17 @@
 import Link from "next/link";
 
-import { PageHeader } from "@/components/ui";
+import { BackChevron, PageHeader } from "@/components/ui";
 
 /** Title for a Settings sub-page, with the way back. */
 export function SectionHeader({ title }: { title: string }) {
   return (
-    <>
-      <Link href="/settings" className="tap mb-2 inline-block text-sm text-ink-400 hover:underline">
-        ← Settings
-      </Link>
-      <PageHeader title={title} />
-    </>
+    <PageHeader
+      title={title}
+      back={
+        <Link href="/settings" title="Settings">
+          <BackChevron label="Settings" />
+        </Link>
+      }
+    />
   );
 }

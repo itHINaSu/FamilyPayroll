@@ -77,7 +77,7 @@ export function WeekCard({
           href={`/children/${child.id}/responsibilities`}
           className="mt-4 block text-right text-sm text-ledger-600 hover:underline dark:text-ledger-500"
         >
-          Misses, notes, and excused days →
+          Misses and notes →
         </Link>
       )}
 
@@ -191,7 +191,7 @@ function ExpectationRow({
   );
 }
 
-function BoxButton({
+export function BoxButton({
   box,
   weekEnd,
   childId,
@@ -236,7 +236,7 @@ function BoxButton({
       : checked
         ? "border-ledger-600 bg-ledger-600 text-white"
         : box.state === "missed"
-          ? "border-red-400 bg-white text-red-500 line-through dark:border-red-500 dark:bg-ink-900"
+          ? "border-red-400 bg-red-50 text-red-300 dark:border-red-500 dark:bg-red-950/40 dark:text-red-400/60"
           : "border-ink-300 bg-white text-ink-400 dark:border-ink-600 dark:bg-ink-900";
 
   const verb = checked ? (e.payMode === "expected" ? "Mark missed" : "Uncheck") : "Check";
@@ -254,6 +254,19 @@ function BoxButton({
       } ${pending ? "opacity-60" : ""} ${isToday ? "ring-2 ring-ledger-500/40 ring-offset-1 dark:ring-offset-ink-800" : ""}`}
     >
       {box.label}
+      {box.state === "missed" && (
+        <svg
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+          className="absolute inset-0 m-auto h-8 w-8 text-red-500"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2.5}
+          strokeLinecap="round"
+        >
+          <path d="M5 5l14 14M19 5L5 19" />
+        </svg>
+      )}
       {box.note && (
         <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-ink-800" />
       )}

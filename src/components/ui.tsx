@@ -135,22 +135,47 @@ export function Alert({
 export function PageHeader({
   title,
   action,
+  back,
 }: {
   title: string;
-  /** No longer rendered — active-tab highlighting and the header wordmark
-   * already say where you are, and a paragraph of description repeated on
-   * every page cost more scroll than it was worth. Callers that still pass
-   * one aren't broken; it's just ignored. */
+  /** Accepted for older callers; not rendered. */
   subtitle?: string;
+  /** Right side of the band. */
   action?: ReactNode;
+  /** Left side of the band — a way back, usually <BackLink>. */
+  back?: ReactNode;
 }) {
   return (
-    // flex-wrap: a long title and an action (a link, a form) don't fight
-    // for the same line on a phone — the action drops below instead of
-    // clipping or squeezing the title.
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-      <h1 className="min-w-0 text-lg font-semibold tracking-tight text-balance">{title}</h1>
-      {action}
+    // The app's title bar: a full-width green band on a phone (the
+    // installed app has no other header), a rounded one on wider screens.
+    <div
+      className="-mx-4 -mt-8 mb-5 grid grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] items-center gap-1 bg-ledger-600
+        px-2 py-4 text-white sm:-mx-6 sm:px-4 md:mx-0 md:mt-0 md:rounded-xl"
+    >
+      <div className="justify-self-start text-white/85">{back}</div>
+      <h1 className="text-center text-xl font-semibold tracking-tight text-balance">{title}</h1>
+      <div className="justify-self-end">{action}</div>
     </div>
+  );
+}
+
+/** The chevron in a page's title band that goes back up a level. */
+export function BackChevron({ label }: { label: string }) {
+  return (
+    <span className="flex h-10 w-10 items-center justify-center rounded-full transition hover:bg-white/10">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2.25}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="h-6 w-6"
+        aria-hidden="true"
+      >
+        <path d="M15 5l-7 7 7 7" />
+      </svg>
+      <span className="sr-only">Back to {label}</span>
+    </span>
   );
 }

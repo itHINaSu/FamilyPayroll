@@ -1,10 +1,10 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
-import { addExcusal, applyRaise, type RespState } from "./actions";
+import { applyRaise, type RespState } from "./actions";
 
 function Submit({ children }: { children: string }) {
   const { pending } = useFormStatus();
@@ -79,42 +79,3 @@ export function RaiseForm({
   );
 }
 
-export function ExcusalForm({ childId }: { childId: string }) {
-  const [state, formAction] = useActionState<RespState, FormData>(addExcusal, {});
-  const formRef = useRef<HTMLFormElement>(null);
-
-  useEffect(() => {
-    if (state.ok) formRef.current?.reset();
-  }, [state.ok]);
-
-  return (
-    <Card className="h-fit">
-      <h2 className="mb-1 text-lg font-semibold">Excuse some days</h2>
-      <p className="mb-4 text-xs text-ink-400">
-        Illness, holidays, a weekend away. Excused days count as done — no
-        chore that day means no pay lost for it.
-      </p>
-
-      <form ref={formRef} action={formAction} className="space-y-4">
-        <input type="hidden" name="childId" value={childId} />
-        {state.error && <Alert>{state.error}</Alert>}
-        {state.ok && <Alert tone="info">Excused.</Alert>}
-
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="From">
-            <Input name="startDate" type="date" required />
-          </Field>
-          <Field label="To">
-            <Input name="endDate" type="date" required />
-          </Field>
-        </div>
-
-        <Field label="Reason">
-          <Input name="reason" placeholder="At grandma's" />
-        </Field>
-
-        <Submit>Excuse these days</Submit>
-      </form>
-    </Card>
-  );
-}

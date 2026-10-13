@@ -5,19 +5,18 @@ import { getHousehold, requireUser } from "@/lib/auth/guard";
 import { formatShortDate } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
 import { attentionItems, householdWeek } from "@/lib/today";
-import { ChildSummaryCard } from "./child-summary-card";
+import { TodayCard } from "./today-card";
 
 export const dynamic = "force-dynamic";
 
 /**
- * The at-a-glance view: each child's checking balance and what this week is
- * on track to pay, with the two most common next steps one tap away.
- * Marking expectations lives on the Expectations tab.
+ * The daily view: each child's pay this week and today's boxes to tap.
+ * The whole week is on the Expectations tab; money is on Balances.
  */
 export default async function DashboardPage() {
   const sessionUser = await requireUser();
   const home = getHousehold();
-  const { children } = householdWeek(sessionUser.householdId);
+  const { today, children } = householdWeek(sessionUser.householdId);
   const attention = attentionItems(sessionUser.householdId);
   const shortfalls = children.filter((c) => c.shortfall);
 
@@ -65,7 +64,7 @@ export default async function DashboardPage() {
         ) : (
           <div className="grid gap-4 lg:grid-cols-2">
             {children.map((c) => (
-              <ChildSummaryCard key={c.id} child={c} />
+              <TodayCard key={c.id} child={c} today={today} />
             ))}
           </div>
         )}

@@ -5,7 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db";
-import { auditLog, completion, excusal, responsibility } from "@/db/schema";
+import { auditLog, completion, responsibility } from "@/db/schema";
 import { requireParent } from "@/lib/auth/guard";
 import { getChild } from "@/lib/children";
 import { parseAmountToCents } from "@/lib/money";
@@ -145,41 +145,6 @@ export async function saveMissNote(input: {
 
   revalidatePath("/expectations");
   revalidatePath(`/children/${input.childId}/responsibilities`);
-}
-
-export async function addExcusal(
-  _prev: RespState,
-  formData: FormData,
-): Promise<RespState> {
-  const parent = await requireParent();
-
-  const childId = String(formData.get("childId") ?? "");
-  const startDate = String(formData.get("startDate") ?? "");
-  const endDate = String(formData.get("endDate") ?? "");
-  const reason = String(formData.get("reason") ?? "").trim();
-
-  if (!getChild(parent.householdId, childId)) {
-    return { error: "That child could not be found." };
-  }
-  if (!startDate || !endDate) return { error: "Pick both dates." };
-  if (endDate < startDate) return { error: "The end date is before the start date." };
-
-  db.insert(excusal)
-    .values({ childId, startDate, endDate, reason, scope: "all", createdByUserId: parent.id })
-    .run();
-
-  db.insert(auditLog)
-    .values({
-      actorUserId: parent.id,
-      action: "excusal.created",
-      entityType: "child",
-      entityId: childId,
-      afterJson: { startDate, endDate, reason },
-    })
-    .run();
-
-  revalidatePath(`/children/${childId}/responsibilities`);
-  return { ok: true };
 }
 
 /**

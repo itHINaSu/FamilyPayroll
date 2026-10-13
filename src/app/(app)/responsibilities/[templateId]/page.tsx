@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { Card, PageHeader } from "@/components/ui";
+import { BackChevron, Card, PageHeader } from "@/components/ui";
 import { requireParent } from "@/lib/auth/guard";
 import { formatCents } from "@/lib/money";
 import {
@@ -33,13 +33,12 @@ export default async function ResponsibilityDetailPage({
 
   return (
     <>
-      <Link
-        href="/responsibilities"
-        className="mb-2 inline-block text-sm text-ink-400 hover:text-ink-700 hover:underline"
-      >
-        ← All expectations
-      </Link>
       <PageHeader
+        back={
+          <Link href="/responsibilities" title="All expectations">
+            <BackChevron label="all expectations" />
+          </Link>
+        }
         title={template.name}
         subtitle={`${formatCents(template.weeklyValueCents)}/week · ${describeCadence(template)} · rename or change the rate from the hub`}
       />

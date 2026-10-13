@@ -26,9 +26,7 @@ export default async function ChildLayout({
       <PageHeader
         title={record.displayName}
         subtitle={`${ageFromBirthdate(record.birthdate)} years old · born ${formatShortDate(record.birthdate)}`}
-        action={
-          <ChildBackLink childId={childId} />
-        }
+        back={<ChildBackLink childId={childId} />}
       />
       <ChildTabs childId={childId} />
       {children}

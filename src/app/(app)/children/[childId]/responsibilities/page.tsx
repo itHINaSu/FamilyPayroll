@@ -3,17 +3,15 @@ import { notFound } from "next/navigation";
 import { Card } from "@/components/ui";
 import { requireParent } from "@/lib/auth/guard";
 import { formatDateRange, formatShortDate, todayInHousehold } from "@/lib/dates";
-import { formatCents } from "@/lib/money";
 import { childWeek } from "@/lib/today";
 import { PeriodTotal, WeekCard } from "../../../expectations/week-card";
-import { ExcusalForm } from "./forms";
 import { MissList } from "./miss-list";
 
 export const dynamic = "force-dynamic";
 
 /**
- * One child's expectations, expanded: every week of the pay period, every
- * miss with its note, and excused days. Adding or changing expectations is
+ * One child's expectations, expanded: every week of the pay period and
+ * every miss with its note. Adding or changing expectations is
  * Setup › Expectations.
  */
 export default async function ChildExpectationsPage({
@@ -30,7 +28,6 @@ export default async function ChildExpectationsPage({
   const misses = week.expectations
     .flatMap((e) => e.misses.map((m) => ({ ...m, name: e.name })))
     .sort((a, b) => a.date.localeCompare(b.date));
-  const earnable = week.expectations.filter((e) => e.payMode === "optional");
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
@@ -63,24 +60,6 @@ export default async function ChildExpectationsPage({
             <MissList childId={childId} misses={misses} />
           )}
         </Card>
-
-        {earnable.length > 0 && (
-          <Card>
-            <h2 className="mb-1 text-lg font-semibold">Still available to earn</h2>
-            <ul className="mt-3 space-y-2 text-sm">
-              {earnable.map((e) => (
-                <li key={e.id} className="flex justify-between gap-3">
-                  <span>{e.name}</span>
-                  <span className="tnum whitespace-nowrap text-ledger-600 dark:text-ledger-500">
-                    {e.toEarnCents > 0 ? `${formatCents(e.toEarnCents)} left` : "Earned"}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        )}
-
-        <ExcusalForm childId={childId} />
       </div>
     </div>
   );

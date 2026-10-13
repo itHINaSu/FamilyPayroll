@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { BackChevron } from "@/components/ui";
+
 import { GearIcon } from "../../icons";
 
 // Short labels so the whole strip fits a phone without sideways scrolling.
@@ -59,8 +61,8 @@ export function ChildBackLink({ childId }: { childId: string }) {
     : ["/balances", "Balances"];
 
   return (
-    <Link href={href} className="tap text-sm text-ink-400 hover:underline">
-      ← {label}
+    <Link href={href} title={label}>
+      <BackChevron label={label} />
     </Link>
   );
 }
