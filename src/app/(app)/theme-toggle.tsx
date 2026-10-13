@@ -2,7 +2,13 @@
 
 import { useEffect, useState } from "react";
 
-import { THEME_COLORS, THEME_STORAGE_KEY, type Theme } from "@/app/theme";
+import {
+  STANDALONE_QUERY,
+  STANDALONE_THEME_COLOR,
+  THEME_COLORS,
+  THEME_STORAGE_KEY,
+  type Theme,
+} from "@/app/theme";
 import { MoonIcon, SunIcon } from "./icons";
 
 /**
@@ -33,7 +39,10 @@ export function ThemeToggle() {
     }
     document
       .querySelector('meta[name="theme-color"]')
-      ?.setAttribute("content", THEME_COLORS[next]);
+      ?.setAttribute(
+        "content",
+        window.matchMedia(STANDALONE_QUERY).matches ? STANDALONE_THEME_COLOR : THEME_COLORS[next],
+      );
     setTheme(next);
   }
 

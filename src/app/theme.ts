@@ -14,3 +14,11 @@ export const THEME_COLORS: Record<Theme, string> = {
   light: "#f6f7f9",
   dark: "#14171c",
 };
+
+/**
+ * The installed app's status bar sits on the green title band, so there it
+ * is always the brand green rather than the page background.
+ */
+export const STANDALONE_THEME_COLOR = "#1f6f4f";
+
+export const STANDALONE_QUERY = "(display-mode: standalone)";

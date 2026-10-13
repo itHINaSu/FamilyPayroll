@@ -1,14 +1,19 @@
 import type { Metadata, Viewport } from "next";
 
 import "./globals.css";
-import { THEME_COLORS, THEME_STORAGE_KEY } from "./theme";
+import {
+  STANDALONE_QUERY,
+  STANDALONE_THEME_COLOR,
+  THEME_COLORS,
+  THEME_STORAGE_KEY,
+} from "./theme";
 
 // Runs before paint (a plain inline <script>, first thing in <body>, is
 // render-blocking) so the page never flashes light-then-dark or vice versa.
 // Resolves, in order: a stored explicit choice from the theme toggle, then
 // falls back to the OS preference — "follow the system" is still the
 // default until someone actually uses the toggle.
-const themeInitScript = `(function(){try{var k=${JSON.stringify(THEME_STORAGE_KEY)};var s=localStorage.getItem(k);var t=(s==="light"||s==="dark")?s:(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");document.documentElement.setAttribute("data-theme",t);var c=${JSON.stringify(THEME_COLORS)};var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",c[t]);}catch(e){}})();`;
+const themeInitScript = `(function(){try{var k=${JSON.stringify(THEME_STORAGE_KEY)};var s=localStorage.getItem(k);var t=(s==="light"||s==="dark")?s:(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");document.documentElement.setAttribute("data-theme",t);var c=${JSON.stringify(THEME_COLORS)};var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",window.matchMedia(${JSON.stringify(STANDALONE_QUERY)}).matches?${JSON.stringify(STANDALONE_THEME_COLOR)}:c[t]);}catch(e){}})();`;
 
 export const metadata: Metadata = {
   title: "Family Payroll",
@@ -26,7 +31,9 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: "Family Payroll",
-    statusBarStyle: "default",
+    // The page draws under the status bar (white text) so the green title
+    // band runs up behind the clock; globals.css pads for it.
+    statusBarStyle: "black-translucent",
   },
   other: {
     // Next's `appleWebApp.capable` only renders the newer, unprefixed
@@ -49,6 +56,9 @@ export const viewport: Viewport = {
   // theme actually resolves — this is only what shows for the instant
   // before that script runs (or if it can't, e.g. JS disabled).
   themeColor: THEME_COLORS.light,
+  // Lets the page reach the screen edges so env(safe-area-inset-*) reports
+  // the notch and home-indicator sizes the layout pads around.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

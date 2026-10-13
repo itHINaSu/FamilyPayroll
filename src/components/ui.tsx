@@ -146,11 +146,13 @@ export function PageHeader({
   back?: ReactNode;
 }) {
   return (
-    // The app's title bar: a full-width green band on a phone (the
-    // installed app has no other header), a rounded one on wider screens.
+    // The app's title bar: a full-width green band pinned to the top on a
+    // phone (the installed app has no other header), a rounded one in the
+    // flow on wider screens.
     <div
-      className="-mx-4 -mt-8 mb-5 grid grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] items-center gap-1 bg-ledger-600
-        px-2 py-4 text-white sm:-mx-6 sm:px-4 md:mx-0 md:mt-0 md:rounded-xl"
+      className="page-band sticky top-0 z-10 -mx-4 -mt-8 mb-5 grid grid-cols-[2.5rem_minmax(0,1fr)_2.5rem]
+        items-center gap-1 bg-ledger-600 px-2 py-4 text-white shadow-sm sm:-mx-6 sm:px-4 md:static md:mx-0
+        md:mt-0 md:rounded-xl md:shadow-none"
     >
       <div className="justify-self-start text-white/85">{back}</div>
       <h1 className="text-center text-xl font-semibold tracking-tight text-balance">{title}</h1>
