@@ -1,27 +1,51 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { logout } from "@/app/login/actions";
 import {
+  ArchiveIcon,
+  BanknoteIcon,
+  BellIcon,
   BriefcaseIcon,
   ChecklistIcon,
   ChevronRightIcon,
   CloseIcon,
+  HomeIcon,
   MenuIcon,
+  MonitorIcon,
   ReceiptIcon,
   SignOutIcon,
   UserIcon,
+  UsersIcon,
 } from "./icons";
 import { ThemeToggle } from "./theme-toggle";
 
+const SETTINGS_LINKS = [
+  { href: "/settings/account", label: "Account", icon: UserIcon },
+  { href: "/settings/family", label: "Household and parents", icon: HomeIcon },
+  { href: "/settings/payroll", label: "Payroll", icon: BanknoteIcon },
+  { href: "/settings/display", label: "Display and kiosk", icon: MonitorIcon },
+  { href: "/settings/notifications", label: "Notifications", icon: BellIcon },
+  { href: "/settings/data", label: "Backups and data", icon: ArchiveIcon },
+];
+
 const SETUP_LINKS = [
-  { href: "/children", label: "Children", icon: UserIcon },
+  { href: "/children", label: "Children", icon: UsersIcon },
   { href: "/responsibilities", label: "Expectations", icon: ChecklistIcon },
   { href: "/jobs", label: "Extra jobs", icon: BriefcaseIcon },
   { href: "/bills", label: "Bills", icon: ReceiptIcon },
 ];
+
+const OPEN_EVENT = "app-menu:open";
+
+/** Opens the side menu from anywhere (the phone's Settings tab uses this). */
+export function openAppMenu() {
+  window.dispatchEvent(new Event(OPEN_EVENT));
+}
 
 /**
  * Everything configured occasionally rather than used daily — reached one
@@ -47,6 +71,19 @@ export function AppMenu({
   // Expanded by default every time the menu opens — collapsing it is a
   // this-glance preference, not something worth remembering turn to turn.
   const [setupOpen, setSetupOpen] = useState(true);
+  const pathname = usePathname();
+
+  // The phone's Settings tab opens this menu rather than a page (and the
+  // installed app has no header to hold the hamburger), so it listens for
+  // a window event any component can fire via openAppMenu().
+  useEffect(() => {
+    const show = () => {
+      setOpen(true);
+      setSetupOpen(true);
+    };
+    window.addEventListener(OPEN_EVENT, show);
+    return () => window.removeEventListener(OPEN_EVENT, show);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -95,8 +132,9 @@ export function AppMenu({
         )}
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-30" role="dialog" aria-modal="true">
+      {open &&
+        createPortal(
+        <div className="fixed inset-0 z-40" role="dialog" aria-modal="true" aria-label="Menu">
           <button
             type="button"
             aria-label="Close menu"
@@ -108,7 +146,7 @@ export function AppMenu({
             className="absolute inset-y-0 right-0 flex w-full max-w-xs flex-col bg-white shadow-xl
               dark:bg-ink-800"
           >
-            <div className="flex items-center gap-3 bg-ledger-600 px-5 py-5 text-white">
+            <div className="menu-head flex items-center gap-3 bg-ledger-600 px-5 py-5 text-white">
               <button
                 type="button"
                 onClick={close}
@@ -130,10 +168,22 @@ export function AppMenu({
             </div>
 
             <nav className="flex-1 overflow-y-auto py-2">
-              <MenuLink href="/settings/account" onNavigate={close}>
-                <UserIcon className="h-5 w-5" />
-                Account
-              </MenuLink>
+              <p className="px-5 pb-1 pt-2 text-xs font-medium uppercase tracking-wide text-ink-400">
+                Settings
+              </p>
+              {SETTINGS_LINKS.map((link) => (
+                <MenuLink
+                  key={link.href}
+                  href={link.href}
+                  onNavigate={close}
+                  active={pathname.startsWith(link.href)}
+                >
+                  <link.icon className="h-5 w-5" />
+                  {link.label}
+                </MenuLink>
+              ))}
+
+              <div className="my-2 border-t border-ink-100 dark:border-ink-700" />
 
               <button
                 type="button"
@@ -159,7 +209,13 @@ export function AppMenu({
               {setupOpen && (
                 <div className="bg-ink-50 dark:bg-ink-900/40">
                   {SETUP_LINKS.map((link) => (
-                    <MenuLink key={link.href} href={link.href} onNavigate={close} indent>
+                    <MenuLink
+                      key={link.href}
+                      href={link.href}
+                      onNavigate={close}
+                      indent
+                      active={pathname.startsWith(link.href)}
+                    >
                       <link.icon className="h-5 w-5" />
                       {link.label}
                       {link.href === "/jobs" && pendingJobs > 0 && (
@@ -190,8 +246,9 @@ export function AppMenu({
               </form>
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+          document.body,
+        )}
     </>
   );
 }
@@ -225,12 +282,14 @@ function MenuLink({
   children,
   onNavigate,
   indent = false,
+  active = false,
 }: {
   href: string;
   children: React.ReactNode;
   onNavigate: () => void;
   /** Setup's sub-links sit visually inside the disclosure they belong to. */
   indent?: boolean;
+  active?: boolean;
 }) {
   // No trailing chevron here — that reads as "this expands," which is only
   // true of the Setup row's own toggle button. A plain link just navigates.
@@ -238,10 +297,11 @@ function MenuLink({
     <Link
       href={href}
       onClick={onNavigate}
-      className={`flex items-center gap-3 py-3 text-sm font-medium text-ink-700 transition
-        hover:bg-ink-100/60 dark:text-ink-100 dark:hover:bg-ink-700 ${
-          indent ? "pl-9 pr-5" : "px-5 py-3.5"
-        }`}
+      aria-current={active ? "page" : undefined}
+      className={`flex items-center gap-3 py-3 text-sm font-medium transition
+        hover:bg-ink-100/60 dark:hover:bg-ink-700 ${
+          active ? "text-ledger-600 dark:text-ledger-500" : "text-ink-700 dark:text-ink-100"
+        } ${indent ? "pl-9 pr-5" : "px-5"}`}
     >
       {children}
     </Link>

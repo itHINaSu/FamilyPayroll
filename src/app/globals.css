@@ -156,3 +156,11 @@ input[type="time"]::-webkit-calendar-picker-indicator {
     padding-bottom: calc(env(safe-area-inset-bottom) + 1.25rem);
   }
 }
+
+/* The installed app on a phone navigates entirely from the bottom bar
+   (Settings opens the side menu), so the title bar is redundant there. */
+@media (display-mode: standalone) and (max-width: 767px) {
+  .app-header {
+    display: none;
+  }
+}

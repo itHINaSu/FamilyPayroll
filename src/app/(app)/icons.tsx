@@ -151,3 +151,51 @@ export function SignOutIcon(props: IconProps) {
     </Base>
   );
 }
+
+export function UsersIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2.5 20c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5" />
+      <circle cx="17" cy="9" r="2.5" />
+      <path d="M17 13.5c2.5 0 4.5 2 4.5 4.5" />
+    </Base>
+  );
+}
+
+export function BanknoteIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <rect x="2.5" y="6" width="19" height="12" rx="2" />
+      <circle cx="12" cy="12" r="2.5" />
+      <path d="M6 9.5v5M18 9.5v5" />
+    </Base>
+  );
+}
+
+export function MonitorIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <rect x="3" y="4" width="18" height="12" rx="2" />
+      <path d="M8 20h8M12 16v4" />
+    </Base>
+  );
+}
+
+export function BellIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z" />
+      <path d="M10 20a2 2 0 0 0 4 0" />
+    </Base>
+  );
+}
+
+export function ArchiveIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <rect x="3" y="4" width="18" height="4" rx="1" />
+      <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8M10 12h4" />
+    </Base>
+  );
+}

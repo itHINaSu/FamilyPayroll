@@ -59,7 +59,7 @@ export function WeekCard({
       ) : (
         <ul className="divide-y divide-ink-100 dark:divide-ink-700">
           {child.expectations.map((e) => (
-            <li key={e.id} className="py-3 first:pt-0 last:pb-0">
+            <li key={e.id} className="py-2.5 first:pt-0 last:pb-0">
               <ExpectationRow
                 childId={child.id}
                 expectation={e}
@@ -138,15 +138,17 @@ function ExpectationRow({
 
   return (
     <>
-      <div className="mb-2 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm font-medium">{e.name}</p>
-          <p className="text-xs text-ink-400">
-            {e.cadenceLabel}
-            {!expected && " · Earn it"}
-            {e.allOrNothing && " · All or nothing"}
-          </p>
-        </div>
+      <div className="mb-1.5 flex items-baseline justify-between gap-3">
+        <p className="min-w-0 text-sm font-medium">
+          {e.name}
+          {(!expected || e.allOrNothing) && (
+            <span className="ml-1.5 text-xs font-normal text-ink-400">
+              {[!expected && "Earn it", e.allOrNothing && "All or nothing"]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          )}
+        </p>
         <p className="tnum shrink-0 whitespace-nowrap text-right text-sm">
           {expected ? (
             e.lostCents > 0 ? (
@@ -169,7 +171,7 @@ function ExpectationRow({
             {weeks.length > 1 && (
               <p className="mb-1 text-xs text-ink-400">Week of {formatShortDate(w.start)}</p>
             )}
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-1">
               {w.boxes.map((b) => (
                 <BoxButton
                   key={b.key}
@@ -227,42 +229,35 @@ function BoxButton({
       }
     });
 
+  // The day letter or number is the box's label; its colour is the state.
   const look =
     box.state === "excused"
       ? "border-ink-200 bg-ink-100 text-ink-400 dark:border-ink-700 dark:bg-ink-700"
       : checked
         ? "border-ledger-600 bg-ledger-600 text-white"
         : box.state === "missed"
-          ? "border-red-400 bg-white text-red-500 dark:border-red-500 dark:bg-ink-900"
-          : "border-ink-300 bg-white dark:border-ink-600 dark:bg-ink-900";
+          ? "border-red-400 bg-white text-red-500 line-through dark:border-red-500 dark:bg-ink-900"
+          : "border-ink-300 bg-white text-ink-400 dark:border-ink-600 dark:bg-ink-900";
 
   const verb = checked ? (e.payMode === "expected" ? "Mark missed" : "Uncheck") : "Check";
+  const isToday = !box.numbered && box.date === today;
   return (
-    <div className="flex w-10 flex-col items-center gap-0.5">
-      <span
-        className={`text-[11px] font-medium ${
-          !box.numbered && box.date === today ? "text-ledger-600 dark:text-ledger-500" : "text-ink-400"
-        }`}
-      >
-        {box.label}
-      </span>
-      <button
-        type="button"
-        onClick={tap}
-        disabled={disabled}
-        aria-pressed={checked}
-        aria-label={`${verb}: ${e.name}, ${box.numbered ? `#${box.label}` : box.date}`}
-        title={box.note ?? undefined}
-        className={`relative flex h-10 w-10 items-center justify-center rounded-lg border-2 text-base transition disabled:cursor-default ${look} ${
-          box.future ? "opacity-40" : ""
-        } ${pending ? "opacity-60" : ""}`}
-      >
-        {box.state === "excused" ? "–" : checked ? "✓" : ""}
-        {box.note && (
-          <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-ink-800" />
-        )}
-      </button>
-    </div>
+    <button
+      type="button"
+      onClick={tap}
+      disabled={disabled}
+      aria-pressed={checked}
+      aria-label={`${verb}: ${e.name}, ${box.numbered ? `#${box.label}` : box.date}`}
+      title={box.note ?? undefined}
+      className={`relative flex h-10 w-10 items-center justify-center rounded-lg border-2 text-sm font-semibold transition disabled:cursor-default ${look} ${
+        box.future ? "opacity-40" : ""
+      } ${pending ? "opacity-60" : ""} ${isToday ? "ring-2 ring-ledger-500/40 ring-offset-1 dark:ring-offset-ink-800" : ""}`}
+    >
+      {box.label}
+      {box.note && (
+        <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-ink-800" />
+      )}
+    </button>
   );
 }
 

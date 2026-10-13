@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { openAppMenu } from "./app-menu";
 import { TABS, activeTab } from "./tabs-data";
 
 /**
@@ -10,7 +11,7 @@ import { TABS, activeTab } from "./tabs-data";
  * same set as a row in the header instead (TopTabs), since a bar fixed to
  * the bottom of a wide window isn't a pattern anyone expects there.
  */
-export function BottomTabs() {
+export function BottomTabs({ pendingJobs = 0 }: { pendingJobs?: number }) {
   const pathname = usePathname();
   const active = activeTab(pathname);
 
@@ -28,20 +29,23 @@ export function BottomTabs() {
         {TABS.map((tab) => {
           const isActive = tab.href === active;
           const Icon = tab.icon;
-
-          return (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              className="flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] transition"
-            >
-              <Icon
-                className={`h-5 w-5 ${
-                  isActive
-                    ? "text-ledger-600 dark:text-ledger-500"
-                    : "text-ink-400 dark:text-ink-500"
-                }`}
-              />
+          const body = (
+            <>
+              <span className="relative">
+                <Icon
+                  className={`h-5 w-5 ${
+                    isActive
+                      ? "text-ledger-600 dark:text-ledger-500"
+                      : "text-ink-400 dark:text-ink-500"
+                  }`}
+                />
+                {tab.href === "/settings" && pendingJobs > 0 && (
+                  <span
+                    aria-label={`${pendingJobs} waiting on you`}
+                    className="absolute -right-1.5 -top-1 h-2.5 w-2.5 rounded-full bg-red-600 ring-2 ring-white dark:ring-ink-800"
+                  />
+                )}
+              </span>
               <span
                 className={
                   isActive
@@ -51,6 +55,25 @@ export function BottomTabs() {
               >
                 {tab.label}
               </span>
+            </>
+          );
+          const cls = "flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] transition";
+
+          // On a phone, Settings opens the side menu (settings and setup
+          // links) instead of a page.
+          return tab.href === "/settings" ? (
+            <button
+              key={tab.href}
+              type="button"
+              onClick={openAppMenu}
+              aria-haspopup="dialog"
+              className={cls}
+            >
+              {body}
+            </button>
+          ) : (
+            <Link key={tab.href} href={tab.href} className={cls}>
+              {body}
             </Link>
           );
         })}

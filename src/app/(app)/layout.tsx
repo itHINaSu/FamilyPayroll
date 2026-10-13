@@ -32,7 +32,10 @@ export default async function AppLayout({
 
   return (
     <div className="min-h-screen">
-      <header className="border-b border-ink-200 bg-white dark:border-ink-700 dark:bg-ink-800">
+      {/* Hidden in the installed app on a phone (globals.css .app-header):
+          the bottom bar covers navigation and its Settings tab opens the
+          menu, so the title bar would only repeat the app's name. */}
+      <header className="app-header border-b border-ink-200 bg-white dark:border-ink-700 dark:bg-ink-800">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-6">
             <Link href="/" className="font-semibold tracking-tight">
@@ -67,7 +70,7 @@ export default async function AppLayout({
           so it reverts to the normal amount of breathing room. */}
       <main className="mx-auto max-w-5xl px-4 py-8 pb-32 sm:px-6 md:pb-8">{children}</main>
 
-      <BottomTabs />
+      <BottomTabs pendingJobs={pendingJobs} />
     </div>
   );
 }
