@@ -21,7 +21,7 @@ export function ChildTabs({ childId }: { childId: string }) {
   const base = `/children/${childId}`;
 
   const tabClass = (active: boolean) =>
-    `flex flex-1 items-center justify-center whitespace-nowrap border-b-2 px-1 py-2.5 text-sm font-medium transition sm:flex-none sm:px-3 ${
+    `flex flex-1 items-center justify-center whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium transition sm:flex-none sm:px-3 ${
       active
         ? "border-ledger-600 text-ledger-600 dark:text-ledger-500"
         : "border-transparent text-ink-400 hover:text-ink-700 dark:hover:text-ink-100"
