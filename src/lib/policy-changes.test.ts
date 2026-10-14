@@ -87,6 +87,27 @@ describe("savePolicyChanges", () => {
     expect(nextPeriod.allocation.checkingPct).toBe(50); // still scheduled
   });
 
+  it("lets the latest change win when both touch the same setting", () => {
+    const h = household();
+    // Scheduled first: 50% checking from next period.
+    savePolicyChanges({
+      scopeType: "household",
+      scopeId: h,
+      changes: [{ kind: "set", path: "allocation.checkingPct", value: 50 }],
+      effectiveFrom: "2026-10-19",
+    });
+    // Then, a day later: 70% starting this period.
+    savePolicyChanges({
+      scopeType: "household",
+      scopeId: h,
+      changes: [{ kind: "set", path: "allocation.checkingPct", value: 70 }],
+      effectiveFrom: "2026-10-12",
+    });
+
+    expect(resolvePolicy(h, null, "2026-10-14").allocation.checkingPct).toBe(70);
+    expect(resolvePolicy(h, null, "2026-10-19").allocation.checkingPct).toBe(70);
+  });
+
   it("adds to what's already scheduled for the same date", () => {
     const h = household();
     for (const [p, v] of [
