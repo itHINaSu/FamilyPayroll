@@ -1,23 +1,30 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { useFormStatus } from "react-dom";
+import { useActionState, useEffect, useId, useState } from "react";
 
+import { Sheet } from "@/components/sheet";
 import { Alert, Button, Card, CheckField, Field, Input, Select } from "@/components/ui";
 import { saveSettings, type SettingsState } from "@/app/(app)/settings/actions";
+import { formatDateRange, formatShortDate } from "@/lib/dates";
 import { SETTINGS_SECTIONS, getAtPath, type FieldSpec } from "@/lib/settings-schema";
 import type { Policy } from "@/lib/policy";
+import type { PeriodChoice } from "@/lib/policy-schedule";
 
-function SaveButton() {
-  const { pending } = useFormStatus();
+/** Must match PAY_PERIOD_SECTIONS in lib/policy.ts (a server module). */
+const PAY_PERIOD_SECTIONS = ["pay", "completion", "allocation", "interest", "bills"];
+
+function FieldInput({ field, value }: { field: FieldSpec; value: unknown }) {
   return (
-    <Button type="submit" disabled={pending}>
-      {pending ? "Saving…" : "Save settings"}
-    </Button>
+    <>
+      {/* Tells the server this field was on the page, so an unticked
+          checkbox reads as "off" rather than "not shown". */}
+      <input type="hidden" name="__fields" value={field.path} />
+      <FieldControl field={field} value={value} />
+    </>
   );
 }
 
-function FieldInput({ field, value }: { field: FieldSpec; value: unknown }) {
+function FieldControl({ field, value }: { field: FieldSpec; value: unknown }) {
   if (field.type === "boolean") {
     return (
       <CheckField
@@ -70,6 +77,8 @@ export function SettingsEditor({
   effective,
   overriddenSections,
   sections,
+  period,
+  scheduled = [],
 }: {
   scopeType: "household" | "child";
   scopeId: string;
@@ -77,13 +86,41 @@ export function SettingsEditor({
   overriddenSections: string[];
   /** Only these section keys; others are left exactly as saved. */
   sections?: string[];
+  /** When given, a pay change asks whether it starts this period or next. */
+  period?: PeriodChoice;
+  /** Changes already saved to start on a later date. */
+  scheduled?: { from: string; lines: string[] }[];
 }) {
   const shown = sections
     ? SETTINGS_SECTIONS.filter((s) => sections.includes(s.key))
     : SETTINGS_SECTIONS;
-  const [state, formAction] = useActionState<SettingsState, FormData>(
+  const [state, formAction, pending] = useActionState<SettingsState, FormData>(
     saveSettings,
     {},
+  );
+  const formId = useId();
+  // Whether anything that affects pay has been touched since the last save.
+  const [payTouched, setPayTouched] = useState(false);
+  const [asking, setAsking] = useState(false);
+
+  useEffect(() => {
+    setAsking(false);
+    if (state.ok) setPayTouched(false);
+  }, [state]);
+
+  const touch = (section: string) => {
+    if (PAY_PERIOD_SECTIONS.includes(section)) setPayTouched(true);
+  };
+  const mustAsk = !!period && payTouched;
+
+  const saveButton = (
+    <Button
+      type={mustAsk ? "button" : "submit"}
+      onClick={mustAsk ? () => setAsking(true) : undefined}
+      disabled={pending}
+    >
+      {pending ? "Saving…" : "Save settings"}
+    </Button>
   );
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [enabled, setEnabled] = useState<Record<string, boolean>>(
@@ -110,7 +147,15 @@ export function SettingsEditor({
   );
 
   return (
-    <form action={formAction} className="space-y-6">
+    <form
+      id={formId}
+      action={formAction}
+      onChange={(e) => {
+        const name = (e.target as unknown as { name?: string }).name ?? "";
+        touch(name.split(".")[0]);
+      }}
+      className="space-y-6"
+    >
       <input type="hidden" name="scopeType" value={scopeType} />
       <input type="hidden" name="scopeId" value={scopeId} />
 
@@ -123,11 +168,22 @@ export function SettingsEditor({
           />
           Show advanced settings
         </label>
-        <SaveButton />
+        {saveButton}
       </div>
 
       {state.error && <Alert>{state.error}</Alert>}
-      {state.ok && <Alert tone="info">Saved as a new version. History is unchanged.</Alert>}
+      {state.ok && state.message && <Alert tone="info">{state.message}</Alert>}
+
+      {scheduled.map((s) => (
+        <Alert key={s.from} tone="info">
+          <span className="block font-medium">Starting {formatShortDate(s.from)}</span>
+          {s.lines.map((line) => (
+            <span key={line} className="block text-xs">
+              {line}
+            </span>
+          ))}
+        </Alert>
+      ))}
 
       {shown.map((section) => {
         const isOn = enabled[section.key];
@@ -174,6 +230,7 @@ export function SettingsEditor({
                     type="checkbox"
                     checked={isOn}
                     onChange={(e) => {
+                      touch(section.key);
                       setEnabled({ ...enabled, [section.key]: e.target.checked });
                       // Ticking an override with the section still collapsed
                       // would hide the very fields being turned on.
@@ -215,9 +272,57 @@ export function SettingsEditor({
         );
       })}
 
-      <div className="flex justify-end">
-        <SaveButton />
-      </div>
+      <div className="flex justify-end">{saveButton}</div>
+
+      {period && (
+        <Sheet open={asking} onClose={() => setAsking(false)} title="When should this start?">
+          <div className="space-y-3">
+            <WhenButton
+              form={formId}
+              value="current"
+              pending={pending}
+              title="This pay period"
+              detail={`Counts for ${formatDateRange(period.startDate, period.endDate)}, paid ${formatShortDate(period.payDate)}.`}
+            />
+            <WhenButton
+              form={formId}
+              value="next"
+              pending={pending}
+              title="Next pay period"
+              detail={`Starts ${formatShortDate(period.nextStart)}. This period finishes under the current rules.`}
+            />
+          </div>
+        </Sheet>
+      )}
     </form>
+  );
+}
+
+/** One answer in the "when should this start?" sheet — it submits the form. */
+function WhenButton({
+  form,
+  value,
+  pending,
+  title,
+  detail,
+}: {
+  form: string;
+  value: "current" | "next";
+  pending: boolean;
+  title: string;
+  detail: string;
+}) {
+  return (
+    <button
+      type="submit"
+      form={form}
+      name="applyFrom"
+      value={value}
+      disabled={pending}
+      className="block w-full rounded-lg border border-ink-200 px-4 py-3 text-left transition hover:border-ledger-500 active:bg-ink-50 disabled:opacity-50 dark:border-ink-700 dark:active:bg-ink-900"
+    >
+      <span className="block font-medium">{title}</span>
+      <span className="mt-0.5 block text-sm text-ink-400">{detail}</span>
+    </button>
   );
 }

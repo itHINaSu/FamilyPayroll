@@ -18,21 +18,66 @@ import { UsernameSchema } from "@/lib/auth/username";
 import { createBackup, resetHistory, restoreFromUpload, type ResetScope } from "@/lib/backup";
 import { pausePayroll, resumePayroll } from "@/lib/payroll-pause";
 import { getChild } from "@/lib/children";
-import { getOverrides, savePolicyVersion, type PartialPolicy } from "@/lib/policy";
-import { SETTINGS_SECTIONS } from "@/lib/settings-schema";
+import { addDays, formatShortDate, todayInHousehold } from "@/lib/dates";
+import {
+  PAY_PERIOD_SECTIONS,
+  changeSection,
+  getOverrides,
+  resolvePolicy,
+  savePolicyChanges,
+  type PolicyChange,
+} from "@/lib/policy";
+import { periodChoice } from "@/lib/policy-schedule";
+import { SETTINGS_SECTIONS, getAtPath } from "@/lib/settings-schema";
 
-export type SettingsState = { error?: string; ok?: boolean };
+export type SettingsState = { error?: string; ok?: boolean; message?: string };
 export type BackupState = { error?: string; ok?: boolean; message?: string };
 
 const MAX_RESTORE_UPLOAD_BYTES = 200 * 1024 * 1024;
 
 /**
- * Save a settings change as a NEW policy version.
+ * Pay-affecting changes start on the date the parent chose: the start of this
+ * pay period, or the day the next one begins. Everything else (who can move
+ * money, display, kiosk) starts today.
+ */
+function saveDated(input: {
+  householdId: string;
+  scopeType: "household" | "child";
+  scopeId: string;
+  changes: PolicyChange[];
+  applyFrom: FormDataEntryValue | null;
+  userId: string;
+  note?: string;
+}) {
+  const today = todayInHousehold();
+  const childId = input.scopeType === "child" ? input.scopeId : null;
+  const period = periodChoice(input.householdId, childId, today);
+
+  const pay = input.changes.filter((c) => PAY_PERIOD_SECTIONS.includes(changeSection(c)));
+  const other = input.changes.filter((c) => !PAY_PERIOD_SECTIONS.includes(changeSection(c)));
+  const payFrom = input.applyFrom === "next" ? addDays(period.endDate, 1) : period.startDate;
+
+  const common = {
+    scopeType: input.scopeType,
+    scopeId: input.scopeId,
+    createdByUserId: input.userId,
+    note: input.note,
+  };
+  savePolicyChanges({ ...common, changes: other, effectiveFrom: today });
+  savePolicyChanges({ ...common, changes: pay, effectiveFrom: payFrom });
+
+  return pay.length > 0 && input.applyFrom === "next" ? payFrom : null;
+}
+
+/**
+ * Save a settings change as NEW policy versions — nothing is updated in
+ * place, so a pay stub from last year still resolves the policy that
+ * produced it.
  *
- * Nothing is updated in place, so a pay stub from last year still resolves the
- * policy that produced it. Only fields the form actually submitted are written,
- * which keeps a child override genuinely partial rather than a full copy that
- * silently stops inheriting from the household.
+ * Only what actually changed is recorded (compared with what the form was
+ * showing), so saving one field can't overwrite a different change that's
+ * already scheduled for the next pay period. At child scope a ticked section
+ * becomes an override and an unticked one goes back to the family's rules.
  */
 export async function saveSettings(
   _prev: SettingsState,
@@ -52,42 +97,59 @@ export async function saveSettings(
     return { error: "That household could not be found." };
   }
 
-  const existing = getOverrides(scopeType, scopeId);
-  const payload: PartialPolicy = structuredClone(existing);
+  const today = todayInHousehold();
+  const shown = resolvePolicy(parent.householdId, scopeType === "child" ? scopeId : null, today);
+  const overrides = getOverrides(scopeType, scopeId, today) as Record<string, unknown>;
+  const rendered = new Set(formData.getAll("__fields").map(String));
+  const changes: PolicyChange[] = [];
 
   for (const section of SETTINGS_SECTIONS) {
+    if (!section.fields.some((f) => rendered.has(f.path))) continue; // not on this page
+
+    const ticked = formData.has(`__section_${section.key}`);
+    const wasOverride = section.key in overrides;
+
+    if (scopeType === "child" && !ticked) {
+      if (wasOverride) changes.push({ kind: "removeSection", section: section.key });
+      continue;
+    }
+    if (!ticked) continue;
+
     for (const field of section.fields) {
-      const [sectionKey, fieldKey] = field.path.split(".");
+      if (!rendered.has(field.path)) continue;
       const submitted = formData.get(field.path);
 
-      // A child form only submits sections the parent chose to override.
-      if (submitted === null && field.type !== "boolean") continue;
-      if (!formData.has(`__section_${sectionKey}`)) continue;
-
-      const bucket = ((payload as Record<string, unknown>)[sectionKey] ??= {}) as Record<
-        string,
-        unknown
-      >;
-
+      let value: unknown;
       if (field.type === "boolean") {
-        bucket[fieldKey] = submitted === "on";
+        value = submitted === "on";
       } else if (field.type === "number" || field.type === "percent") {
-        const value = Number(submitted);
-        if (!Number.isFinite(value)) continue;
-        bucket[fieldKey] = value;
+        value = Number(submitted);
+        if (submitted === null || !Number.isFinite(value)) continue;
       } else if (field.path === "pay.periodStartDay") {
-        bucket[fieldKey] = Number(submitted);
+        value = Number(submitted);
       } else {
-        bucket[fieldKey] = String(submitted);
+        if (submitted === null) continue;
+        value = String(submitted);
+      }
+
+      // A newly ticked child section records every field, so the override
+      // holds even when the family's values change later.
+      const newOverride = scopeType === "child" && !wasOverride;
+      if (newOverride || value !== getAtPath(shown, field.path)) {
+        changes.push({ kind: "set", path: field.path, value });
       }
     }
   }
 
-  savePolicyVersion({
+  if (changes.length === 0) return { ok: true, message: "Nothing changed." };
+
+  const startsOn = saveDated({
+    householdId: parent.householdId,
     scopeType,
     scopeId,
-    payload,
-    createdByUserId: parent.id,
+    changes,
+    applyFrom: formData.get("applyFrom"),
+    userId: parent.id,
   });
 
   db.insert(auditLog)
@@ -96,31 +158,38 @@ export async function saveSettings(
       action: "policy.updated",
       entityType: scopeType,
       entityId: scopeId,
-      beforeJson: existing,
-      afterJson: payload,
+      beforeJson: overrides,
+      afterJson: { changes, applyFrom: formData.get("applyFrom") ?? "today" },
     })
     .run();
 
-  revalidatePath("/settings", "layout");
-  if (scopeType === "child") revalidatePath(`/children/${scopeId}`);
-  return { ok: true };
+  revalidatePath("/", "layout");
+  return {
+    ok: true,
+    message: startsOn
+      ? `Saved. It starts with the pay period that begins ${formatShortDate(startsOn)}.`
+      : "Saved.",
+  };
 }
 
-/** Drop every override for a child, returning them to the household defaults. */
+/** Drop every override for a child, returning them to the family's rules. */
 export async function clearChildOverrides(formData: FormData): Promise<void> {
   const parent = await requireParent();
   const childId = String(formData.get("childId") ?? "");
   if (!getChild(parent.householdId, childId)) return;
 
-  savePolicyVersion({
+  const overrides = getOverrides("child", childId, todayInHousehold());
+  saveDated({
+    householdId: parent.householdId,
     scopeType: "child",
     scopeId: childId,
-    payload: {},
-    createdByUserId: parent.id,
-    note: "Cleared all overrides",
+    changes: Object.keys(overrides).map((section) => ({ kind: "removeSection", section })),
+    applyFrom: formData.get("applyFrom"),
+    userId: parent.id,
+    note: "Back to the family's rules",
   });
 
-  revalidatePath(`/children/${childId}`);
+  revalidatePath("/", "layout");
 }
 
 export async function updateHousehold(

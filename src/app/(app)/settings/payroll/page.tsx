@@ -15,6 +15,7 @@ import {
   resolveHouseholdPolicy,
   resolvePolicy,
 } from "@/lib/policy";
+import { periodChoice, scheduledChanges } from "@/lib/policy-schedule";
 import { PayrollControl } from "../payroll-control";
 import { SectionHeader } from "../section-header";
 import { PayNow, type PayNowRow } from "./pay-now";
@@ -91,6 +92,8 @@ export default async function PayrollSettingsPage() {
           effective={policy}
           overriddenSections={Object.keys(overrides)}
           sections={PAYROLL_SECTIONS}
+          period={periodChoice(parent.householdId, null, today)}
+          scheduled={scheduledChanges(parent.householdId, "household", parent.householdId, today)}
         />
       </div>
     </>

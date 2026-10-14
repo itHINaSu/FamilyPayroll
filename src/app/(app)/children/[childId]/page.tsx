@@ -2,14 +2,16 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { SettingsEditor } from "@/components/settings-editor";
-import { Alert, BackChevron, Button, Card, PageHeader } from "@/components/ui";
+import { Alert, BackChevron, Card, PageHeader } from "@/components/ui";
 import { requireParent } from "@/lib/auth/guard";
 import { ageFromBirthdate, getChild } from "@/lib/children";
 import { checkGuardrails, getOverrides, resolvePolicy } from "@/lib/policy";
 import { listResponsibilities } from "@/lib/responsibilities";
-import { clearChildOverrides } from "@/app/(app)/settings/actions";
+import { todayInHousehold } from "@/lib/dates";
+import { periodChoice, scheduledChanges } from "@/lib/policy-schedule";
 import { EditChildForm } from "./edit-child-form";
 import { RaiseForm } from "./raise-form";
+import { UseFamilyRules } from "./use-family-rules";
 import { ArchiveButton } from "../row-actions";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +30,9 @@ export default async function ChildSetupPage({
   const record = getChild(parent.householdId, childId);
   if (!record) notFound();
 
-  const policy = resolvePolicy(parent.householdId, childId);
+  const today = todayInHousehold();
+  const policy = resolvePolicy(parent.householdId, childId, today);
+  const period = periodChoice(parent.householdId, childId, today);
   const overrides = getOverrides("child", childId);
   const overriddenSections = Object.keys(overrides);
   const warnings = checkGuardrails(policy, ageFromBirthdate(record.birthdate));
@@ -76,14 +80,7 @@ export default async function ChildSetupPage({
                   : `Different from the family in: ${overriddenSections.join(", ")}.`}
               </p>
             </div>
-            {overriddenSections.length > 0 && (
-              <form action={clearChildOverrides}>
-                <input type="hidden" name="childId" value={childId} />
-                <Button type="submit" variant="secondary" className="whitespace-nowrap">
-                  Use family rules
-                </Button>
-              </form>
-            )}
+            {overriddenSections.length > 0 && <UseFamilyRules childId={childId} period={period} />}
           </div>
         </Card>
 
@@ -92,6 +89,8 @@ export default async function ChildSetupPage({
           scopeId={childId}
           effective={policy}
           overriddenSections={overriddenSections}
+          period={period}
+          scheduled={scheduledChanges(parent.householdId, "child", childId, today)}
         />
 
         {record.status !== "archived" && (

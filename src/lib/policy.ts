@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, lte } from "drizzle-orm";
+import { and, desc, eq, gt, lte } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db";
@@ -287,6 +287,114 @@ export function savePolicyVersion(input: {
     .get();
 
   return row.id;
+}
+
+// ---------------------------------------------------------------------------
+// Changes that start on a chosen date
+// ---------------------------------------------------------------------------
+
+/**
+ * Sections that decide how a pay period is paid. A change to one of these
+ * asks whether it starts with this pay period or the next; the rest (who can
+ * move money, display, kiosk) simply apply from today.
+ */
+export const PAY_PERIOD_SECTIONS = ["pay", "completion", "allocation", "interest", "bills"];
+
+export type PolicyChange =
+  | { kind: "set"; path: string; value: unknown }
+  | { kind: "removeSection"; section: string };
+
+export const changeSection = (c: PolicyChange) =>
+  c.kind === "set" ? c.path.split(".")[0] : c.section;
+
+function applyChanges(base: PartialPolicy, changes: PolicyChange[]): PartialPolicy {
+  const next = structuredClone(base) as Record<string, Record<string, unknown>>;
+  for (const c of changes) {
+    if (c.kind === "removeSection") {
+      delete next[c.section];
+    } else {
+      const [section, field] = c.path.split(".");
+      (next[section] ??= {})[field] = c.value;
+    }
+  }
+  return next as PartialPolicy;
+}
+
+/**
+ * Record changes as a new version starting `effectiveFrom`, and carry them
+ * into every version already scheduled after that date — otherwise a change
+ * made today would be quietly undone when a previously scheduled one starts.
+ * Only inserts: history is never rewritten.
+ */
+export function savePolicyChanges(input: {
+  scopeType: "household" | "child";
+  scopeId: string;
+  changes: PolicyChange[];
+  effectiveFrom: string;
+  createdByUserId?: string | null;
+  note?: string;
+}): void {
+  if (input.changes.length === 0) return;
+
+  const later = [
+    ...new Set(
+      db
+        .select({ effectiveFrom: policyVersion.effectiveFrom })
+        .from(policyVersion)
+        .where(
+          and(
+            eq(policyVersion.scopeType, input.scopeType),
+            eq(policyVersion.scopeId, input.scopeId),
+            gt(policyVersion.effectiveFrom, input.effectiveFrom),
+          ),
+        )
+        .all()
+        .map((r) => r.effectiveFrom),
+    ),
+  ];
+
+  const versions = [input.effectiveFrom, ...later].map((date) => ({
+    date,
+    payload: applyChanges(versionAsOf(input.scopeType, input.scopeId, date) ?? {}, input.changes),
+  }));
+
+  db.transaction(() => {
+    for (const v of versions) {
+      savePolicyVersion({
+        scopeType: input.scopeType,
+        scopeId: input.scopeId,
+        payload: v.payload,
+        createdByUserId: input.createdByUserId,
+        effectiveFrom: v.date,
+        note: input.note,
+      });
+    }
+  });
+}
+
+/** Dates after `today` on which this scope already has a version waiting to start. */
+export function scheduledVersionDates(
+  scopeType: "household" | "child",
+  scopeId: string,
+  today: string,
+): string[] {
+  return [
+    ...new Set(
+      db
+        .select({ effectiveFrom: policyVersion.effectiveFrom })
+        .from(policyVersion)
+        .where(
+          and(
+            eq(policyVersion.scopeType, scopeType),
+            eq(policyVersion.scopeId, scopeId),
+            gt(policyVersion.effectiveFrom, today),
+          ),
+        )
+        .orderBy(policyVersion.effectiveFrom)
+        .all()
+        .map((r) => r.effectiveFrom),
+    ),
+  ];
 }
 
 // ---------------------------------------------------------------------------
