@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Avatar } from "@/components/avatar";
 import { jumpTargetId } from "@/components/jump-target";
 import { dayOfWeek, eachDate, formatShortDate } from "@/lib/dates";
-import { formatCents } from "@/lib/money";
+import { formatCents, formatCentsCompact } from "@/lib/money";
 import { DAY_LETTERS, type Box } from "@/lib/responsibilities";
 import type { ChildWeek, ExpectationView } from "@/lib/today";
 import { WalletIcon } from "./icons";
@@ -23,7 +23,7 @@ function markLook(box: Box) {
 function Mark({ box, label, isToday }: { box: Box; label: string; isToday?: boolean }) {
   return (
     <span
-      className={`flex h-3 w-3 items-center justify-center rounded-[3px] text-[9px] font-bold leading-none ${markLook(box)} ${
+      className={`flex h-4 w-4 items-center justify-center rounded text-xs font-bold leading-none ${markLook(box)} ${
         isToday ? "ring-1 ring-ledger-500 ring-offset-1 dark:ring-offset-ink-800" : ""
       }`}
     >
@@ -43,7 +43,7 @@ function Row({ e, week, days }: { e: ExpectationView; week: number; days: Day[] 
 
   return (
     <>
-      <span className="truncate pr-1 text-[11px] leading-3" title={e.name}>
+      <span className="truncate pr-2 text-sm leading-4" title={e.name}>
         {e.shortName || e.name}
       </span>
       {numbered.length > 0 ? (
@@ -67,9 +67,14 @@ function Row({ e, week, days }: { e: ExpectationView; week: number; days: Day[] 
 }
 
 /**
- * One child on the Dashboard, read-only: every expectation's week as rows of
- * lettered squares, checking up by the name. The balance opens Balances at this child;
- * anywhere else opens Expectations at this child.
+ * One child on the Dashboard, read-only: every expectation's week as a row
+ * of lettered squares, with this period's pay and checking up by the name.
+ * The balance opens Balances at this child; anywhere else opens
+ * Expectations at this child.
+ *
+ * On a phone every card is the same height — a quarter of the space between
+ * the payday line and the tab bar (FillCards sets --card-h) — whatever the
+ * number of expectations. Rows that don't fit scroll inside the card.
  */
 export function KidSummary({
   child,
@@ -90,23 +95,32 @@ export function KidSummary({
       }))
     : [];
   const missCount = child.expectations.reduce((n, e) => n + e.misses.length, 0);
-
-  // Up to five rows in one column, with room for full names; past that,
-  // two columns of up to five, so four kids still fit on a phone.
-  const list = child.expectations;
-  const half = Math.ceil(list.length / 2);
-  const columns = list.length > 5 ? [list.slice(0, half), list.slice(half)] : [list];
   const expectationsHref = `/expectations#${jumpTargetId(child.id)}`;
 
   return (
-    <div className="rounded-xl border border-ink-200 bg-white px-3 py-2 shadow-sm dark:border-ink-700 dark:bg-ink-800">
-      <div className="flex items-center gap-2">
+    <div className="flex h-[var(--card-h,auto)] min-h-0 flex-col rounded-xl border border-ink-200 bg-white px-3 py-2 shadow-sm md:h-auto dark:border-ink-700 dark:bg-ink-800">
+      <div className="flex shrink-0 items-center gap-2">
         <Link href={expectationsHref} className="flex min-w-0 flex-1 items-center gap-2">
           <Avatar name={child.name} photoBlobId={child.photoBlobId} size="xs" />
           <span className="truncate font-medium">{child.name}</span>
           {showPayDate && (
             <span className="shrink-0 text-xs text-ink-400">
               paid {formatShortDate(child.period.payDate)}
+            </span>
+          )}
+          {child.potentialCents > 0 && (
+            <span
+              className="tnum ml-auto shrink-0 whitespace-nowrap text-sm"
+              title={
+                missCount > 0
+                  ? `−${formatCents(child.lostCents)} · ${missCount} missed`
+                  : "On track this pay period"
+              }
+            >
+              <span className={child.lostCents > 0 ? "text-red-600 dark:text-red-400" : ""}>
+                {formatCentsCompact(child.onTrackCents)}
+              </span>
+              <span className="text-xs text-ink-400">/{formatCentsCompact(child.potentialCents)}</span>
             </span>
           )}
         </Link>
@@ -127,38 +141,18 @@ export function KidSummary({
         </Link>
       </div>
 
-      <Link href={expectationsHref} className="mt-1.5 block">
-        {list.length === 0 ? (
+      <Link
+        href={expectationsHref}
+        className="mt-1 block min-h-0 flex-1 overflow-y-auto overscroll-contain"
+      >
+        {child.expectations.length === 0 ? (
           <p className="text-sm text-ink-400">No expectations yet</p>
         ) : (
-          <>
-            <div className={`grid gap-x-4 ${columns.length > 1 ? "grid-cols-2" : ""}`}>
-              {columns.map((col, i) => (
-                <div
-                  key={i}
-                  className="grid grid-cols-[minmax(0,1fr)_repeat(7,0.75rem)] content-start items-center gap-0.5"
-                >
-                  {col.map((e) => (
-                    <Row key={e.id} e={e} week={child.currentWeek} days={days} />
-                  ))}
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-1 flex items-baseline justify-between gap-3 text-xs">
-              {missCount > 0 ? (
-                <span className="text-red-600 dark:text-red-400">
-                  −{formatCents(child.lostCents)} · {missCount} missed
-                </span>
-              ) : (
-                <span className="text-ink-400">Nothing missed</span>
-              )}
-              <span className="tnum whitespace-nowrap">
-                {formatCents(child.onTrackCents)}
-                <span className="text-ink-400"> / {formatCents(child.potentialCents)}</span>
-              </span>
-            </div>
-          </>
+          <div className="grid grid-cols-[minmax(0,1fr)_repeat(7,1rem)] content-start items-center gap-0.5">
+            {child.expectations.map((e) => (
+              <Row key={e.id} e={e} week={child.currentWeek} days={days} />
+            ))}
+          </div>
         )}
       </Link>
     </div>

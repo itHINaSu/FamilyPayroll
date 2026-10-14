@@ -5,6 +5,7 @@ import { getHousehold, requireUser } from "@/lib/auth/guard";
 import { formatShortDate } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
 import { attentionItems, householdWeek } from "@/lib/today";
+import { FillCards } from "./fill-cards";
 import { KidSummary } from "./kid-summary";
 
 export const dynamic = "force-dynamic";
@@ -97,7 +98,7 @@ export default async function DashboardPage() {
                 <span className="tnum">{formatCents(potential)}</span> on track
               </span>
             </p>
-            <div className="grid gap-2 lg:grid-cols-2">
+            <FillCards className="grid gap-2 lg:grid-cols-2">
               {children.map((c) => (
                 <KidSummary
                   key={c.id}
@@ -106,7 +107,7 @@ export default async function DashboardPage() {
                   showPayDate={c.period.payDate !== payDate}
                 />
               ))}
-            </div>
+            </FillCards>
           </>
         )}
       </div>

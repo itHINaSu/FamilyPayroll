@@ -123,6 +123,11 @@ export function formatCents(cents: number): string {
   return negative ? `-${formatted}` : formatted;
 }
 
+/** Like formatCents, but whole dollars drop the ".00" — for tight summaries. */
+export function formatCentsCompact(cents: number): string {
+  return cents % 100 === 0 ? formatCents(cents).replace(/\.00$/, "") : formatCents(cents);
+}
+
 /** Parse user input ("12", "$12.50", "12.5") into integer cents. */
 export function parseAmountToCents(input: string): number | null {
   const cleaned = input.replace(/[$,\s]/g, "");

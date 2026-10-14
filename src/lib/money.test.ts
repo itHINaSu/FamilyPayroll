@@ -180,3 +180,13 @@ describe("parseAmountToCents", () => {
     expect(parseAmountToCents("-")).toBeNull();
   });
 });
+
+describe("formatCentsCompact", () => {
+  it("drops .00 on whole dollars only", async () => {
+    const { formatCentsCompact } = await import("@/lib/money");
+    expect(formatCentsCompact(2200)).toBe("$22");
+    expect(formatCentsCompact(1629)).toBe("$16.29");
+    expect(formatCentsCompact(-500)).toBe("-$5");
+    expect(formatCentsCompact(0)).toBe("$0");
+  });
+});
