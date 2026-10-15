@@ -39,7 +39,7 @@ export function JumpRow({ kids }: { kids: Kid[] }) {
   return (
     <nav
       aria-label="Jump to a child"
-      className="flex justify-center gap-1 overflow-x-auto border-b border-ink-200 bg-white/95 px-2 py-1
+      className="flex h-14 items-center justify-center gap-1 overflow-x-auto border-b border-ink-200 bg-white/95 px-2
         backdrop-blur dark:border-ink-700 dark:bg-ink-800/95 md:mt-2 md:rounded-xl md:border"
     >
       {kids.map((k) => (

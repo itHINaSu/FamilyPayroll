@@ -34,7 +34,7 @@ export function BalanceCard({ child, kid }: { child: BalanceView; kid: MoneyKid 
     <div id={jumpTargetId(child.id)} className="jump-target rounded-xl">
       <Card>
         <Link href={`/balances/${child.id}`} className="-m-1 mb-2 flex items-center gap-3 rounded-lg p-1">
-          <Avatar name={child.name} photoBlobId={child.photoBlobId} />
+          <Avatar name={child.name} photoBlobId={child.photoBlobId} size="sm" />
           <span className="min-w-0 flex-1 truncate font-medium">{child.name}</span>
           <span className="shrink-0 text-right">
             <span className="tnum block text-lg">{formatCents(child.totalCents)}</span>

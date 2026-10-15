@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { JumpRow } from "@/components/jump-row";
 import { Alert, PageHeader } from "@/components/ui";
 import { getHousehold, requireUser } from "@/lib/auth/guard";
 import { formatShortDate } from "@/lib/dates";
@@ -54,20 +55,15 @@ export default async function DashboardPage() {
     });
   }
 
-  // Payday is normally the same for everyone, so it's said once up top; a
-  // child with their own pay schedule gets theirs on their card.
-  const payDates = children.map((c) => c.period.payDate);
-  const payDate = payDates.sort(
-    (a, b) => payDates.filter((d) => d === b).length - payDates.filter((d) => d === a).length,
-  )[0];
-  const onTrack = children.reduce((n, c) => n + c.onTrackCents, 0);
-  const potential = children.reduce((n, c) => n + c.potentialCents, 0);
-
   return (
     <>
-      <PageHeader title="Dashboard" />
+      <PageHeader title="Dashboard">
+        <JumpRow
+          kids={children.map((c) => ({ id: c.id, name: c.name, photoBlobId: c.photoBlobId }))}
+        />
+      </PageHeader>
 
-      <div className="space-y-2.5">
+      <div className="space-y-3">
         {notices.length > 0 && (
           <ul className="divide-y divide-amber-200 rounded-lg border border-amber-300 bg-amber-50 text-sm text-amber-900 dark:divide-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
             {notices.map((n) => (
@@ -90,25 +86,11 @@ export default async function DashboardPage() {
             in Settings › Household to get started.
           </Alert>
         ) : (
-          <>
-            <p className="flex items-baseline justify-between gap-3 px-1 text-xs text-ink-400">
-              <span>Payday {formatShortDate(payDate)}</span>
-              <span>
-                <span className="tnum">{formatCents(onTrack)}</span> of{" "}
-                <span className="tnum">{formatCents(potential)}</span> on track
-              </span>
-            </p>
-            <FillCards className="grid gap-2 lg:grid-cols-2">
-              {children.map((c) => (
-                <KidSummary
-                  key={c.id}
-                  child={c}
-                  today={today}
-                  showPayDate={c.period.payDate !== payDate}
-                />
-              ))}
-            </FillCards>
-          </>
+          <FillCards perScreen={2} className="grid gap-3 lg:grid-cols-2">
+            {children.map((c) => (
+              <KidSummary key={c.id} child={c} today={today} />
+            ))}
+          </FillCards>
         )}
       </div>
     </>

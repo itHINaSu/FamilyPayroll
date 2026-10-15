@@ -13,6 +13,7 @@ import type { Box } from "@/lib/responsibilities";
 import type { ChildWeek, ExpectationView } from "@/lib/today";
 import { ChevronRightIcon } from "../icons";
 import { saveMissNote, tapBox } from "./actions";
+import { MissedX, TODAY_RING, boxLook } from "./box-look";
 
 type NotePrompt = { missId: string; title: string; when: string; note: string };
 
@@ -35,13 +36,13 @@ export function WeekCard({
 
   const card = (
     // A little less side padding on a phone buys the seven boxes their 44px.
-    <Card className="!px-3 sm:!px-6">
+    <Card>
       {!full && (
         <Link
           href={`/expectations/${child.id}`}
           className="-m-1 mb-3 flex items-center gap-3 rounded-lg p-1"
         >
-          <Avatar name={child.name} photoBlobId={child.photoBlobId} />
+          <Avatar name={child.name} photoBlobId={child.photoBlobId} size="sm" />
           <span className="min-w-0 flex-1">
             <span className="block truncate font-medium">{child.name}</span>
             <span className="block text-xs text-ink-400">
@@ -162,7 +163,7 @@ function ExpectationRow({
             )}
             {/* Seven columns whatever the expectation, so a day box and a
                 numbered box are the same size and a week reads as a week. */}
-            <div className="grid grid-cols-7 gap-1">
+            <div className="grid grid-cols-7">
               {w.boxes.map((b) => (
                 <BoxButton
                   key={b.key}
@@ -220,18 +221,10 @@ export function BoxButton({
       }
     });
 
-  // The day letter or number is the box's label; its colour is the state.
-  const look =
-    box.state === "excused"
-      ? "border-ink-200 bg-ink-100 text-ink-400 dark:border-ink-700 dark:bg-ink-700"
-      : checked
-        ? "border-ledger-600 bg-ledger-600 text-white"
-        : box.state === "missed"
-          ? "border-red-400 bg-red-50 text-red-300 dark:border-red-500 dark:bg-red-950/40 dark:text-red-400/60"
-          : "border-ink-300 bg-white text-ink-400 dark:border-ink-600 dark:bg-ink-900";
-
   const verb = checked ? (e.payMode === "expected" ? "Mark missed" : "Uncheck") : "Check";
   const isToday = !box.numbered && box.date === today;
+  // A full 44px tap target around a smaller 36px box: easy to hit, lighter
+  // to look at. The day letter or number is the label; its colour is the state.
   return (
     <button
       type="button"
@@ -240,27 +233,19 @@ export function BoxButton({
       aria-pressed={checked}
       aria-label={`${verb}: ${e.name}, ${box.numbered ? `#${box.label}` : box.date}`}
       title={box.note ?? undefined}
-      className={`relative flex aspect-square w-full max-w-14 items-center justify-center rounded-lg border-2 text-base font-semibold transition disabled:cursor-default ${look} ${
-        box.future ? "opacity-40" : ""
-      } ${pending ? "opacity-60" : ""} ${isToday ? "ring-2 ring-ledger-500/40 ring-offset-1 dark:ring-offset-ink-800" : ""}`}
+      className="flex h-11 w-full items-center justify-center disabled:cursor-default"
     >
-      {box.label}
-      {box.state === "missed" && (
-        <svg
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-          className="absolute inset-0 m-auto h-4/5 w-4/5 text-red-500"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2.5}
-          strokeLinecap="round"
-        >
-          <path d="M5 5l14 14M19 5L5 19" />
-        </svg>
-      )}
-      {box.note && (
-        <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-ink-800" />
-      )}
+      <span
+        className={`relative flex h-9 w-9 items-center justify-center rounded-lg border-2 text-sm font-semibold transition ${boxLook(box)} ${
+          pending ? "opacity-60" : ""
+        } ${isToday ? TODAY_RING : ""}`}
+      >
+        {box.label}
+        {box.state === "missed" && <MissedX />}
+        {box.note && (
+          <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-ink-800" />
+        )}
+      </span>
     </button>
   );
 }

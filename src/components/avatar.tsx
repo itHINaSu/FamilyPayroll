@@ -8,7 +8,7 @@ export function Avatar({
   photoBlobId: string | null;
   size?: "xs" | "sm" | "md";
 }) {
-  const box = size === "xs" ? "h-6 w-6 text-xs" : size === "sm" ? "h-9 w-9 text-sm" : "h-11 w-11";
+  const box = size === "xs" ? "h-6 w-6 text-xs" : size === "sm" ? "h-8 w-8 text-sm" : "h-11 w-11";
   return photoBlobId ? (
     // eslint-disable-next-line @next/next/no-img-element
     <img

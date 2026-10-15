@@ -58,7 +58,7 @@ export default async function BalancesPage() {
           .
         </Alert>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-3 lg:grid-cols-2">
           {views.map((v, i) => (
             <BalanceCard key={v.id} child={v} kid={kids[i]} />
           ))}

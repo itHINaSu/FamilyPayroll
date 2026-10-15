@@ -33,7 +33,7 @@ export default async function ExpectationsPage() {
           .
         </Alert>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-3 lg:grid-cols-2">
           {children.map((c) => (
             <WeekCard key={c.id} child={c} today={today} />
           ))}
