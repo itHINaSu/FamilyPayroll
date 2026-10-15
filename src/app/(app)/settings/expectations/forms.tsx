@@ -251,7 +251,7 @@ export function TemplateCard({
 
         <div className="flex shrink-0 items-center justify-between gap-2 border-t border-ink-100 pt-3 dark:border-ink-700 sm:flex-col sm:items-end sm:border-0 sm:pt-1">
           <Link
-            href={`/responsibilities/${template.id}`}
+            href={`/settings/expectations/${template.id}`}
             className="whitespace-nowrap text-xs text-ledger-600 hover:underline"
           >
             {activeCount}/{totalChildren} children →

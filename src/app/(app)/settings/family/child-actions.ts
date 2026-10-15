@@ -105,8 +105,8 @@ export async function addChild(
     })
     .run();
 
-  revalidatePath("/children");
-  revalidatePath(`/children/${childId}`);
+  revalidatePath("/settings/family");
+  revalidatePath(`/settings/family/${childId}`);
   revalidatePath("/");
   return { ok: true };
 }
@@ -167,8 +167,8 @@ export async function updateChild(
     })
     .run();
 
-  revalidatePath("/children");
-  revalidatePath(`/children/${childId}`);
+  revalidatePath("/settings/family");
+  revalidatePath(`/settings/family/${childId}`);
   return { ok: true };
 }
 
@@ -197,7 +197,7 @@ export async function archiveChild(formData: FormData): Promise<void> {
     .run();
 
   revalidatePath("/", "layout");
-  redirect("/children");
+  redirect("/settings/family");
 }
 
 export async function restoreChild(formData: FormData): Promise<void> {
@@ -218,5 +218,5 @@ export async function restoreChild(formData: FormData): Promise<void> {
     })
     .run();
 
-  revalidatePath("/children");
+  revalidatePath("/settings/family");
 }

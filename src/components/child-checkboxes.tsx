@@ -1,7 +1,7 @@
 import { FIELD_LABEL } from "@/components/ui";
 
 /**
- * "Who it's for" when adding an expectation or a bill in Setup. Everyone is
+ * "Who it's for" when adding an expectation or a bill in Settings. Everyone is
  * ticked by default; leaving everyone ticked also gives it to children added
  * later.
  */

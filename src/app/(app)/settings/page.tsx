@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Card, PageHeader } from "@/components/ui";
 import { getHousehold, requireParent } from "@/lib/auth/guard";
+import { pendingJobClaims } from "@/lib/jobs";
 import { ChevronRightIcon } from "../icons";
 
 export const dynamic = "force-dynamic";
@@ -10,8 +11,9 @@ type Row = { href: string; title: string; detail: string };
 
 /** Settings, grouped. Each row opens its own page. */
 export default async function SettingsPage() {
-  await requireParent();
+  const parent = await requireParent();
   const home = getHousehold();
+  const waiting = pendingJobClaims(parent.householdId).length;
 
   const groups: { label: string; rows: Row[] }[] = [
     {
@@ -21,20 +23,34 @@ export default async function SettingsPage() {
     {
       label: "Family",
       rows: [
-        { href: "/settings/family", title: "Household", detail: "Family name, time zone, parent and child logins" },
-        { href: "/config", title: "Setup", detail: "Children, expectations, extra jobs, bills" },
+        {
+          href: "/settings/family",
+          title: "Household",
+          detail: "Family details, children, parents and their logins",
+        },
       ],
     },
     {
-      label: "Money",
+      label: "Pay",
       rows: [
         {
           href: "/settings/payroll",
           title: "Payroll",
           detail: home?.payrollPausedOn
-            ? "Paused — pay schedule, where pay goes, interest, bills"
-            : "Pay schedule, where pay goes, interest, bills",
+            ? "Paused — pay schedule, where pay goes, interest"
+            : "Pay schedule, where pay goes, interest",
         },
+        {
+          href: "/settings/expectations",
+          title: "Expectations",
+          detail: "What each child is expected to do, and what it pays",
+        },
+        {
+          href: "/settings/jobs",
+          title: "Extra jobs",
+          detail: waiting > 0 ? `${waiting} waiting for approval` : "Optional paid work kids can claim",
+        },
+        { href: "/settings/bills", title: "Bills", detail: "Rent and other recurring charges" },
       ],
     },
     {

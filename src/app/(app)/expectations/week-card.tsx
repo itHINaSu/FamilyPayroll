@@ -56,7 +56,7 @@ export function WeekCard({
       {child.expectations.length === 0 ? (
         <p className="text-sm text-ink-400">
           No expectations yet.{" "}
-          <Link href="/responsibilities" className="underline">
+          <Link href="/settings/expectations" className="underline">
             Set them up
           </Link>
           .

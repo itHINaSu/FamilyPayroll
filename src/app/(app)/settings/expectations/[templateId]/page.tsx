@@ -35,7 +35,7 @@ export default async function ResponsibilityDetailPage({
     <>
       <PageHeader
         back={
-          <Link href="/responsibilities" title="All expectations">
+          <Link href="/settings/expectations" title="All expectations">
             <BackChevron label="all expectations" />
           </Link>
         }

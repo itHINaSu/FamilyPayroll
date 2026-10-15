@@ -1,8 +1,9 @@
-import { Alert, PageHeader } from "@/components/ui";
+import { Alert } from "@/components/ui";
 import { requireParent } from "@/lib/auth/guard";
 import { billTemplateChildStatus, listBillTemplates } from "@/lib/bills";
 import { listChildren } from "@/lib/children";
 import { AddTemplateForm, TemplateCard } from "./forms";
+import { SectionHeader } from "../section-header";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,7 @@ export default async function BillsHubPage() {
 
   return (
     <>
-      <PageHeader title="Bills" />
+      <SectionHeader title="Bills" />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
         <div className="space-y-4">

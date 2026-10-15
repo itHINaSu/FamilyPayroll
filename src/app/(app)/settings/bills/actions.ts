@@ -76,7 +76,7 @@ export async function addBillTemplate(
 
   createBillTemplate(parent.householdId, result.data, childIds);
 
-  revalidatePath("/bills");
+  revalidatePath("/settings/bills");
   return { ok: true };
 }
 
@@ -91,14 +91,14 @@ export async function editBillTemplate(
 
   updateBillTemplate(templateId, result.data);
 
-  revalidatePath("/bills");
+  revalidatePath("/settings/bills");
   return { ok: true };
 }
 
 export async function archiveTemplate(formData: FormData): Promise<void> {
   await requireParent();
   archiveBillTemplate(String(formData.get("templateId") ?? ""));
-  revalidatePath("/bills");
+  revalidatePath("/settings/bills");
 }
 
 export async function toggleBillTemplateForChild(formData: FormData): Promise<void> {
@@ -115,7 +115,7 @@ export async function toggleBillTemplateForChild(formData: FormData): Promise<vo
     enableBillTemplateForChild(parent.householdId, childId, templateId);
   }
 
-  revalidatePath("/bills");
+  revalidatePath("/settings/bills");
   revalidatePath("/balances", "layout");
 }
 
@@ -126,7 +126,7 @@ export async function setBillNewChildren(formData: FormData): Promise<void> {
     String(formData.get("templateId") ?? ""),
     formData.get("appliesToNewChildren") === "on",
   );
-  revalidatePath("/bills");
+  revalidatePath("/settings/bills");
 }
 
 /** Back to the family amount and schedule for one child. */
@@ -135,6 +135,6 @@ export async function resyncBillForChild(formData: FormData): Promise<void> {
   const childId = String(formData.get("childId") ?? "");
   if (!getChild(parent.householdId, childId)) return;
   resyncBill(String(formData.get("billId") ?? ""));
-  revalidatePath("/bills");
+  revalidatePath("/settings/bills");
   revalidatePath("/balances", "layout");
 }

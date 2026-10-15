@@ -52,8 +52,8 @@ export default async function BalancesPage() {
       {views.length === 0 ? (
         <Alert tone="info">
           No children yet —{" "}
-          <Link href="/children" className="font-medium underline">
-            add one under Setup › Children
+          <Link href="/settings/family" className="font-medium underline">
+            add one in Settings › Household
           </Link>
           .
         </Alert>

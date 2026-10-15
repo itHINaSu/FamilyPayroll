@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 /**
  * This week, every child: each expectation as a row of boxes — the "at
  * home" tab, where boxes get checked and misses noted. A child's name opens
- * their whole pay period. Defining expectations is Setup (/responsibilities).
+ * their whole pay period. Defining expectations is Settings › Expectations.
  */
 export default async function ExpectationsPage() {
   const parent = await requireParent();
@@ -27,8 +27,8 @@ export default async function ExpectationsPage() {
       {children.length === 0 ? (
         <Alert tone="info">
           No children yet —{" "}
-          <Link href="/children" className="font-medium underline">
-            add one under Setup › Children
+          <Link href="/settings/family" className="font-medium underline">
+            add one in Settings › Household
           </Link>
           .
         </Alert>

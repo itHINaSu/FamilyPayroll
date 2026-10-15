@@ -1,10 +1,10 @@
 "use client";
 
 import { Button } from "@/components/ui";
-import { archiveChild, restoreChild } from "./actions";
+import { archiveChild, restoreChild } from "./child-actions";
 
 /**
- * The bottom of a child's Setup page. Archiving is a once-in-a-lifetime
+ * The bottom of a child's page in Settings › Household. Archiving is a once-in-a-lifetime
  * event, so it's a plain text action behind a confirmation, not a button
  * anywhere a child gets picked.
  */
@@ -16,7 +16,7 @@ export function ArchiveButton({ childId, name }: { childId: string; name: string
         if (
           !confirm(
             `Archive ${name}? They disappear from every tab and stop being paid. ` +
-              "Their history is kept, and you can restore them from Setup › Children.",
+              "Their history is kept, and you can restore them from Settings › Household.",
           )
         ) {
           event.preventDefault();

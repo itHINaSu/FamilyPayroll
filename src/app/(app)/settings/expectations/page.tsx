@@ -1,8 +1,9 @@
-import { Alert, PageHeader } from "@/components/ui";
+import { Alert } from "@/components/ui";
 import { requireParent } from "@/lib/auth/guard";
 import { listChildren } from "@/lib/children";
 import { listResponsibilityTemplates, templateChildStatus } from "@/lib/responsibilities";
 import { AddTemplateForm, TemplateCard } from "./forms";
+import { SectionHeader } from "../section-header";
 
 export const dynamic = "force-dynamic";
 
@@ -22,10 +23,7 @@ export default async function ResponsibilitiesHubPage() {
 
   return (
     <>
-      <PageHeader
-        title="Expectations"
-        subtitle="The paid work. Name, pay, and cadence are editable right here — click into one to turn it off or on for a specific child."
-      />
+      <SectionHeader title="Expectations" />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
         <div className="space-y-4">

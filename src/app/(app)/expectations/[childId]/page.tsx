@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 /**
  * One child's expectations, expanded: every week of the pay period and
  * every miss with its note. Adding or changing expectations is
- * Setup › Expectations.
+ * Settings › Expectations.
  */
 export default async function ChildExpectationsPage({
   params,

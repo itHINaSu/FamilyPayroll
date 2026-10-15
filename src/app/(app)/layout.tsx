@@ -49,8 +49,8 @@ export default async function AppLayout({
 
           {/*
             On a phone, daily-use screens live one tap away in the bottom
-            tab bar, so the hamburger only needs to reach the rest — Setup
-            (expandable to each of its sections) and the account. Extra
+            tab bar, so the hamburger only needs to reach the rest — every
+            Settings page, grouped, and the account. Extra
             jobs isn't a tab of its own, so a pending-claims badge rides on
             the hamburger instead of disappearing entirely.
           */}

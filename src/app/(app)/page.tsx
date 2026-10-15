@@ -45,7 +45,7 @@ export default async function DashboardPage() {
   if (attention.pendingJobs > 0) {
     notices.push({
       key: "jobs",
-      href: "/jobs",
+      href: "/settings/jobs",
       text: (
         <>
           {attention.pendingJobs} job{attention.pendingJobs === 1 ? "" : "s"} waiting for approval
@@ -84,10 +84,10 @@ export default async function DashboardPage() {
         {children.length === 0 ? (
           <Alert tone="info">
             Nobody is earning yet.{" "}
-            <Link href="/children" className="font-medium underline">
+            <Link href="/settings/family" className="font-medium underline">
               Add a child
             </Link>{" "}
-            under Setup › Children to get started.
+            in Settings › Household to get started.
           </Alert>
         ) : (
           <>

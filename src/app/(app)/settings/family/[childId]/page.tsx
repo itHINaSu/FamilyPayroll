@@ -17,7 +17,7 @@ import { ArchiveButton } from "../row-actions";
 export const dynamic = "force-dynamic";
 
 /**
- * Setup › Children › one child: who they are, a raise, and any pay rules that
+ * Settings › Household › one child: who they are, a raise, and any pay rules that
  * differ from the family's. Day-to-day is on the Expectations and Balances tabs.
  */
 export default async function ChildSetupPage({
@@ -42,8 +42,8 @@ export default async function ChildSetupPage({
       <PageHeader
         title={record.displayName}
         back={
-          <Link href="/children" title="Children">
-            <BackChevron label="Children" />
+          <Link href="/settings/family" title="Household">
+            <BackChevron label="Household" />
           </Link>
         }
       />

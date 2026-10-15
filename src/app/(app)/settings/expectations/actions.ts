@@ -96,7 +96,7 @@ export async function editResponsibilityTemplate(
 export async function archiveTemplate(formData: FormData): Promise<void> {
   await requireParent();
   archiveResponsibilityTemplate(String(formData.get("templateId") ?? ""));
-  revalidatePath("/responsibilities");
+  revalidatePath("/settings/expectations");
 }
 
 export async function setAppliesToNewChildren(formData: FormData): Promise<void> {
@@ -107,7 +107,7 @@ export async function setAppliesToNewChildren(formData: FormData): Promise<void>
     templateId,
     formData.get("appliesToNewChildren") === "on",
   );
-  revalidatePath(`/responsibilities/${templateId}`);
+  revalidatePath(`/settings/expectations/${templateId}`);
 }
 
 export async function toggleTemplateForChild(formData: FormData): Promise<void> {
@@ -125,7 +125,7 @@ export async function toggleTemplateForChild(formData: FormData): Promise<void> 
     enableTemplateForChild(childId, templateId);
   }
 
-  revalidatePath("/responsibilities");
-  revalidatePath(`/responsibilities/${templateId}`);
+  revalidatePath("/settings/expectations");
+  revalidatePath(`/settings/expectations/${templateId}`);
   revalidatePath("/expectations", "layout");
 }

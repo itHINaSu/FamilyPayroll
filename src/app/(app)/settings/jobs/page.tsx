@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 
-import { Alert, Button, Card, PageHeader } from "@/components/ui";
+import { Alert, Button, Card } from "@/components/ui";
 import { db } from "@/db";
 import { child, job } from "@/db/schema";
 import { requireParent } from "@/lib/auth/guard";
@@ -9,6 +9,7 @@ import { formatCents } from "@/lib/money";
 import { decideClaim } from "./actions";
 import { AddJobForm } from "./form";
 import { JobRow } from "./job-row";
+import { SectionHeader } from "../section-header";
 
 export const dynamic = "force-dynamic";
 
@@ -33,10 +34,7 @@ export default async function JobsPage() {
 
   return (
     <>
-      <PageHeader
-        title="Extra jobs"
-        subtitle="Extra work for extra pay. Claimed rather than assigned, and never part of potential pay."
-      />
+      <SectionHeader title="Extra jobs" />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
         <div className="space-y-6">

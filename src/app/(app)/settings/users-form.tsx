@@ -1,9 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 
+import { Avatar } from "@/components/avatar";
 import { Alert, Button, Card } from "@/components/ui";
+import { ChevronRightIcon } from "../icons";
+import { AddChildForm, AddChildToggle } from "./family/add-child-form";
+import { RestoreButton } from "./family/row-actions";
 import {
   cancelInvite,
   deactivateParent,
@@ -64,23 +69,121 @@ export type UserRow = { id: string; displayName: string; username: string; activ
 export type ChildRow = {
   id: string;
   name: string;
+  photoBlobId: string | null;
+  /** "11 years old · Active" */
+  detail: string;
   login: { id: string; username: string; active: boolean } | null;
   invitePending: boolean;
 };
 
 /**
- * Every login on the household — parents and children — in one place.
- * There is no email sending, so an invite is a link you hand over directly.
+ * The household's children: each opens their own page (profile, raise, pay
+ * rules), and their login is managed right here. Adding a child and
+ * restoring an archived one live here too.
  */
-export function UsersForm({
+export function ChildrenCard({
+  kids,
+  archived,
+}: {
+  kids: ChildRow[];
+  archived: { id: string; name: string }[];
+}) {
+  return (
+    <Card>
+      <h2 className="mb-1 text-lg font-semibold">Children</h2>
+      <p className="mb-2 text-sm text-ink-400">
+        Tap a child for their profile, a raise, or their own pay rules. A child&apos;s
+        login only ever shows a read-only view of their own account.
+      </p>
+
+      {kids.length === 0 ? (
+        <AddChildForm siblings={[]} bare />
+      ) : (
+        <>
+          <ul className="divide-y divide-ink-100 dark:divide-ink-700">
+            {kids.map((k) => (
+              <ChildRowItem key={k.id} kid={k} />
+            ))}
+          </ul>
+          <div className="mt-3">
+            <AddChildToggle siblings={kids.map((k) => ({ id: k.id, name: k.name }))} bare />
+          </div>
+        </>
+      )}
+
+      {archived.length > 0 && (
+        <div className="mt-5 border-t border-ink-100 pt-3 dark:border-ink-700">
+          <p className="mb-1 text-xs font-medium uppercase tracking-wide text-ink-400">Archived</p>
+          <ul className="divide-y divide-ink-100 dark:divide-ink-700">
+            {archived.map((a) => (
+              <li key={a.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <span>
+                  {a.name}
+                  <span className="ml-2 text-xs text-ink-400">history kept</span>
+                </span>
+                <RestoreButton childId={a.id} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function ChildRowItem({ kid }: { kid: ChildRow }) {
+  const [state, formAction] = useActionState<ChildLoginState, FormData>(inviteChild, {});
+
+  return (
+    <li className="py-3">
+      <Link href={`/settings/family/${kid.id}`} className="flex items-center gap-3">
+        <Avatar name={kid.name} photoBlobId={kid.photoBlobId} size="sm" />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium">{kid.name}</span>
+          <span className="block truncate text-xs text-ink-400">{kid.detail}</span>
+        </span>
+        <ChevronRightIcon className="h-5 w-5 shrink-0 text-ink-300 dark:text-ink-500" />
+      </Link>
+
+      <div className="mt-1.5 flex items-center justify-between gap-3 pl-11 text-xs text-ink-400">
+        <span className="min-w-0 truncate">
+          {kid.login
+            ? `Login @${kid.login.username}${kid.login.active ? "" : " · deactivated"}`
+            : kid.invitePending && !state.url
+              ? "Invite pending — inviting again replaces it"
+              : "No login"}
+        </span>
+        {kid.login ? (
+          <ToggleLogin
+            active={kid.login.active}
+            userId={kid.login.id}
+            onDeactivate={deactivateChildLogin}
+            onReactivate={reactivateChildLogin}
+          />
+        ) : (
+          <form action={formAction}>
+            <input type="hidden" name="childId" value={kid.id} />
+            <Submit idle="Invite" busy="…" variant="secondary" />
+          </form>
+        )}
+      </div>
+      {state.error && <Alert>{state.error}</Alert>}
+      {state.url && <LinkToSend who={kid.name} url={state.url} />}
+    </li>
+  );
+}
+
+/**
+ * The parents' logins. There is no email sending, so an invite is a link you
+ * hand over directly — text it, AirDrop it, whatever is easiest.
+ */
+export function ParentsCard({
   parents,
   parentInvites,
-  kids,
   selfId,
 }: {
   parents: UserRow[];
   parentInvites: { id: string; expiresAt: number }[];
-  kids: ChildRow[];
   selfId: string;
 }) {
   const [inviteState, inviteAction] = useActionState<SettingsState & { url?: string }, FormData>(
@@ -94,13 +197,12 @@ export function UsersForm({
 
   return (
     <Card>
-      <h2 className="mb-1 text-lg font-semibold">Users</h2>
-      <p className="mb-4 text-sm text-ink-400">
+      <h2 className="mb-1 text-lg font-semibold">Parents</h2>
+      <p className="mb-2 text-sm text-ink-400">
         Invites are links you hand over directly — text them, AirDrop them, whatever is
-        easiest. A child&apos;s login only ever shows a read-only view of their own account.
+        easiest.
       </p>
 
-      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-400">Parents</p>
       <ul className="mb-3 divide-y divide-ink-100 text-sm dark:divide-ink-700">
         {parents.map((p) => (
           <li key={p.id} className="flex items-center justify-between gap-3 py-2.5">
@@ -151,55 +253,6 @@ export function UsersForm({
         <Submit idle="Invite a parent" busy="Creating…" />
       </form>
       {inviteState.url && <LinkToSend who="the other parent" url={inviteState.url} />}
-
-      {kids.length > 0 && (
-        <>
-          <p className="mb-2 mt-6 text-xs font-medium uppercase tracking-wide text-ink-400">
-            Children
-          </p>
-          <ul className="divide-y divide-ink-100 text-sm dark:divide-ink-700">
-            {kids.map((k) => (
-              <ChildLoginRow key={k.id} kid={k} />
-            ))}
-          </ul>
-        </>
-      )}
     </Card>
-  );
-}
-
-function ChildLoginRow({ kid }: { kid: ChildRow }) {
-  const [state, formAction] = useActionState<ChildLoginState, FormData>(inviteChild, {});
-
-  return (
-    <li className="py-2.5">
-      <div className="flex items-center justify-between gap-3">
-        <span className="min-w-0">
-          {kid.name}
-          <span className="block text-xs text-ink-400">
-            {kid.login
-              ? `@${kid.login.username}${kid.login.active ? "" : " · deactivated"}`
-              : kid.invitePending && !state.url
-                ? "Invite pending — inviting again replaces it"
-                : "No login"}
-          </span>
-        </span>
-        {kid.login ? (
-          <ToggleLogin
-            active={kid.login.active}
-            userId={kid.login.id}
-            onDeactivate={deactivateChildLogin}
-            onReactivate={reactivateChildLogin}
-          />
-        ) : (
-          <form action={formAction}>
-            <input type="hidden" name="childId" value={kid.id} />
-            <Submit idle="Invite" busy="…" variant="secondary" />
-          </form>
-        )}
-      </div>
-      {state.error && <Alert>{state.error}</Alert>}
-      {state.url && <LinkToSend who={kid.name} url={state.url} />}
-    </li>
   );
 }

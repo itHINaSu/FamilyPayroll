@@ -5,7 +5,7 @@ import { useFormStatus } from "react-dom";
 
 import { FileInput } from "@/components/file-input";
 import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
-import { updateChild, type ChildFormState } from "../actions";
+import { updateChild, type ChildFormState } from "../child-actions";
 import type { ChildStatus } from "@/db/schema";
 
 function SubmitButton() {

@@ -84,7 +84,7 @@ export default async function PayrollSettingsPage() {
         )}
 
         <p className="text-xs text-ink-400">
-          These are the family defaults. Any child can differ — Setup › Children, then the child.
+          These are the family defaults. Any child can differ — Settings › Household, then the child.
         </p>
         <SettingsEditor
           scopeType="household"

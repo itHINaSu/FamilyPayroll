@@ -69,7 +69,7 @@ export async function addJob(_prev: JobState, formData: FormData): Promise<JobSt
     })
     .run();
 
-  revalidatePath("/jobs");
+  revalidatePath("/settings/jobs");
   return { ok: true };
 }
 
@@ -121,7 +121,7 @@ export async function editJob(_prev: JobState, formData: FormData): Promise<JobS
     .where(eq(job.id, jobId))
     .run();
 
-  revalidatePath("/jobs");
+  revalidatePath("/settings/jobs");
   return { ok: true };
 }
 
@@ -131,7 +131,7 @@ export async function archiveJob(formData: FormData): Promise<void> {
     .set({ active: false })
     .where(eq(job.id, String(formData.get("jobId") ?? "")))
     .run();
-  revalidatePath("/jobs");
+  revalidatePath("/settings/jobs");
 }
 
 export async function decideClaim(formData: FormData): Promise<void> {
@@ -141,5 +141,5 @@ export async function decideClaim(formData: FormData): Promise<void> {
     String(formData.get("decision")) === "approve",
     parent.id,
   );
-  revalidatePath("/jobs");
+  revalidatePath("/settings/jobs");
 }

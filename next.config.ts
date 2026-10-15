@@ -10,6 +10,20 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["better-sqlite3", "sharp"],
 
   eslint: { ignoreDuringBuilds: true },
+
+  // Setup moved into Settings. Old addresses — bookmarks, links in earlier
+  // notifications — still land in the right place.
+  async redirects() {
+    return [
+      { source: "/config", destination: "/settings", permanent: true },
+      { source: "/children", destination: "/settings/family", permanent: true },
+      { source: "/children/:childId", destination: "/settings/family/:childId", permanent: true },
+      { source: "/responsibilities", destination: "/settings/expectations", permanent: true },
+      { source: "/responsibilities/:id", destination: "/settings/expectations/:id", permanent: true },
+      { source: "/jobs", destination: "/settings/jobs", permanent: true },
+      { source: "/bills", destination: "/settings/bills", permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;

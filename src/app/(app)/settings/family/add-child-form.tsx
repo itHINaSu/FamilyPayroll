@@ -6,7 +6,7 @@ import { useFormStatus } from "react-dom";
 import { FileInput } from "@/components/file-input";
 import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
 import { AGE_PRESETS, bandForAge } from "@/lib/age-presets";
-import { addChild, type ChildFormState } from "./actions";
+import { addChild, type ChildFormState } from "./child-actions";
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -37,6 +37,7 @@ function ageFromBirthdate(birthdate: string): number | null {
  */
 export function AddChildToggle(props: {
   siblings?: { id: string; name: string }[];
+  bare?: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -58,7 +59,10 @@ export function AddChildToggle(props: {
 export function AddChildForm({
   siblings = [],
   onDone,
+  bare = false,
 }: {
+  /** Inside another card (the Household page's Children list): no card of its own. */
+  bare?: boolean;
   /** Existing children, for the "copy from" option. Omitted for the first child. */
   siblings?: { id: string; name: string }[];
   /** Called after a successful add, only present when opened from the toggle. */
@@ -88,10 +92,11 @@ export function AddChildForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.ok]);
 
+  const Wrapper = bare ? BareBox : Card;
   return (
-    <Card className="h-fit">
+    <Wrapper className="h-fit">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Add a child</h2>
+        <h2 className={bare ? "font-semibold" : "text-lg font-semibold"}>Add a child</h2>
         {onDone && (
           <button
             type="button"
@@ -172,6 +177,10 @@ export function AddChildForm({
 
         <SubmitButton />
       </form>
-    </Card>
+    </Wrapper>
   );
+}
+
+function BareBox({ children }: { children: React.ReactNode; className?: string }) {
+  return <div className="rounded-lg bg-ink-50 p-3 dark:bg-ink-900">{children}</div>;
 }
