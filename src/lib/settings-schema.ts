@@ -13,7 +13,8 @@ export type FieldSpec = {
   path: string;
   label: string;
   hint?: string;
-  type: "select" | "number" | "money" | "boolean" | "percent";
+  /** "payday": days after the period ends, picked as a weekday and a delay (lib/payday). */
+  type: "select" | "number" | "money" | "boolean" | "percent" | "payday";
   options?: { value: string; label: string }[];
   min?: number;
   max?: number;
@@ -70,28 +71,8 @@ export const SETTINGS_SECTIONS: SectionSpec[] = [
       },
       {
         path: "pay.payDateOffsetDays",
-        label: "Payday, days after period end",
-        hint: "1 pays the morning after the week ends. A longer gap puts the paycheck far from the week it's for.",
-        type: "number",
-        min: 0,
-        max: 31,
-      },
-      {
-        path: "pay.cutoffHour",
-        label: "Cutoff hour",
-        type: "number",
-        min: 0,
-        max: 23,
-        advanced: true,
-      },
-      {
-        path: "pay.minRevisionHours",
-        label: "Minimum revision window (hours)",
-        hint: "Only matters if payday is the same day the period ends.",
-        type: "number",
-        min: 0,
-        max: 168,
-        advanced: true,
+        label: "Payday",
+        type: "payday",
       },
     ],
   },

@@ -12,19 +12,154 @@ import {
 import { formatDateRange, formatShortDate } from "@/lib/dates";
 import { SETTINGS_SECTIONS, getAtPath, type FieldSpec } from "@/lib/settings-schema";
 import type { Policy } from "@/lib/policy";
+import {
+  PAYDAY_DELAY_WEEKS,
+  PAYDAY_MAX_DAYS,
+  WEEKDAYS,
+  describePayday,
+  isWeekBased,
+  weeklyOffset,
+  weeklyPayday,
+} from "@/lib/payday";
 import type { PayPreview, PeriodChoice, PreviewPeriod } from "@/lib/policy-schedule";
 
 /** Must match PAY_PERIOD_SECTIONS in lib/policy.ts (a server module). */
 const PAY_PERIOD_SECTIONS = ["pay", "completion", "allocation", "interest", "bills"];
 
-function FieldInput({ field, value }: { field: FieldSpec; value: unknown }) {
+function FieldInput({
+  field,
+  value,
+  effective,
+}: {
+  field: FieldSpec;
+  value: unknown;
+  effective: Policy;
+}) {
   return (
     <>
       {/* Tells the server this field was on the page, so an unticked
           checkbox reads as "off" rather than "not shown". */}
       <input type="hidden" name="__fields" value={field.path} />
-      <FieldControl field={field} value={value} />
+      {field.type === "payday" ? (
+        <PaydayControl field={field} value={value} effective={effective} />
+      ) : (
+        <FieldControl field={field} value={value} />
+      )}
     </>
+  );
+}
+
+/**
+ * Payday, picked the way people say it — "Saturday", "Friday, a week later"
+ * — and posted as the days-after-period-end the policy stores. It follows
+ * the schedule fields above it as they change: a new start day keeps the
+ * payday weekday and works out the new gap.
+ */
+function PaydayControl({
+  field,
+  value,
+  effective,
+}: {
+  field: FieldSpec;
+  value: unknown;
+  effective: Policy;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [offset, setOffset] = useState(Math.max(1, Number(value) || 1));
+  const initial = { cadence: effective.pay.cadence as string, start: effective.pay.periodStartDay };
+  const [schedule, setSchedule] = useState(initial);
+  const scheduleRef = useRef(initial);
+
+  useEffect(() => {
+    const form = ref.current?.closest("form");
+    if (!form) return;
+    const onChange = (e: Event) => {
+      const name = (e.target as HTMLSelectElement).name;
+      if (name !== "pay.cadence" && name !== "pay.periodStartDay") return;
+      const read = (n: string) => (form.elements.namedItem(n) as HTMLSelectElement | null)?.value;
+      const prev = scheduleRef.current;
+      const next = {
+        cadence: read("pay.cadence") ?? prev.cadence,
+        start: Number(read("pay.periodStartDay") ?? prev.start),
+      };
+      if (next.start !== prev.start && isWeekBased(prev.cadence) && isWeekBased(next.cadence)) {
+        setOffset((o) => {
+          const p = weeklyPayday(o, prev.start);
+          return weeklyOffset(p.weekday, p.delayWeeks, next.start);
+        });
+      }
+      scheduleRef.current = next;
+      setSchedule(next);
+    };
+    form.addEventListener("change", onChange);
+    return () => form.removeEventListener("change", onChange);
+  }, []);
+
+  const hint = describePayday(offset, schedule.cadence, schedule.start);
+
+  if (!isWeekBased(schedule.cadence)) {
+    const days = Array.from({ length: Math.max(PAYDAY_MAX_DAYS, offset) }, (_, i) => i + 1);
+    return (
+      <div ref={ref}>
+        <input type="hidden" name={field.path} value={offset} />
+        <Field label={field.label} hint={hint}>
+          {/* Named under pay. so changing it counts as a pay change; the
+              server reads only the hidden field above. */}
+          <Select
+            name="pay.__paydayDays"
+            value={offset}
+            onChange={(e) => setOffset(Number(e.target.value))}
+          >
+            {days.map((d) => (
+              <option key={d} value={d}>
+                {d === 1 ? "The next morning" : `${d} days after`}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </div>
+    );
+  }
+
+  const { weekday, delayWeeks } = weeklyPayday(offset, schedule.start);
+  // In order from the morning after the period ends.
+  const weekdays = Array.from({ length: 7 }, (_, i) => (schedule.start + i) % 7);
+  const delays = PAYDAY_DELAY_WEEKS.includes(delayWeeks)
+    ? PAYDAY_DELAY_WEEKS
+    : [...PAYDAY_DELAY_WEEKS, delayWeeks];
+
+  return (
+    <div ref={ref}>
+      <input type="hidden" name={field.path} value={offset} />
+      <Field label={field.label} hint={hint}>
+        <span className="grid grid-cols-2 gap-2">
+          <Select
+            name="pay.__paydayWeekday"
+            aria-label="Payday weekday"
+            value={weekday}
+            onChange={(e) => setOffset(weeklyOffset(Number(e.target.value), delayWeeks, schedule.start))}
+          >
+            {weekdays.map((d) => (
+              <option key={d} value={d}>
+                {WEEKDAYS[d]}
+              </option>
+            ))}
+          </Select>
+          <Select
+            name="pay.__paydayDelay"
+            aria-label="Weeks after the period"
+            value={delayWeeks}
+            onChange={(e) => setOffset(weeklyOffset(weekday, Number(e.target.value), schedule.start))}
+          >
+            {delays.map((w) => (
+              <option key={w} value={w}>
+                {w === 0 ? "Right after" : w === 1 ? "1 week later" : `${w} weeks later`}
+              </option>
+            ))}
+          </Select>
+        </span>
+      </Field>
+    </div>
   );
 }
 
@@ -276,6 +411,7 @@ export function SettingsEditor({
                     key={field.path}
                     field={field}
                     value={getAtPath(effective, field.path)}
+                    effective={effective}
                   />
                 ))}
               </div>

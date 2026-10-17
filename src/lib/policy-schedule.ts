@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { listEarningChildren } from "@/lib/children";
 import { addDays, daysBetween, payPeriodFor } from "@/lib/dates";
 import { coveredPeriodFor, discardStaleDrafts, periodsAhead } from "@/lib/payroll";
+import { describeGap } from "@/lib/payday";
 import { payrollPausedOn } from "@/lib/payroll-pause";
 import {
   PAY_PERIOD_SECTIONS,
@@ -166,6 +167,7 @@ function describe(field: FieldSpec, value: unknown): string {
     return field.options?.find((o) => o.value === String(value))?.label ?? String(value);
   }
   if (field.type === "percent") return `${value}%`;
+  if (field.type === "payday") return describeGap(Number(value));
   return String(value);
 }
 

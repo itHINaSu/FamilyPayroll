@@ -133,7 +133,7 @@ function collectChanges(
       let value: unknown;
       if (field.type === "boolean") {
         value = submitted === "on";
-      } else if (field.type === "number" || field.type === "percent") {
+      } else if (field.type === "number" || field.type === "percent" || field.type === "payday") {
         value = Number(submitted);
         if (submitted === null || !Number.isFinite(value)) continue;
       } else if (field.path === "pay.periodStartDay") {
