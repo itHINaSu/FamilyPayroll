@@ -18,7 +18,7 @@ import { addDays, daysBetween, payPeriodFor, todayInHousehold, type IsoDate } fr
 import { recordTransaction } from "@/lib/ledger";
 import { allocate, formatCents } from "@/lib/money";
 import { resolvePolicy, type Policy } from "@/lib/policy";
-import { evaluatePeriod, listResponsibilities } from "@/lib/responsibilities";
+import { evaluatePeriod, listResponsibilities, valuationFor } from "@/lib/responsibilities";
 
 /**
  * Payroll (SPEC §6.1–6.2).
@@ -121,7 +121,9 @@ export type CoveredPeriod = {
  *  - after the schedule changes, the transition period reaches back to pick
  *    up days not yet paid, or starts later to leave out days already paid;
  *  - a child's very first period starts the day payroll was started (Start
- *    payroll, or a history reset), or when their expectations began.
+ *    payroll, or a history reset), or when their expectations began;
+ *  - a leftover of 1–3 days joins the next period (a long week) rather than
+ *    being paid alone; 4–6 days are a short week of their own.
  * It never reaches back before payroll was last started, nor more than one
  * extra period's length — a long gap (an archived stretch) isn't owed.
  */
@@ -182,6 +184,20 @@ export function coveredPeriodFor(
   if (start < earliest) start = earliest;
 
   if (start > natural.endDate) return { ...natural, alreadyPaid: true };
+
+  // One to three leftover days aren't paid as a tiny period of their own:
+  // they join the next one, which runs long (4+ days stand as a short week).
+  if (daysBetween(start, natural.endDate) + 1 <= 3) {
+    const nextDay = addDays(natural.endDate, 1);
+    const nextPay = resolvePolicy(householdId, childId, nextDay).pay;
+    const next = payPeriodFor(nextDay, {
+      cadence: nextPay.cadence,
+      periodStartDay: nextPay.periodStartDay,
+      payDateOffsetDays: nextPay.payDateOffsetDays,
+    });
+    return { startDate: start, endDate: next.endDate, payDate: next.payDate, alreadyPaid: false };
+  }
+
   return { ...natural, startDate: start, alreadyPaid: false };
 }
 
@@ -201,7 +217,9 @@ export function computeDraft(
   for (const r of listResponsibilities(childId)) {
     if (r.effectiveFrom > endDate) continue;
 
-    const result = evaluatePeriod(r, childId, startDate, endDate, policy.completion.mode);
+    const result = evaluatePeriod(r, childId, startDate, endDate, policy.completion.mode, undefined, {
+      valuation: valuationFor(policy.pay.cadence),
+    });
     potentialCents += result.potentialCents;
     earnedCents += result.earnedCents;
 

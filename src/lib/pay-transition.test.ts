@@ -15,6 +15,7 @@ const { coveredPeriodFor, discardStaleDrafts, draftPaystub, runPayrollCycle } = 
   "@/lib/payroll"
 );
 const { savePolicyChanges } = await import("@/lib/policy");
+const { evaluatePeriod } = await import("@/lib/responsibilities");
 
 function setup(opts: { startedOn?: string } = {}) {
   const householdId = db
@@ -146,7 +147,7 @@ describe("pay schedule changes", () => {
     ]);
   });
 
-  it("never pays a day twice when switching after paying ahead", () => {
+  it("never pays a day twice, and tacks a 2-day leftover onto the next week", () => {
     const { householdId, childId } = setup();
     toSaturdayWeeks(householdId, "2026-01-01");
     runDays("2026-10-10", "2026-10-24"); // Saturday weeks, paid through Fri Oct 23
@@ -156,13 +157,14 @@ describe("pay schedule changes", () => {
       effectiveFrom: "2026-10-24",
       changes: [{ kind: "set", path: "pay.periodStartDay", value: 1 }],
     });
-    runDays("2026-10-25", "2026-11-02");
+    runDays("2026-10-25", "2026-11-09");
+    // Sat Oct 24 and Sun Oct 25 join the next Monday week: one long week.
     expect(periods(childId)).toEqual([
       "2026-10-03..2026-10-09 paid 2026-10-10",
       "2026-10-10..2026-10-16 paid 2026-10-17",
       "2026-10-17..2026-10-23 paid 2026-10-24",
-      "2026-10-24..2026-10-25 paid 2026-10-26",
-      "2026-10-26..2026-11-01 paid 2026-11-02",
+      "2026-10-24..2026-11-01 paid 2026-11-02",
+      "2026-11-02..2026-11-08 paid 2026-11-09",
     ]);
     expectContiguous(childId);
   });
@@ -224,5 +226,93 @@ describe("pay schedule changes", () => {
       "2026-10-19..2026-10-23 paid 2026-10-24",
       "2026-10-24..2026-10-30 paid 2026-10-31",
     ]);
+  });
+
+  it("tacks days that would be skipped onto the next week (a long week)", () => {
+    const { householdId, childId } = setup();
+    runDays("2026-10-05", "2026-10-20"); // Monday weeks, paid through Sun Oct 18
+    // Tuesday Oct 20: switch to Wednesday-start weeks, this pay period.
+    savePolicyChanges({
+      scopeType: "household",
+      scopeId: householdId,
+      effectiveFrom: "2026-10-19",
+      changes: [{ kind: "set", path: "pay.periodStartDay", value: 3 }],
+    });
+    expect(coveredPeriodFor(householdId, childId, "2026-10-20")).toMatchObject({
+      startDate: "2026-10-19",
+      endDate: "2026-10-27",
+      payDate: "2026-10-28",
+    });
+    runDays("2026-10-21", "2026-11-04");
+    expect(periods(childId).slice(-3)).toEqual([
+      "2026-10-12..2026-10-18 paid 2026-10-19",
+      "2026-10-19..2026-10-27 paid 2026-10-28",
+      "2026-10-28..2026-11-03 paid 2026-11-04",
+    ]);
+    expectContiguous(childId);
+  });
+});
+
+describe("what a short or long week pays", () => {
+  function expectation(
+    childId: string,
+    cadence: "daily" | "daily_selected" | "weekly" | "up_to_n",
+    weeklyValueCents: number,
+    extra: { daysOfWeek?: number[]; maxOccurrences?: number } = {},
+  ) {
+    return db
+      .insert(schema.responsibility)
+      .values({
+        childId,
+        name: cadence,
+        weeklyValueCents,
+        cadence,
+        daysOfWeek: extra.daysOfWeek ?? null,
+        maxOccurrences: extra.maxOccurrences ?? null,
+        payMode: "expected",
+        effectiveFrom: "2026-01-01",
+      })
+      .returning()
+      .get();
+  }
+
+  function potential(r: ReturnType<typeof expectation>, childId: string, start: string, end: string) {
+    return evaluatePeriod(r, childId, start, end, "auto_approve_with_veto", "2026-12-31", {
+      valuation: "weeks",
+    }).potentialCents;
+  }
+
+  it("prorates day-based expectations and pays weekly ones in full", () => {
+    const { childId } = setup();
+    const daily = expectation(childId, "daily", 700); // $1 a day
+    const mwf = expectation(childId, "daily_selected", 300, { daysOfWeek: [1, 3, 5] }); // $1 a time
+    const weekly = expectation(childId, "weekly", 400);
+    const upTo = expectation(childId, "up_to_n", 600, { maxOccurrences: 3 });
+
+    // A normal week: everything at its weekly value.
+    expect([daily, mwf, weekly, upTo].map((r) => potential(r, childId, "2026-10-17", "2026-10-23"))).toEqual([
+      700, 300, 400, 600,
+    ]);
+    // Short week, Mon Oct 19 – Fri Oct 23: daily 5 days; M/W/F all three; weekly and up-to-N in full.
+    expect([daily, mwf, weekly, upTo].map((r) => potential(r, childId, "2026-10-19", "2026-10-23"))).toEqual([
+      500, 300, 400, 600,
+    ]);
+    // Long week, Mon Oct 19 – Tue Oct 27: daily 9 days; M/W/F four times; weekly and up-to-N once.
+    expect([daily, mwf, weekly, upTo].map((r) => potential(r, childId, "2026-10-19", "2026-10-27"))).toEqual([
+      900, 400, 400, 600,
+    ]);
+    // A short week plus a full one, Mon Oct 12 – Fri Oct 23: each week's weekly items in full.
+    expect([daily, mwf, weekly, upTo].map((r) => potential(r, childId, "2026-10-12", "2026-10-23"))).toEqual([
+      1200, 600, 800, 1200,
+    ]);
+  });
+
+  it("splits a short-plus-full period into the short week first", () => {
+    const { childId } = setup();
+    const daily = expectation(childId, "daily", 700);
+    const weeks = evaluatePeriod(daily, childId, "2026-10-12", "2026-10-23", "auto_approve_with_veto", "2026-12-31", {
+      valuation: "weeks",
+    }).weeks.map((w) => `${w.start}..${w.end}`);
+    expect(weeks).toEqual(["2026-10-12..2026-10-16", "2026-10-17..2026-10-23"]);
   });
 });

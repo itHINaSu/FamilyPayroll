@@ -12,7 +12,7 @@ import { listGoals } from "@/lib/goals";
 import { getBalances } from "@/lib/ledger";
 import { computeDraft, coveredPeriodFor } from "@/lib/payroll";
 import { resolvePolicy } from "@/lib/policy";
-import { evaluatePeriod, listResponsibilities } from "@/lib/responsibilities";
+import { evaluatePeriod, listResponsibilities, valuationFor } from "@/lib/responsibilities";
 
 /**
  * The kiosk view model.
@@ -106,6 +106,8 @@ export function kioskRoster(householdId: string): KioskChild[] {
         period.startDate,
         period.endDate,
         policy.completion.mode,
+        undefined,
+        { valuation: valuationFor(policy.pay.cadence) },
       );
       return {
         id: r.id,

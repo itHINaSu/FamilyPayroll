@@ -16,6 +16,7 @@ import {
   evaluatePeriod,
   listResponsibilities,
   listResponsibilityTemplates,
+  valuationFor,
   type WeekBreakdown,
 } from "@/lib/responsibilities";
 
@@ -88,6 +89,7 @@ function buildChildWeek(
         period.endDate,
         policy.completion.mode,
         today,
+        { valuation: valuationFor(policy.pay.cadence) },
       );
       return {
         id: r.id,

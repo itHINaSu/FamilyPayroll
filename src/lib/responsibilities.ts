@@ -101,6 +101,44 @@ export function weekBlocks(dates: IsoDate[], start: IsoDate, weeks: number): Iso
   return blocks;
 }
 
+/**
+ * The same split counted back from the period's end, so after a schedule
+ * change the real weeks line up with the new schedule and any extra days
+ * sit at the front: 4–6 extra days are a short week of their own, 1–3 join
+ * the first week and make it a long one.
+ */
+export function weekBlocksFromEnd(dates: IsoDate[], end: IsoDate, weeks: number): IsoDate[][] {
+  const count = Math.max(1, weeks);
+  const blocks: IsoDate[][] = Array.from({ length: count }, () => []);
+  for (const d of dates) {
+    blocks[count - 1 - Math.min(Math.floor(daysBetween(d, end) / 7), count - 1)].push(d);
+  }
+  return blocks;
+}
+
+/**
+ * How an expectation is valued over a period:
+ *  - "weeks" (weekly and every-two-weeks pay): each week of the period pays
+ *    a "once a week" or "up to N times" expectation in full — even a short
+ *    transition week — and a day-based one is paid per scheduled day, so a
+ *    short week pays less and a long week more;
+ *  - "days" (twice a month, monthly): the weekly value scaled to the
+ *    period's length.
+ * For an ordinary week or fortnight the two agree exactly.
+ */
+export type Valuation = "weeks" | "days";
+
+export function valuationFor(cadence: string): Valuation {
+  return cadence === "weekly" || cadence === "biweekly" ? "weeks" : "days";
+}
+
+/** Scheduled days in a normal week, for a day-based expectation. */
+function occurrencesPerWeek(r: ResponsibilityRow): number {
+  if (r.cadence === "daily") return 7;
+  if (r.cadence === "daily_selected") return new Set(r.daysOfWeek ?? []).size;
+  return 0;
+}
+
 export type CompletionMode = "auto_approve_with_veto" | "claim_then_approve" | "parent_marks_only";
 
 /** Weekday letters, Sunday first; Thursday is R so it can't be confused with Tuesday. */
@@ -182,9 +220,10 @@ export function evaluatePeriod(
   end: IsoDate,
   completionMode: CompletionMode,
   today: IsoDate = todayInHousehold(),
+  opts: { valuation?: Valuation } = {},
 ): PeriodResult {
+  const valuation = opts.valuation ?? "days";
   const days = eachDate(start, end);
-  const scaledValue = scaleWeeklyValue(r.weeklyValueCents, days.length);
   const expected = r.payMode === "expected";
   const slots = slotsPerWeek(r);
   const occurs = new Set(occurrenceDates(r, start, end));
@@ -210,7 +249,21 @@ export function evaluatePeriod(
   const missRows = rows.filter((c) => c.status === "missed" && !excusedSet.has(c.occurrenceDate));
 
   const numWeeks = Math.max(1, Math.round(days.length / 7));
-  const weeks: WeekBreakdown[] = weekBlocks(days, start, numWeeks).map((week) => {
+  const blocks =
+    valuation === "weeks"
+      ? weekBlocksFromEnd(days, end, numWeeks)
+      : weekBlocks(days, start, numWeeks);
+
+  const scaledValue =
+    valuation === "days"
+      ? scaleWeeklyValue(r.weeklyValueCents, days.length)
+      : slots !== null
+        ? r.weeklyValueCents * blocks.length
+        : occurrencesPerWeek(r) === 0
+          ? 0
+          : Math.round((r.weeklyValueCents * occurs.size) / occurrencesPerWeek(r));
+
+  const weeks: WeekBreakdown[] = blocks.map((week) => {
     const weekStart = week[0];
     const weekEnd = week[week.length - 1];
     const inWeek = (d: IsoDate) => d >= weekStart && d <= weekEnd;
