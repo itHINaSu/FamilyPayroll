@@ -7,7 +7,7 @@ import { db } from "@/db";
 import { payPeriod, paystub } from "@/db/schema";
 import { requireParent } from "@/lib/auth/guard";
 import { getChild } from "@/lib/children";
-import { draftPaystub, postPaystub } from "@/lib/payroll";
+import { discardStaleDrafts, draftPaystub, matchesSchedule, postPaystub } from "@/lib/payroll";
 
 export type PayState = { error?: string; ok?: string };
 
@@ -52,19 +52,28 @@ export async function postNow(
 ): Promise<PayState> {
   const parent = await requireParent();
   const childId = String(formData.get("childId") ?? "");
+  const stubId = String(formData.get("stubId") ?? "");
 
   if (!getChild(parent.householdId, childId)) {
     return { error: "That child could not be found." };
   }
 
   const draft = db
-    .select({ stub: paystub })
+    .select({ stub: paystub, period: payPeriod })
     .from(paystub)
     .innerJoin(payPeriod, eq(paystub.payPeriodId, payPeriod.id))
-    .where(and(eq(paystub.childId, childId), eq(paystub.status, "draft")))
+    .where(
+      and(eq(paystub.id, stubId), eq(paystub.childId, childId), eq(paystub.status, "draft")),
+    )
     .get();
 
   if (!draft) return { error: "There is no draft waiting to be posted." };
+  // Drafted before a schedule change: its days are covered differently now.
+  if (!matchesSchedule(parent.householdId, childId, draft.period)) {
+    discardStaleDrafts(parent.householdId);
+    revalidatePath("/", "layout");
+    return { error: "The pay schedule has changed since this was drafted. Draft it again." };
+  }
 
   try {
     postPaystub(draft.stub.id, parent.id);

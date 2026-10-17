@@ -132,10 +132,14 @@ export function payPeriodFor(
     while (dayOfWeek(cursor) !== opts.periodStartDay) {
       cursor = addDays(cursor, -1);
     }
-    if (length === 14 && opts.anchor) {
-      // Keep fortnights aligned to the anchor rather than drifting each period.
-      const offset = daysBetween(opts.anchor, cursor) % 14;
-      if (offset !== 0) cursor = addDays(cursor, -Math.abs(offset));
+    if (length === 14) {
+      // Fortnights line up with a fixed week (the first start weekday of
+      // 2024 unless an anchor is given), so every day of one resolves to the
+      // same period instead of each day starting its own.
+      let anchor = opts.anchor ?? "2024-01-01";
+      while (dayOfWeek(anchor) !== opts.periodStartDay) anchor = addDays(anchor, 1);
+      const offset = ((daysBetween(anchor, cursor) % 14) + 14) % 14;
+      if (offset !== 0) cursor = addDays(cursor, -offset);
     }
     startDate = cursor;
     endDate = addDays(cursor, length - 1);

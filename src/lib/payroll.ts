@@ -17,7 +17,7 @@ import {
 import { addDays, daysBetween, payPeriodFor, todayInHousehold, type IsoDate } from "@/lib/dates";
 import { recordTransaction } from "@/lib/ledger";
 import { allocate, formatCents } from "@/lib/money";
-import { resolvePolicy, type Policy } from "@/lib/policy";
+import { policyResolver, resolvePolicy, type Policy } from "@/lib/policy";
 import { evaluatePeriod, listResponsibilities, valuationFor } from "@/lib/responsibilities";
 
 /**
@@ -70,32 +70,74 @@ export function totalPastDue(childId: string): number {
   return rows.reduce((sum, r) => sum + (r.amountCents - r.paidCents), 0);
 }
 
-/** Whether the schedule (as it stood on that day) ends a pay period on `endDate`. */
-function endsOnSchedule(householdId: string, childId: string, endDate: IsoDate): boolean {
-  const pay = resolvePolicy(householdId, childId, endDate).pay;
-  return (
-    payPeriodFor(endDate, {
+/** The pay schedule as it stood on each date, for one child. */
+type Schedule = (onDate: IsoDate) => { startDate: IsoDate; endDate: IsoDate; payDate: IsoDate };
+
+function scheduleFor(householdId: string, childId: string): Schedule {
+  const policyOn = policyResolver(householdId, childId);
+  return (onDate) => {
+    const pay = policyOn(onDate).pay;
+    return payPeriodFor(onDate, {
       cadence: pay.cadence,
       periodStartDay: pay.periodStartDay,
       payDateOffsetDays: pay.payDateOffsetDays,
-    }).endDate === endDate
-  );
+    });
+  };
+}
+
+/** The first day on or after `from` that the schedule in force that day ends a period on. */
+function nextPeriodEnd(schedule: Schedule, from: IsoDate): IsoDate {
+  let d = from;
+  for (let i = 0; i < 400; i++, d = addDays(d, 1)) {
+    if (schedule(d).endDate === d) return d;
+  }
+  throw new Error(`No pay period ends after ${from}.`);
 }
 
 /**
- * Drop unposted periods the schedule no longer ends on — drafted before a
- * schedule change. Their days roll into the period that now covers them, so
- * they must not be posted (by hand or on their old payday). Returns how
- * many were dropped.
+ * The period that starts on `start`: to the schedule's next period end, or
+ * the one after when that leaves only 1–3 days — a tiny leftover isn't paid
+ * alone, it joins the next period, which runs long.
+ */
+function periodStarting(schedule: Schedule, start: IsoDate): CoveredPeriod {
+  let end = nextPeriodEnd(schedule, start);
+  if (daysBetween(start, end) + 1 <= 3) end = nextPeriodEnd(schedule, addDays(end, 1));
+  return { startDate: start, endDate: end, payDate: schedule(end).payDate, alreadyPaid: false };
+}
+
+/**
+ * Whether an unposted period is the one the schedule now says covers its
+ * days. One drafted before a schedule change isn't, and must not be posted:
+ * its days belong to the periods that cover them now.
+ */
+export function matchesSchedule(
+  householdId: string,
+  childId: string,
+  p: { startDate: IsoDate; endDate: IsoDate },
+): boolean {
+  const now = coveredPeriodFor(householdId, childId, p.endDate);
+  return now.startDate === p.startDate && now.endDate === p.endDate;
+}
+
+/**
+ * Drop unposted periods that no longer match the schedule — drafted before a
+ * schedule change. Their days roll into the periods that now cover them, so
+ * they must not be posted (by hand or on their old payday). Returns how many
+ * were dropped.
  */
 export function discardStaleDrafts(householdId: string): number {
   const rows = db
-    .select({ id: payPeriod.id, childId: payPeriod.childId, endDate: payPeriod.endDate })
+    .select({
+      id: payPeriod.id,
+      childId: payPeriod.childId,
+      startDate: payPeriod.startDate,
+      endDate: payPeriod.endDate,
+    })
     .from(payPeriod)
     .innerJoin(child, eq(payPeriod.childId, child.id))
     .where(and(eq(child.householdId, householdId), inArray(payPeriod.status, ["open", "drafted"])))
     .all();
-  const stale = rows.filter((r) => !endsOnSchedule(householdId, r.childId, r.endDate));
+  const stale = rows.filter((r) => !matchesSchedule(householdId, r.childId, r));
   if (stale.length > 0) {
     db.delete(payPeriod).where(inArray(payPeriod.id, stale.map((r) => r.id))).run();
   }
@@ -111,11 +153,12 @@ export type CoveredPeriod = {
 };
 
 /**
- * The pay period covering `onDate` for one child.
+ * The periods not yet paid for one child, oldest first, through the one
+ * covering `onDate`.
  *
- * The schedule decides where a period ends and when it pays. Where it
- * starts follows what has actually been paid, so no day is ever paid twice
- * and none is skipped:
+ * The schedule decides where each period ends and when it pays. Where the
+ * first one starts follows what has actually been paid, so no day is ever
+ * paid twice and none is skipped:
  *  - normally, the day after the last drafted or posted period — which,
  *    once a schedule is established, is simply the schedule's own start;
  *  - after the schedule changes, the transition period reaches back to pick
@@ -123,25 +166,28 @@ export type CoveredPeriod = {
  *  - a child's very first period starts the day payroll was started (Start
  *    payroll, or a history reset), or when their expectations began;
  *  - a leftover of 1–3 days joins the next period (a long week) rather than
- *    being paid alone; 4–6 days are a short week of their own.
+ *    being paid alone; 4 or more stand as a period of their own — a short
+ *    week, or a whole one. One that has already ended is due now, ahead of
+ *    the period covering `onDate`, never folded into it.
  * It never reaches back before payroll was last started, nor more than one
  * extra period's length — a long gap (an archived stretch) isn't owed.
  */
-export function coveredPeriodFor(
+export function unpaidPeriods(
   householdId: string,
   childId: string,
   onDate: IsoDate,
-): CoveredPeriod {
-  const pay = resolvePolicy(householdId, childId, onDate).pay;
-  const natural = payPeriodFor(onDate, {
-    cadence: pay.cadence,
-    periodStartDay: pay.periodStartDay,
-    payDateOffsetDays: pay.payDateOffsetDays,
-  });
+): CoveredPeriod[] {
+  return walkUnpaid(householdId, childId, onDate).periods;
+}
 
-  // Posted periods are paid. A waiting draft counts too — unless the
-  // schedule has since changed under it, in which case its days are still
-  // open and roll into this period (and the stale draft is discarded).
+function walkUnpaid(householdId: string, childId: string, onDate: IsoDate) {
+  const schedule = scheduleFor(householdId, childId);
+  const natural = schedule(onDate);
+
+  // Posted periods are paid, this one included if it was paid early. A
+  // waiting draft of an earlier period counts too — unless the schedule has
+  // since changed under it, in which case its days are still open and roll
+  // into these periods (and the stale draft is discarded).
   const earlier = db
     .select({ endDate: payPeriod.endDate, status: payPeriod.status })
     .from(payPeriod)
@@ -149,14 +195,16 @@ export function coveredPeriodFor(
       and(
         eq(payPeriod.childId, childId),
         inArray(payPeriod.status, ["drafted", "posted"]),
-        lt(payPeriod.endDate, natural.endDate),
+        lte(payPeriod.endDate, natural.endDate),
       ),
     )
     .orderBy(desc(payPeriod.endDate))
     .all();
   const lastPaidEnd =
-    earlier.find(
-      (p) => p.status === "posted" || endsOnSchedule(householdId, childId, p.endDate),
+    earlier.find((p) =>
+      p.status === "posted"
+        ? true
+        : p.endDate < natural.endDate && schedule(p.endDate).endDate === p.endDate,
     )?.endDate ?? null;
 
   const started =
@@ -183,22 +231,47 @@ export function coveredPeriodFor(
   const earliest = addDays(natural.startDate, -length);
   if (start < earliest) start = earliest;
 
-  if (start > natural.endDate) return { ...natural, alreadyPaid: true };
-
-  // One to three leftover days aren't paid as a tiny period of their own:
-  // they join the next one, which runs long (4+ days stand as a short week).
-  if (daysBetween(start, natural.endDate) + 1 <= 3) {
-    const nextDay = addDays(natural.endDate, 1);
-    const nextPay = resolvePolicy(householdId, childId, nextDay).pay;
-    const next = payPeriodFor(nextDay, {
-      cadence: nextPay.cadence,
-      periodStartDay: nextPay.periodStartDay,
-      payDateOffsetDays: nextPay.payDateOffsetDays,
-    });
-    return { startDate: start, endDate: next.endDate, payDate: next.payDate, alreadyPaid: false };
+  const periods: CoveredPeriod[] = [];
+  if (start <= natural.endDate) {
+    for (let s = start; ; ) {
+      const p = periodStarting(schedule, s);
+      periods.push(p);
+      if (p.endDate >= onDate) break;
+      s = addDays(p.endDate, 1);
+    }
   }
+  return { schedule, natural, periods };
+}
 
-  return { ...natural, startDate: start, alreadyPaid: false };
+/**
+ * The pay period covering `onDate` for one child — the last of
+ * unpaidPeriods, or the schedule's own period when it's already been paid.
+ */
+export function coveredPeriodFor(
+  householdId: string,
+  childId: string,
+  onDate: IsoDate,
+): CoveredPeriod {
+  const { natural, periods } = walkUnpaid(householdId, childId, onDate);
+  return periods.at(-1) ?? { ...natural, alreadyPaid: true };
+}
+
+/**
+ * What's owed and coming for one child: the unpaid periods through today's,
+ * then `more` after it — for showing what a schedule will do.
+ */
+export function periodsAhead(
+  householdId: string,
+  childId: string,
+  today: IsoDate,
+  more = 1,
+): CoveredPeriod[] {
+  const { schedule, natural, periods } = walkUnpaid(householdId, childId, today);
+  const out = [...periods];
+  for (let i = 0; i < more; i++) {
+    out.push(periodStarting(schedule, addDays(out.at(-1)?.endDate ?? natural.endDate, 1)));
+  }
+  return out;
 }
 
 /** Compute a pay stub without writing anything. */
@@ -580,9 +653,14 @@ function applyPastDueRecovery(childId: string, amountCents: number, paystubId: s
 /**
  * The scheduled half: draft periods that have closed, post drafts whose pay date
  * has arrived. Runs on every scheduler tick, so a container that was asleep
- * catches up rather than skipping a payday.
+ * catches up rather than skipping a payday — and again right after a pay
+ * schedule change, so a period the new schedule says is already due is paid
+ * then rather than at tomorrow's run. Pass `householdId` to do one family.
  */
-export function runPayrollCycle(now: IsoDate = todayInHousehold()): {
+export function runPayrollCycle(
+  now: IsoDate = todayInHousehold(),
+  opts: { householdId?: string } = {},
+): {
   drafted: string[];
   posted: string[];
 } {
@@ -592,7 +670,12 @@ export function runPayrollCycle(now: IsoDate = todayInHousehold()): {
   const children = db
     .select()
     .from(child)
-    .where(eq(child.status, "active"))
+    .where(
+      and(
+        eq(child.status, "active"),
+        opts.householdId ? eq(child.householdId, opts.householdId) : undefined,
+      ),
+    )
     .all();
 
   const resumedOn = new Map(
@@ -604,39 +687,35 @@ export function runPayrollCycle(now: IsoDate = todayInHousehold()): {
   );
 
   for (const c of children) {
-    // The period that ended most recently: look back one day from today. Its
-    // start follows what's been paid, so a schedule change neither skips
-    // nor repeats days (see coveredPeriodFor).
-    const previous = coveredPeriodFor(c.householdId, c.id, addDays(now, -1));
-    if (previous.alreadyPaid) continue;
+    // Every unpaid period that has ended, oldest first: normally just the one
+    // that ended yesterday, but after a schedule change (or a missed run) an
+    // earlier one can be waiting too. Their starts follow what's been paid,
+    // so nothing is skipped or repeated (see unpaidPeriods).
+    const ended = unpaidPeriods(c.householdId, c.id, addDays(now, -1)).filter(
+      (p) => p.endDate < now,
+    );
 
-    // A period that ended before payroll was last resumed happened entirely
-    // while paused — there is nothing to pay for it, so it is never drafted.
-    const resumed = resumedOn.get(c.householdId);
-    if (resumed && previous.endDate < resumed) continue;
+    for (const p of ended) {
+      // A period that ended before payroll was last resumed happened entirely
+      // while paused — there is nothing to pay for it, so it is never drafted.
+      const resumed = resumedOn.get(c.householdId);
+      if (resumed && p.endDate < resumed) continue;
 
-    if (previous.endDate < now) {
       const existing = db
         .select()
         .from(payPeriod)
-        .where(
-          and(eq(payPeriod.childId, c.id), eq(payPeriod.startDate, previous.startDate)),
-        )
+        .where(and(eq(payPeriod.childId, c.id), eq(payPeriod.startDate, p.startDate)))
         .get();
 
       if (!existing || existing.status === "open" || existing.status === "drafted") {
         try {
-          drafted.push(
-            draftPaystub(
-              c.householdId,
-              c.id,
-              previous.startDate,
-              previous.endDate,
-              previous.payDate,
-            ),
-          );
-        } catch {
-          // Already posted; nothing to do.
+          drafted.push(draftPaystub(c.householdId, c.id, p.startDate, p.endDate, p.payDate));
+        } catch (error) {
+          // Already posted is nothing to do. Anything else (settings that
+          // can't be paid out, say) must not stop the other children's pay.
+          if (!(error instanceof Error && error.message.includes("already been posted"))) {
+            console.error(`[payroll] could not draft ${p.startDate}..${p.endDate} for ${c.id}:`, error);
+          }
         }
       }
     }
@@ -648,13 +727,19 @@ export function runPayrollCycle(now: IsoDate = todayInHousehold()): {
     .from(paystub)
     .innerJoin(payPeriod, eq(paystub.payPeriodId, payPeriod.id))
     .innerJoin(child, eq(paystub.childId, child.id))
-    .where(and(eq(paystub.status, "draft"), lte(payPeriod.payDate, now)))
+    .where(
+      and(
+        eq(paystub.status, "draft"),
+        lte(payPeriod.payDate, now),
+        opts.householdId ? eq(child.householdId, opts.householdId) : undefined,
+      ),
+    )
     .all();
 
   for (const { stub, period, householdId } of due) {
     // Drafted under a schedule that has since changed: its days belong to
-    // the period that now covers them, so it's discarded rather than paid.
-    if (!endsOnSchedule(householdId, stub.childId, period.endDate)) {
+    // the periods that now cover them, so it's discarded rather than paid.
+    if (!matchesSchedule(householdId, stub.childId, period)) {
       db.delete(payPeriod).where(eq(payPeriod.id, period.id)).run();
       continue;
     }

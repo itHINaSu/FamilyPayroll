@@ -30,7 +30,7 @@ function Small({ children }: { children: string }) {
   );
 }
 
-function Row({ row }: { row: PayNowRow }) {
+function Row({ row, today }: { row: PayNowRow; today: string }) {
   const [draftState, draftAction] = useActionState<PayState, FormData>(draftNow, {});
   const [postState, postAction] = useActionState<PayState, FormData>(postNow, {});
   const error = draftState.error ?? postState.error;
@@ -42,7 +42,12 @@ function Row({ row }: { row: PayNowRow }) {
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium">{row.name}</p>
           <p className="text-xs text-ink-400">
-            {formatDateRange(row.startDate, row.endDate)} · payday {formatShortDate(row.payDate)}
+            {formatDateRange(row.startDate, row.endDate)} ·{" "}
+            {row.payDate <= today ? (
+              <span className="font-medium text-amber-700 dark:text-amber-300">due now</span>
+            ) : (
+              `payday ${formatShortDate(row.payDate)}`
+            )}
           </p>
         </div>
         <form action={draftAction}>
@@ -55,6 +60,7 @@ function Row({ row }: { row: PayNowRow }) {
         {row.draftStubId && (
           <form action={postAction}>
             <input type="hidden" name="childId" value={row.childId} />
+            <input type="hidden" name="stubId" value={row.draftStubId} />
             <Small>Post</Small>
           </form>
         )}
@@ -77,7 +83,7 @@ function Row({ row }: { row: PayNowRow }) {
  * Draft this period early, or post a waiting draft before payday. Neither is
  * ever required — payroll does both on schedule.
  */
-export function PayNow({ rows }: { rows: PayNowRow[] }) {
+export function PayNow({ rows, today }: { rows: PayNowRow[]; today: string }) {
   if (rows.length === 0) return null;
   return (
     <Card>
@@ -88,7 +94,7 @@ export function PayNow({ rows }: { rows: PayNowRow[] }) {
       </p>
       <ul className="divide-y divide-ink-100 dark:divide-ink-700">
         {rows.map((r) => (
-          <Row key={r.childId} row={r} />
+          <Row key={`${r.childId}:${r.startDate}`} row={r} today={today} />
         ))}
       </ul>
     </Card>

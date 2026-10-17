@@ -3,12 +3,12 @@ import { and, eq } from "drizzle-orm";
 import { Alert, Card } from "@/components/ui";
 import { SettingsEditor } from "@/components/settings-editor";
 import { db } from "@/db";
-import { paystub } from "@/db/schema";
+import { payPeriod, paystub } from "@/db/schema";
 import { getHousehold, requireParent } from "@/lib/auth/guard";
 import { heldFundTotal } from "@/lib/bills";
 import { listEarningChildren } from "@/lib/children";
 import { todayInHousehold } from "@/lib/dates";
-import { coveredPeriodFor } from "@/lib/payroll";
+import { matchesSchedule, unpaidPeriods } from "@/lib/payroll";
 import { formatCents } from "@/lib/money";
 import {
   checkGuardrails,
@@ -34,24 +34,38 @@ export default async function PayrollSettingsPage() {
   const held = heldFundTotal(parent.householdId);
 
   const today = todayInHousehold();
+  // Each child's waiting drafts, then whatever isn't drafted yet: a period
+  // that has ended and is due, and the one running now.
   const payNow: PayNowRow[] = listEarningChildren(parent.householdId, {
     showNotYetEarning: false,
     order: policy.display.childOrder,
-  }).map((c) => {
-    const period = coveredPeriodFor(parent.householdId, c.id, today);
-    const draft = db
-      .select({ id: paystub.id })
+  }).flatMap((c) => {
+    const drafts = db
+      .select({ id: paystub.id, period: payPeriod })
       .from(paystub)
+      .innerJoin(payPeriod, eq(paystub.payPeriodId, payPeriod.id))
       .where(and(eq(paystub.childId, c.id), eq(paystub.status, "draft")))
-      .get();
-    return {
+      .all()
+      .filter((d) => matchesSchedule(parent.householdId, c.id, d.period));
+    const rows = [
+      ...drafts.map((d) => ({
+        startDate: d.period.startDate,
+        endDate: d.period.endDate,
+        payDate: d.period.payDate,
+        draftStubId: d.id as string | null,
+      })),
+      ...unpaidPeriods(parent.householdId, c.id, today)
+        .filter((p) => !drafts.some((d) => d.period.startDate === p.startDate))
+        .map((p) => ({ ...p, draftStubId: null })),
+    ].sort((a, b) => a.startDate.localeCompare(b.startDate));
+    return rows.map((r) => ({
       childId: c.id,
       name: c.displayName,
-      startDate: period.startDate,
-      endDate: period.endDate,
-      payDate: period.payDate,
-      draftStubId: draft?.id ?? null,
-    };
+      startDate: r.startDate,
+      endDate: r.endDate,
+      payDate: r.payDate,
+      draftStubId: r.draftStubId,
+    }));
   });
 
   return (
@@ -66,7 +80,7 @@ export default async function PayrollSettingsPage() {
 
         <PayrollControl pausedOn={home?.payrollPausedOn ?? null} />
 
-        {!home?.payrollPausedOn && <PayNow rows={payNow} />}
+        {!home?.payrollPausedOn && <PayNow rows={payNow} today={today} />}
 
         {held > 0 && (
           <Card>

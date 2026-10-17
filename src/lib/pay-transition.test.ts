@@ -11,10 +11,16 @@ const { db } = await import("@/db");
 const schema = await import("@/db/schema");
 const { addDays } = await import("@/lib/dates");
 const { createChild } = await import("@/lib/children");
-const { coveredPeriodFor, discardStaleDrafts, draftPaystub, runPayrollCycle } = await import(
-  "@/lib/payroll"
-);
+const {
+  coveredPeriodFor,
+  discardStaleDrafts,
+  draftPaystub,
+  postPaystub,
+  runPayrollCycle,
+  unpaidPeriods,
+} = await import("@/lib/payroll");
 const { savePolicyChanges } = await import("@/lib/policy");
+const { previewPayChoices } = await import("@/lib/policy-schedule");
 const { evaluatePeriod } = await import("@/lib/responsibilities");
 
 function setup(opts: { startedOn?: string } = {}) {
@@ -76,6 +82,16 @@ function periods(childId: string) {
     .map((p) => `${p.startDate}..${p.endDate} paid ${p.payDate}`);
 }
 
+/** Whether the period starting on `startDate` has been posted. */
+function postedOn(childId: string, startDate: string) {
+  return db
+    .select()
+    .from(schema.payPeriod)
+    .where(eq(schema.payPeriod.childId, childId))
+    .all()
+    .some((p) => p.startDate === startDate && p.status === "posted");
+}
+
 /** Every period starts the day after the one before it ends. */
 function expectContiguous(childId: string) {
   const rows = db
@@ -117,32 +133,128 @@ describe("pay schedule changes", () => {
     expectContiguous(childId);
   });
 
-  it("switching from this period: the unpaid days roll into the first new week", () => {
+  it("switching from this period on a Saturday: the short week that just ended pays then", () => {
     const { householdId, childId } = setup();
     runDays("2026-10-05", "2026-10-17");
     toSaturdayWeeks(householdId, "2026-10-12");
+    // Mon Oct 12 – Fri Oct 16 has ended under the new schedule: it's its own
+    // short week, due now — not folded into the week that started today.
+    expect(unpaidPeriods(householdId, childId, "2026-10-17")).toMatchObject([
+      { startDate: "2026-10-12", endDate: "2026-10-16", payDate: "2026-10-17" },
+      { startDate: "2026-10-17", endDate: "2026-10-23", payDate: "2026-10-24" },
+    ]);
+    runPayrollCycle("2026-10-17", { householdId }); // what saving the change does
     runDays("2026-10-18", "2026-11-01");
     expect(periods(childId)).toEqual([
       "2026-09-28..2026-10-04 paid 2026-10-05",
       "2026-10-05..2026-10-11 paid 2026-10-12",
-      "2026-10-12..2026-10-23 paid 2026-10-24",
+      "2026-10-12..2026-10-16 paid 2026-10-17",
+      "2026-10-17..2026-10-23 paid 2026-10-24",
       "2026-10-24..2026-10-30 paid 2026-10-31",
     ]);
+    expect(postedOn(childId, "2026-10-12")).toBe(true);
     expectContiguous(childId);
   });
 
-  it("a first pay week reaches back to the day payroll started", () => {
-    const { householdId, childId } = setup({ startedOn: "2026-10-12" });
-    runDays("2026-10-12", "2026-10-17");
-    toSaturdayWeeks(householdId, "2026-10-12");
+  it("first week, Sunday weeks to Saturday weeks on a Saturday: that week pays that day", () => {
+    // Payroll started Sat Oct 10 on Sunday weeks, so the first period was
+    // Oct 10 – 17, paid Sun Oct 18. On Sat Oct 17 the schedule moves to
+    // Saturday weeks from this period.
+    const { householdId, childId } = setup({ startedOn: "2026-10-10" });
+    savePolicyChanges({
+      scopeType: "household",
+      scopeId: householdId,
+      effectiveFrom: "2026-10-01",
+      changes: [{ kind: "set", path: "pay.periodStartDay", value: 0 }],
+    });
+    runDays("2026-10-10", "2026-10-17");
     expect(coveredPeriodFor(householdId, childId, "2026-10-17")).toMatchObject({
-      startDate: "2026-10-12",
+      startDate: "2026-10-10",
+      endDate: "2026-10-17",
+      payDate: "2026-10-18",
+    });
+    toSaturdayWeeks(householdId, "2026-10-10");
+    expect(coveredPeriodFor(householdId, childId, "2026-10-17")).toMatchObject({
+      startDate: "2026-10-17",
+      endDate: "2026-10-23",
+    });
+    expect(runPayrollCycle("2026-10-17", { householdId }).posted).toHaveLength(1);
+    runDays("2026-10-18", "2026-10-31");
+    expect(periods(childId)).toEqual([
+      "2026-10-10..2026-10-16 paid 2026-10-17",
+      "2026-10-17..2026-10-23 paid 2026-10-24",
+      "2026-10-24..2026-10-30 paid 2026-10-31",
+    ]);
+  });
+
+  it("previews what each answer does, without saving anything", () => {
+    const { householdId, childId } = setup({ startedOn: "2026-10-10" });
+    savePolicyChanges({
+      scopeType: "household",
+      scopeId: householdId,
+      effectiveFrom: "2026-10-01",
+      changes: [{ kind: "set", path: "pay.periodStartDay", value: 0 }],
+    });
+    runDays("2026-10-10", "2026-10-17");
+    const versionsBefore = db.select().from(schema.policyVersion).all().length;
+
+    const preview = previewPayChoices({
+      householdId,
+      scopeType: "child",
+      scopeId: childId,
+      changes: [{ kind: "set", path: "pay.periodStartDay", value: 6 }],
+      today: "2026-10-17",
+    });
+    const lines = (ps: NonNullable<typeof preview>["current"]) =>
+      ps.map((p) => `${p.startDate}..${p.endDate} paid ${p.payDate} ${p.days}/${p.usualDays}`);
+    expect(lines(preview!.current)).toEqual([
+      "2026-10-10..2026-10-16 paid 2026-10-17 7/7",
+      "2026-10-17..2026-10-23 paid 2026-10-24 7/7",
+      "2026-10-24..2026-10-30 paid 2026-10-31 7/7",
+    ]);
+    expect(lines(preview!.next)).toEqual([
+      "2026-10-10..2026-10-17 paid 2026-10-18 8/7",
+      "2026-10-18..2026-10-23 paid 2026-10-24 6/7",
+    ]);
+
+    // Rolled back: the schedule is exactly as it was.
+    expect(db.select().from(schema.policyVersion).all().length).toBe(versionsBefore);
+    expect(coveredPeriodFor(householdId, childId, "2026-10-17")).toMatchObject({
+      startDate: "2026-10-10",
+      endDate: "2026-10-17",
+    });
+  });
+
+  it("a whole week the new schedule says has ended pays at the next run if nobody saves", () => {
+    const { householdId, childId } = setup({ startedOn: "2026-10-10" });
+    savePolicyChanges({
+      scopeType: "household",
+      scopeId: householdId,
+      effectiveFrom: "2026-10-01",
+      changes: [{ kind: "set", path: "pay.periodStartDay", value: 0 }],
+    });
+    runDays("2026-10-10", "2026-10-17");
+    toSaturdayWeeks(householdId, "2026-10-10");
+    runDays("2026-10-18", "2026-10-24");
+    expect(periods(childId)).toEqual([
+      "2026-10-10..2026-10-16 paid 2026-10-17",
+      "2026-10-17..2026-10-23 paid 2026-10-24",
+    ]);
+  });
+
+  it("a first pay week reaches back to the day payroll started", () => {
+    const { householdId, childId } = setup({ startedOn: "2026-10-14" });
+    runDays("2026-10-14", "2026-10-15");
+    toSaturdayWeeks(householdId, "2026-10-14");
+    // Wed Oct 14 – Fri Oct 16 is only three days: they join the next week.
+    expect(coveredPeriodFor(householdId, childId, "2026-10-15")).toMatchObject({
+      startDate: "2026-10-14",
       endDate: "2026-10-23",
       payDate: "2026-10-24",
     });
-    runDays("2026-10-18", "2026-10-31");
+    runDays("2026-10-16", "2026-10-31");
     expect(periods(childId)).toEqual([
-      "2026-10-12..2026-10-23 paid 2026-10-24",
+      "2026-10-14..2026-10-23 paid 2026-10-24",
       "2026-10-24..2026-10-30 paid 2026-10-31",
     ]);
   });
@@ -172,7 +284,10 @@ describe("pay schedule changes", () => {
   it("reaches back at most one extra period", () => {
     const { householdId, childId } = setup();
     runDays("2026-08-31", "2026-09-07"); // paid through Sun Sep 6, then nothing
-    expect(coveredPeriodFor(householdId, childId, "2026-10-14").startDate).toBe("2026-10-05");
+    expect(unpaidPeriods(householdId, childId, "2026-10-14")).toMatchObject([
+      { startDate: "2026-10-05", endDate: "2026-10-11" },
+      { startDate: "2026-10-12", endDate: "2026-10-18" },
+    ]);
   });
 
   it("replaces a stale draft over the same days instead of paying it as well", () => {
@@ -192,25 +307,77 @@ describe("pay schedule changes", () => {
     expectContiguous(childId);
   });
 
-  it("a waiting draft from the old schedule rolls into the first new week (this period)", () => {
+  it("a waiting draft from the old schedule is replaced (this period)", () => {
     const { householdId, childId } = setup({ startedOn: "2026-10-12" });
     runDays("2026-10-12", "2026-10-16");
     // Draft now, Friday, under the Monday schedule.
     draftPaystub(householdId, childId, "2026-10-12", "2026-10-18", "2026-10-19");
     runDays("2026-10-17", "2026-10-17");
     toSaturdayWeeks(householdId, "2026-10-12");
-    expect(coveredPeriodFor(householdId, childId, "2026-10-17")).toMatchObject({
-      startDate: "2026-10-12",
-      endDate: "2026-10-23",
-    });
     // Saving the change drops the stale draft, so it can't be posted by hand.
     expect(discardStaleDrafts(householdId)).toBe(1);
     expect(periods(childId)).toEqual([]);
     runDays("2026-10-18", "2026-10-31");
     expect(periods(childId)).toEqual([
-      "2026-10-12..2026-10-23 paid 2026-10-24",
+      "2026-10-12..2026-10-16 paid 2026-10-17",
+      "2026-10-17..2026-10-23 paid 2026-10-24",
       "2026-10-24..2026-10-30 paid 2026-10-31",
     ]);
+  });
+
+  it("a too-long draft that ends on schedule is still replaced", () => {
+    // Drafted while one transition period swallowed the week before it.
+    const { householdId, childId } = setup({ startedOn: "2026-10-10" });
+    toSaturdayWeeks(householdId, "2026-10-01");
+    draftPaystub(householdId, childId, "2026-10-10", "2026-10-23", "2026-10-24");
+    expect(discardStaleDrafts(householdId)).toBe(1);
+    runDays("2026-10-17", "2026-10-24");
+    expect(periods(childId)).toEqual([
+      "2026-10-10..2026-10-16 paid 2026-10-17",
+      "2026-10-17..2026-10-23 paid 2026-10-24",
+    ]);
+  });
+
+  it("a week paid early isn't offered again, and isn't paid twice", () => {
+    const { householdId, childId } = setup();
+    runDays("2026-10-12", "2026-10-14");
+    const stub = draftPaystub(householdId, childId, "2026-10-12", "2026-10-18", "2026-10-19");
+    postPaystub(stub);
+    expect(unpaidPeriods(householdId, childId, "2026-10-14")).toEqual([]);
+    expect(coveredPeriodFor(householdId, childId, "2026-10-14")).toMatchObject({
+      startDate: "2026-10-12",
+      endDate: "2026-10-18",
+      alreadyPaid: true,
+    });
+    runDays("2026-10-15", "2026-10-26");
+    expect(periods(childId).slice(-2)).toEqual([
+      "2026-10-12..2026-10-18 paid 2026-10-19",
+      "2026-10-19..2026-10-25 paid 2026-10-26",
+    ]);
+  });
+
+  it("every-two-weeks periods hold still from day to day", () => {
+    const { householdId, childId } = setup();
+    savePolicyChanges({
+      scopeType: "household",
+      scopeId: householdId,
+      effectiveFrom: "2026-01-01",
+      changes: [{ kind: "set", path: "pay.cadence", value: "biweekly" }],
+    });
+    const seen = new Set<string>();
+    for (let d = "2026-10-05"; d <= "2026-10-18"; d = addDays(d, 1)) {
+      const p = coveredPeriodFor(householdId, childId, d);
+      seen.add(`${p.startDate}..${p.endDate}`);
+    }
+    expect(seen.size).toBeLessThanOrEqual(2);
+    runDays("2026-09-01", "2026-11-01");
+    const rows = periods(childId);
+    expect(rows.length).toBeGreaterThanOrEqual(4);
+    expectContiguous(childId);
+    for (const r of rows.slice(1)) {
+      const [start, end] = r.split(" ")[0].split("..");
+      expect(addDays(start, 13)).toBe(end);
+    }
   });
 
   it("a waiting draft still pays as planned when the change starts next period", () => {

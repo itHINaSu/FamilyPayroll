@@ -248,6 +248,31 @@ export function resolvePolicy(
   return policy;
 }
 
+/**
+ * resolvePolicy for one child across many dates — every version is read once,
+ * for walking a pay schedule day by day.
+ */
+export function policyResolver(householdId: string, childId: string | null): (onDate: string) => Policy {
+  const versions = (scopeType: "household" | "child", scopeId: string) =>
+    db
+      .select({ effectiveFrom: policyVersion.effectiveFrom, payload: policyVersion.payloadJson })
+      .from(policyVersion)
+      .where(and(eq(policyVersion.scopeType, scopeType), eq(policyVersion.scopeId, scopeId)))
+      .orderBy(desc(policyVersion.effectiveFrom), desc(policyVersion.createdAt))
+      .all();
+  const household = versions("household", householdId);
+  const forChild = childId ? versions("child", childId) : [];
+
+  return (onDate) => {
+    let policy = DEFAULT_POLICY;
+    const h = household.find((v) => v.effectiveFrom <= onDate);
+    if (h) policy = mergePolicy(policy, h.payload as PartialPolicy);
+    const c = forChild.find((v) => v.effectiveFrom <= onDate);
+    if (c) policy = mergePolicy(policy, c.payload as PartialPolicy);
+    return policy;
+  };
+}
+
 export function resolveHouseholdPolicy(householdId: string, onDate?: string): Policy {
   return resolvePolicy(householdId, null, onDate);
 }

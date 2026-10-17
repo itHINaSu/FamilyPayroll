@@ -1,10 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 
 import { db } from "@/db";
-import { auditLog, household, user } from "@/db/schema";
+import { auditLog, household, payPeriod, paystub, user } from "@/db/schema";
 import { requireParent } from "@/lib/auth/guard";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import {
@@ -16,19 +16,17 @@ import {
 } from "@/lib/auth/totp";
 import { UsernameSchema } from "@/lib/auth/username";
 import { createBackup, resetHistory, restoreFromUpload, type ResetScope } from "@/lib/backup";
-import { pausePayroll, resumePayroll } from "@/lib/payroll-pause";
+import { pausePayroll, payrollPausedOn, resumePayroll } from "@/lib/payroll-pause";
 import { getChild } from "@/lib/children";
-import { addDays, formatDateRange, formatShortDate, todayInHousehold } from "@/lib/dates";
+import { formatDateRange, formatShortDate, todayInHousehold } from "@/lib/dates";
+import { getOverrides, resolvePolicy, type PolicyChange } from "@/lib/policy";
+import { runPayrollCycle } from "@/lib/payroll";
 import {
-  PAY_PERIOD_SECTIONS,
-  changeSection,
-  getOverrides,
-  resolvePolicy,
-  savePolicyChanges,
-  type PolicyChange,
-} from "@/lib/policy";
-import { discardStaleDrafts } from "@/lib/payroll";
-import { periodChoice } from "@/lib/policy-schedule";
+  periodChoice,
+  previewPayChoices,
+  saveDatedChanges,
+  type PayPreview,
+} from "@/lib/policy-schedule";
 import { SETTINGS_SECTIONS, getAtPath } from "@/lib/settings-schema";
 
 export type SettingsState = { error?: string; ok?: boolean; message?: string };
@@ -49,59 +47,69 @@ function saveDated(input: {
   applyFrom: FormDataEntryValue | null;
   userId: string;
   note?: string;
-}) {
+}): { startsOn: string | null; paidNow: { startDate: string; endDate: string }[] } {
   const today = todayInHousehold();
-  const childId = input.scopeType === "child" ? input.scopeId : null;
-  const period = periodChoice(input.householdId, childId, today);
-
-  const pay = input.changes.filter((c) => PAY_PERIOD_SECTIONS.includes(changeSection(c)));
-  const other = input.changes.filter((c) => !PAY_PERIOD_SECTIONS.includes(changeSection(c)));
-  const payFrom = input.applyFrom === "next" ? addDays(period.endDate, 1) : period.startDate;
-
-  const common = {
+  const { payChanged, startsOn } = saveDatedChanges({
+    householdId: input.householdId,
     scopeType: input.scopeType,
     scopeId: input.scopeId,
+    changes: input.changes,
+    applyFrom: input.applyFrom === "next" ? "next" : "current",
+    today,
     createdByUserId: input.userId,
     note: input.note,
-  };
-  savePolicyChanges({ ...common, changes: other, effectiveFrom: today });
-  savePolicyChanges({ ...common, changes: pay, effectiveFrom: payFrom });
-  // A draft made under the old schedule would otherwise still post.
-  if (pay.length > 0) discardStaleDrafts(input.householdId);
+  });
 
-  return pay.length > 0 && input.applyFrom === "next" ? payFrom : null;
+  // A schedule change can leave a period that has already ended and is due —
+  // pay it now, as this morning's run would have with the change in place,
+  // rather than a day late at tomorrow's.
+  let paidNow: { startDate: string; endDate: string }[] = [];
+  if (payChanged && !payrollPausedOn(input.householdId)) {
+    const { posted } = runPayrollCycle(today, { householdId: input.householdId });
+    if (posted.length > 0) {
+      paidNow = db
+        .selectDistinct({ startDate: payPeriod.startDate, endDate: payPeriod.endDate })
+        .from(paystub)
+        .innerJoin(payPeriod, eq(paystub.payPeriodId, payPeriod.id))
+        .where(inArray(paystub.id, posted))
+        .all();
+    }
+  }
+  return { startsOn, paidNow };
 }
 
 /**
- * Save a settings change as NEW policy versions — nothing is updated in
- * place, so a pay stub from last year still resolves the policy that
- * produced it.
- *
- * Only what actually changed is recorded (compared with what the form was
- * showing), so saving one field can't overwrite a different change that's
- * already scheduled for the next pay period. At child scope a ticked section
- * becomes an override and an unticked one goes back to the family's rules.
+ * The changes a settings form asks for, compared with what it was showing —
+ * so saving one field can't overwrite a different change that's already
+ * scheduled for the next pay period. At child scope a ticked section becomes
+ * an override and an unticked one goes back to the family's rules.
  */
-export async function saveSettings(
-  _prev: SettingsState,
+function collectChanges(
+  householdId: string,
   formData: FormData,
-): Promise<SettingsState> {
-  const parent = await requireParent();
-
+):
+  | { error: string }
+  | {
+      scopeType: "household" | "child";
+      scopeId: string;
+      changes: PolicyChange[];
+      overrides: Record<string, unknown>;
+      today: string;
+    } {
   const scopeType = String(formData.get("scopeType") ?? "household") as
     | "household"
     | "child";
   const scopeId = String(formData.get("scopeId") ?? "");
 
-  if (scopeType === "child" && !getChild(parent.householdId, scopeId)) {
+  if (scopeType === "child" && !getChild(householdId, scopeId)) {
     return { error: "That child could not be found." };
   }
-  if (scopeType === "household" && scopeId !== parent.householdId) {
+  if (scopeType === "household" && scopeId !== householdId) {
     return { error: "That household could not be found." };
   }
 
   const today = todayInHousehold();
-  const shown = resolvePolicy(parent.householdId, scopeType === "child" ? scopeId : null, today);
+  const shown = resolvePolicy(householdId, scopeType === "child" ? scopeId : null, today);
   const overrides = getOverrides(scopeType, scopeId, today) as Record<string, unknown>;
   const rendered = new Set(formData.getAll("__fields").map(String));
   const changes: PolicyChange[] = [];
@@ -144,9 +152,26 @@ export async function saveSettings(
     }
   }
 
+  return { scopeType, scopeId, changes, overrides, today };
+}
+
+/**
+ * Save a settings change as NEW policy versions — nothing is updated in
+ * place, so a pay stub from last year still resolves the policy that
+ * produced it.
+ */
+export async function saveSettings(
+  _prev: SettingsState,
+  formData: FormData,
+): Promise<SettingsState> {
+  const parent = await requireParent();
+  const collected = collectChanges(parent.householdId, formData);
+  if ("error" in collected) return { error: collected.error };
+  const { scopeType, scopeId, changes, overrides, today } = collected;
+
   if (changes.length === 0) return { ok: true, message: "Nothing changed." };
 
-  const startsOn = saveDated({
+  const { startsOn, paidNow } = saveDated({
     householdId: parent.householdId,
     scopeType,
     scopeId,
@@ -168,12 +193,15 @@ export async function saveSettings(
 
   revalidatePath("/", "layout");
 
-  // After a pay-schedule change, say what the current period has become —
-  // a transition period can run longer or shorter than a normal one.
+  // After a pay-schedule change, say what was paid and what the current
+  // period has become — a transition period can run longer or shorter.
   let periodNote = "";
+  if (paidNow.length > 0) {
+    periodNote += ` ${paidNow.map((p) => formatDateRange(p.startDate, p.endDate)).join(" and ")} was due, so it's been paid.`;
+  }
   if (changes.some((c) => c.kind === "set" && c.path.startsWith("pay."))) {
     const p = periodChoice(parent.householdId, scopeType === "child" ? scopeId : null, today);
-    periodNote = ` This pay period is now ${formatDateRange(p.startDate, p.endDate)}, paid ${formatShortDate(p.payDate)}.`;
+    periodNote += ` This pay period is now ${formatDateRange(p.startDate, p.endDate)}, paid ${formatShortDate(p.payDate)}.`;
   }
 
   return {
@@ -183,6 +211,23 @@ export async function saveSettings(
         ? `Saved. It starts with the pay period that begins ${formatShortDate(startsOn)}.`
         : "Saved.") + periodNote,
   };
+}
+
+/**
+ * For the "when should this start?" prompt: what each answer would do to the
+ * pay periods, before anything is saved.
+ */
+export async function previewSettings(formData: FormData): Promise<PayPreview | null> {
+  const parent = await requireParent();
+  const collected = collectChanges(parent.householdId, formData);
+  if ("error" in collected || collected.changes.length === 0) return null;
+  return previewPayChoices({
+    householdId: parent.householdId,
+    scopeType: collected.scopeType,
+    scopeId: collected.scopeId,
+    changes: collected.changes,
+    today: collected.today,
+  });
 }
 
 /** Drop every override for a child, returning them to the family's rules. */

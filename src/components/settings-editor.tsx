@@ -1,14 +1,18 @@
 "use client";
 
-import { useActionState, useEffect, useId, useState } from "react";
+import { useActionState, useEffect, useId, useRef, useState } from "react";
 
 import { Sheet } from "@/components/sheet";
 import { Alert, Button, Card, CheckField, Field, Input, Select } from "@/components/ui";
-import { saveSettings, type SettingsState } from "@/app/(app)/settings/actions";
+import {
+  previewSettings,
+  saveSettings,
+  type SettingsState,
+} from "@/app/(app)/settings/actions";
 import { formatDateRange, formatShortDate } from "@/lib/dates";
 import { SETTINGS_SECTIONS, getAtPath, type FieldSpec } from "@/lib/settings-schema";
 import type { Policy } from "@/lib/policy";
-import type { PeriodChoice } from "@/lib/policy-schedule";
+import type { PayPreview, PeriodChoice, PreviewPeriod } from "@/lib/policy-schedule";
 
 /** Must match PAY_PERIOD_SECTIONS in lib/policy.ts (a server module). */
 const PAY_PERIOD_SECTIONS = ["pay", "completion", "allocation", "interest", "bills"];
@@ -102,6 +106,19 @@ export function SettingsEditor({
   // Whether anything that affects pay has been touched since the last save.
   const [payTouched, setPayTouched] = useState(false);
   const [asking, setAsking] = useState(false);
+  // What each answer would do, worked out on the server when the sheet opens.
+  const [preview, setPreview] = useState<PayPreview | null | "loading">("loading");
+  const formRef = useRef<HTMLFormElement>(null);
+  const previewRun = useRef(0);
+
+  const ask = () => {
+    setAsking(true);
+    setPreview("loading");
+    const run = ++previewRun.current;
+    previewSettings(new FormData(formRef.current!))
+      .then((p) => run === previewRun.current && setPreview(p))
+      .catch(() => run === previewRun.current && setPreview(null));
+  };
 
   useEffect(() => {
     setAsking(false);
@@ -116,7 +133,7 @@ export function SettingsEditor({
   const saveButton = (
     <Button
       type={mustAsk ? "button" : "submit"}
-      onClick={mustAsk ? () => setAsking(true) : undefined}
+      onClick={mustAsk ? ask : undefined}
       disabled={pending}
     >
       {pending ? "Saving…" : "Save settings"}
@@ -149,6 +166,7 @@ export function SettingsEditor({
   return (
     <form
       id={formId}
+      ref={formRef}
       action={formAction}
       onChange={(e) => {
         const name = (e.target as unknown as { name?: string }).name ?? "";
@@ -282,7 +300,9 @@ export function SettingsEditor({
               value="current"
               pending={pending}
               title="This pay period"
-              detail={`Counts for ${formatDateRange(period.startDate, period.endDate)}, paid ${formatShortDate(period.payDate)}.`}
+              detail={`Counts from ${formatShortDate(period.startDate)}.`}
+              periods={preview === "loading" ? "loading" : preview?.current}
+              preview={preview}
             />
             <WhenButton
               form={formId}
@@ -290,6 +310,8 @@ export function SettingsEditor({
               pending={pending}
               title="Next pay period"
               detail={`Starts ${formatShortDate(period.nextStart)}. This period finishes under the current rules.`}
+              periods={preview === "loading" ? "loading" : preview?.next}
+              preview={preview}
             />
           </div>
         </Sheet>
@@ -298,19 +320,38 @@ export function SettingsEditor({
   );
 }
 
-/** One answer in the "when should this start?" sheet — it submits the form. */
+/** "Oct 10 – 16 · paid now · 6 days" — one period an answer would lead to. */
+function periodLine(p: PreviewPeriod, preview: PayPreview): string {
+  const paid =
+    p.payDate > preview.today
+      ? `paid ${formatShortDate(p.payDate)}`
+      : preview.paused
+        ? "due when payroll resumes"
+        : "paid when you save";
+  const odd = p.days === p.usualDays ? "" : ` · ${p.days} days`;
+  return `${formatDateRange(p.startDate, p.endDate)} · ${paid}${odd}`;
+}
+
+/**
+ * One answer in the "when should this start?" sheet — it submits the form.
+ * Underneath, the pay periods that answer leads to.
+ */
 function WhenButton({
   form,
   value,
   pending,
   title,
   detail,
+  periods,
+  preview,
 }: {
   form: string;
   value: "current" | "next";
   pending: boolean;
   title: string;
   detail: string;
+  periods?: PreviewPeriod[] | "loading";
+  preview: PayPreview | null | "loading";
 }) {
   return (
     <button
@@ -323,6 +364,21 @@ function WhenButton({
     >
       <span className="block font-medium">{title}</span>
       <span className="mt-0.5 block text-sm text-ink-400">{detail}</span>
+      {periods === "loading" ? (
+        <span className="mt-1.5 block text-sm text-ink-400">Working out the dates…</span>
+      ) : (
+        periods &&
+        preview &&
+        preview !== "loading" && (
+          <span className="mt-1.5 block space-y-0.5">
+            {periods.map((p) => (
+              <span key={p.startDate} className="block text-sm">
+                {periodLine(p, preview)}
+              </span>
+            ))}
+          </span>
+        )
+      )}
     </button>
   );
 }
