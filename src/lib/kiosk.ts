@@ -7,10 +7,10 @@ import { db } from "@/db";
 import { child, device } from "@/db/schema";
 import { upcomingBills } from "@/lib/bills";
 import { ageFromBirthdate, listEarningChildren } from "@/lib/children";
-import { payPeriodFor, todayInHousehold } from "@/lib/dates";
+import { todayInHousehold } from "@/lib/dates";
 import { listGoals } from "@/lib/goals";
 import { getBalances } from "@/lib/ledger";
-import { computeDraft } from "@/lib/payroll";
+import { computeDraft, coveredPeriodFor } from "@/lib/payroll";
 import { resolvePolicy } from "@/lib/policy";
 import { evaluatePeriod, listResponsibilities } from "@/lib/responsibilities";
 
@@ -93,11 +93,7 @@ export function kioskRoster(householdId: string): KioskChild[] {
 
   return children.map((c) => {
     const policy = resolvePolicy(householdId, c.id, today);
-    const period = payPeriodFor(today, {
-      cadence: policy.pay.cadence,
-      periodStartDay: policy.pay.periodStartDay,
-      payDateOffsetDays: policy.pay.payDateOffsetDays,
-    });
+    const period = coveredPeriodFor(householdId, c.id, today);
 
     // getBalances returns `held`, so it is destructured away rather than spread.
     const balances = getBalances(c.id);

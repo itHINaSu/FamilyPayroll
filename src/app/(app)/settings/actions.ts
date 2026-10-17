@@ -18,7 +18,7 @@ import { UsernameSchema } from "@/lib/auth/username";
 import { createBackup, resetHistory, restoreFromUpload, type ResetScope } from "@/lib/backup";
 import { pausePayroll, resumePayroll } from "@/lib/payroll-pause";
 import { getChild } from "@/lib/children";
-import { addDays, formatShortDate, todayInHousehold } from "@/lib/dates";
+import { addDays, formatDateRange, formatShortDate, todayInHousehold } from "@/lib/dates";
 import {
   PAY_PERIOD_SECTIONS,
   changeSection,
@@ -27,6 +27,7 @@ import {
   savePolicyChanges,
   type PolicyChange,
 } from "@/lib/policy";
+import { discardStaleDrafts } from "@/lib/payroll";
 import { periodChoice } from "@/lib/policy-schedule";
 import { SETTINGS_SECTIONS, getAtPath } from "@/lib/settings-schema";
 
@@ -65,6 +66,8 @@ function saveDated(input: {
   };
   savePolicyChanges({ ...common, changes: other, effectiveFrom: today });
   savePolicyChanges({ ...common, changes: pay, effectiveFrom: payFrom });
+  // A draft made under the old schedule would otherwise still post.
+  if (pay.length > 0) discardStaleDrafts(input.householdId);
 
   return pay.length > 0 && input.applyFrom === "next" ? payFrom : null;
 }
@@ -164,11 +167,21 @@ export async function saveSettings(
     .run();
 
   revalidatePath("/", "layout");
+
+  // After a pay-schedule change, say what the current period has become —
+  // a transition period can run longer or shorter than a normal one.
+  let periodNote = "";
+  if (changes.some((c) => c.kind === "set" && c.path.startsWith("pay."))) {
+    const p = periodChoice(parent.householdId, scopeType === "child" ? scopeId : null, today);
+    periodNote = ` This pay period is now ${formatDateRange(p.startDate, p.endDate)}, paid ${formatShortDate(p.payDate)}.`;
+  }
+
   return {
     ok: true,
-    message: startsOn
-      ? `Saved. It starts with the pay period that begins ${formatShortDate(startsOn)}.`
-      : "Saved.",
+    message:
+      (startsOn
+        ? `Saved. It starts with the pay period that begins ${formatShortDate(startsOn)}.`
+        : "Saved.") + periodNote,
   };
 }
 

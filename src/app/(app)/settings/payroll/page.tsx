@@ -7,7 +7,8 @@ import { paystub } from "@/db/schema";
 import { getHousehold, requireParent } from "@/lib/auth/guard";
 import { heldFundTotal } from "@/lib/bills";
 import { listEarningChildren } from "@/lib/children";
-import { payPeriodFor, todayInHousehold } from "@/lib/dates";
+import { todayInHousehold } from "@/lib/dates";
+import { coveredPeriodFor } from "@/lib/payroll";
 import { formatCents } from "@/lib/money";
 import {
   checkGuardrails,
@@ -37,12 +38,7 @@ export default async function PayrollSettingsPage() {
     showNotYetEarning: false,
     order: policy.display.childOrder,
   }).map((c) => {
-    const p = resolvePolicy(parent.householdId, c.id, today).pay;
-    const period = payPeriodFor(today, {
-      cadence: p.cadence,
-      periodStartDay: p.periodStartDay,
-      payDateOffsetDays: p.payDateOffsetDays,
-    });
+    const period = coveredPeriodFor(parent.householdId, c.id, today);
     const draft = db
       .select({ id: paystub.id })
       .from(paystub)

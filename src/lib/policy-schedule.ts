@@ -1,6 +1,8 @@
 import "server-only";
 
+import { listEarningChildren } from "@/lib/children";
 import { addDays, payPeriodFor } from "@/lib/dates";
+import { coveredPeriodFor } from "@/lib/payroll";
 import { resolvePolicy, scheduledVersionDates } from "@/lib/policy";
 import { SETTINGS_SECTIONS, getAtPath, type FieldSpec } from "@/lib/settings-schema";
 
@@ -8,7 +10,24 @@ import { SETTINGS_SECTIONS, getAtPath, type FieldSpec } from "@/lib/settings-sch
 export type PeriodChoice = { startDate: string; endDate: string; payDate: string; nextStart: string };
 
 export function periodChoice(householdId: string, childId: string | null, today: string): PeriodChoice {
-  const pay = resolvePolicy(householdId, childId, today).pay;
+  // The family's choice is shown for their first earning child, whose period
+  // follows what's actually been paid (see coveredPeriodFor).
+  const forChild =
+    childId ??
+    listEarningChildren(householdId, { showNotYetEarning: false })[0]?.id ??
+    null;
+
+  if (forChild) {
+    const period = coveredPeriodFor(householdId, forChild, today);
+    return {
+      startDate: period.startDate,
+      endDate: period.endDate,
+      payDate: period.payDate,
+      nextStart: addDays(period.endDate, 1),
+    };
+  }
+
+  const pay = resolvePolicy(householdId, null, today).pay;
   const period = payPeriodFor(today, {
     cadence: pay.cadence,
     periodStartDay: pay.periodStartDay,

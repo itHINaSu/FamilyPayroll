@@ -6,9 +6,10 @@ import { db } from "@/db";
 import { payPeriod, paystub } from "@/db/schema";
 import { upcomingBills } from "@/lib/bills";
 import { ageFromBirthdate, getChild, listEarningChildren } from "@/lib/children";
-import { payPeriodFor, todayInHousehold, type IsoDate } from "@/lib/dates";
+import { todayInHousehold, type IsoDate } from "@/lib/dates";
 import { getBalances } from "@/lib/ledger";
 import { pendingJobClaims } from "@/lib/jobs";
+import { coveredPeriodFor } from "@/lib/payroll";
 import { resolvePolicy } from "@/lib/policy";
 import {
   describeCadence,
@@ -69,11 +70,9 @@ function buildChildWeek(
   today: IsoDate,
 ): ChildWeek {
   const policy = resolvePolicy(householdId, c.id, today);
-  const period = payPeriodFor(today, {
-    cadence: policy.pay.cadence,
-    periodStartDay: policy.pay.periodStartDay,
-    payDateOffsetDays: policy.pay.payDateOffsetDays,
-  });
+  // The period that will actually be paid — after a schedule change it can
+  // be longer or shorter than a normal week (see coveredPeriodFor).
+  const period = coveredPeriodFor(householdId, c.id, today);
 
   const shortNames = new Map(
     listResponsibilityTemplates(householdId, false).map((t) => [t.id, t.shortName]),
